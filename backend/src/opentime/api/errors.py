@@ -1,8 +1,5 @@
 from opentime.domain.exceptions import (
-    AuthenticationError,
-    ConflictError,
     DomainError,
-    NotFoundError,
 )
 
 DOMAIN_ERROR_STATUS = {

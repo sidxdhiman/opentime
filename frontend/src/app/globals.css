@@ -18,6 +18,11 @@
   --color-accent-foreground: #0a0a0a;
   --color-card: #ffffff;
   --color-card-foreground: #0a0a0a;
+  --color-amber: #d97706;
+  --color-emerald: #059669;
+  --color-sky: #0284c7;
+  --color-rose: #e11d48;
+  --color-violet: #7c3aed;
   --radius-sm: 0.375rem;
   --radius-md: 0.5rem;
   --radius-lg: 0.75rem;

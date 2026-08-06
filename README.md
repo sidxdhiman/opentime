@@ -73,12 +73,39 @@ docker compose up
 
 ## Local Backend Development
 
+Two options — Docker (Postgres) or a zero-infrastructure local setup (SQLite).
+
+### Option A: Docker + Postgres (production-like)
+
 ```bash
 cd backend
 uv venv
 uv pip install -e ".[dev]"
+# ensure DATABASE_URL points at the Postgres in docker-compose
 uv run alembic upgrade head
 uv run uvicorn opentime.main:app --reload
+```
+
+### Option B: Local, no Docker (SQLite fallback)
+
+The backend supports SQLite out of the box for local dev — no Postgres, Redis, or
+MinIO required.
+
+```bash
+cd backend
+cp .env.example .env         # DATABASE_URL defaults to sqlite+aiosqlite:///./opentime-dev.db
+uv venv && uv pip install -e ".[dev]"     # or: python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
+uv run alembic upgrade head  # creates opentime-dev.db
+uv run uvicorn opentime.main:app --reload
+```
+
+API available at `http://localhost:8000` · Docs at `http://localhost:8000/docs`.
+
+### Local Backend with Docker
+
+```bash
+docker compose up -d postgres redis minio
+docker compose up backend
 ```
 
 ## Running Tests
@@ -87,6 +114,8 @@ uv run uvicorn opentime.main:app --reload
 cd backend
 uv run pytest
 ```
+
+Run the linter with `uv run ruff check src`.
 
 ## Tech Stack
 

@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field, PostgresDsn, RedisDsn
+from pydantic import Field, RedisDsn
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,7 +22,8 @@ class Settings(BaseSettings):
     port: int = 8000
 
     # Database
-    database_url: PostgresDsn = Field(
+    # Local dev without Docker: sqlite+aiosqlite:///./opentime-dev.db
+    database_url: str = Field(
         default="postgresql+asyncpg://opentime:opentime@localhost:5432/opentime"
     )
 
