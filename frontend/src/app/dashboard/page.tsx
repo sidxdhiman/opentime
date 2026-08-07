@@ -1,145 +1,111 @@
 "use client";
 
-import { useEffect } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
-  ArrowUpRight,
-  BookHeart,
-  BrainCircuit,
-  CalendarDays,
-  Footprints,
-  MessageSquareText,
+  Cpu,
+  UserCheck,
+  Clock,
+  ArrowRightLeft,
+  Activity,
+  Database,
   Sparkles,
-  Tags,
-  TrendingUp,
-  WandSparkles,
+  RefreshCw,
+  Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/lib/auth";
+import {
+  chronosApi,
+  EngineResponse,
+  IdentityProfile,
+  MemoryItem,
+  PatternItem,
+  ReflectionInsight,
+  TimelineEvent,
+} from "@/lib/chronosApi";
 
-const chapters = [
-  {
-    date: "Mar 2024",
-    title: "The threshold",
-    body: "First entries about leaving the familiar path. A lot of uncertainty — the memory analysis reads a leap, not a break.",
-    tags: [
-      { label: "Career", tone: "text-sky bg-sky/10 border-sky/30" },
-      { label: "Courage", tone: "text-violet bg-violet/10 border-violet/30" },
-    ],
-    accent: "#0284c7",
-    phase: 0,
-  },
-  {
-    date: "Jul 2024",
-    title: "Building in public",
-    body: "Daily notes on shipping the early product. This is where the discipline of a weekly reflection formed.",
-    tags: [
-      { label: "Craft", tone: "text-emerald bg-emerald/10 border-emerald/30" },
-      { label: "Discipline", tone: "text-amber bg-amber/10 border-amber/30" },
-    ],
-    accent: "#059669",
-    phase: 1,
-  },
-  {
-    date: "Nov 2024",
-    title: "The slow season",
-    body: "Quieter months about burnout and rest. The engine flagged this as a turning point — growth stopped being linear.",
-    tags: [
-      { label: "Rest", tone: "text-rose bg-rose/10 border-rose/30" },
-      { label: "Reflection", tone: "text-violet bg-violet/10 border-violet/30" },
-    ],
-    accent: "#e11d48",
-    phase: 2,
-  },
-  {
-    date: "Feb 2025",
-    title: "Recommitment",
-    body: "You returned with clearer values than you left with. Your writing shifted from 'should' to 'want'.",
-    tags: [
-      { label: "Values", tone: "text-amber bg-amber/10 border-amber/30" },
-      { label: "Focus", tone: "text-sky bg-sky/10 border-sky/30" },
-    ],
-    accent: "#d97706",
-    phase: 3,
-  },
-  {
-    date: "Today",
-    title: "Who you are now",
-    body: "Your most recent memories feel lighter. Gratitude and teaching keep surfacing — the engine sees your current self.",
-    tags: [
-      { label: "Gratitude", tone: "text-emerald bg-emerald/10 border-emerald/30" },
-      { label: "Mentorship", tone: "text-sky bg-sky/10 border-sky/30" },
-    ],
-    accent: "#7c3aed",
-    phase: 4,
-  },
-];
-
-const insights = [
-  {
-    icon: TrendingUp,
-    text: "Your writing has shifted from 'should' to 'want' — a sign of growing intrinsic motivation.",
-  },
-  {
-    icon: MessageSquareText,
-    text: "Mentorship appears 3.2× more often in the last 6 months than in the year before.",
-  },
-  {
-    icon: BookHeart,
-    text: "You mention 'rest' more after demanding seasons — you have built recovery into your rhythm.",
-  },
-];
-
-const themes = [
-  { label: "Career & craft", pct: 82, tone: "bg-sky" },
-  { label: "Rest & recovery", pct: 64, tone: "bg-rose" },
-  { label: "Relationships", pct: 57, tone: "bg-violet" },
-  { label: "Creativity", pct: 43, tone: "bg-emerald" },
-];
-
-const stats = [
-  { icon: BookHeart, label: "Memories captured", value: "128" },
-  { icon: Tags, label: "Themes discovered", value: "34" },
-  { icon: WandSparkles, label: "Insights generated", value: "12" },
-  { icon: CalendarDays, label: "Days tracked", value: "412" },
-];
-
-const container = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.08 } },
-};
-
-const item = {
-  hidden: { opacity: 0, y: 14 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.45, ease: "easeOut" } },
-};
-
-function initials(name?: string | null, email?: string) {
-  if (!name) return email?.[0]?.toUpperCase() ?? "?";
-  return name
-    .split(" ")
-    .slice(0, 2)
-    .map((p) => p[0])
-    .join("")
-    .toUpperCase();
-}
+import { VoiceVideoRecorder } from "@/components/chronos/VoiceVideoRecorder";
+import { ChronosEngineFeed } from "@/components/chronos/ChronosEngineFeed";
+import { IdentityModelCard } from "@/components/chronos/IdentityModelCard";
+import { TimelineEngineView } from "@/components/chronos/TimelineEngineView";
+import { ReflectionEngineView } from "@/components/chronos/ReflectionEngineView";
+import { PatternDetectionView } from "@/components/chronos/PatternDetectionView";
+import { MemoryGraphView } from "@/components/chronos/MemoryGraphView";
 
 export default function DashboardPage() {
   const { user, isLoading, logout } = useAuth();
   const router = useRouter();
 
+  const [activeTab, setActiveTab] = useState<"overview" | "identity" | "timeline" | "reflections" | "patterns" | "memories">("overview");
+
+  const [latestResponse, setLatestResponse] = useState<EngineResponse | null>(null);
+  const [identity, setIdentity] = useState<IdentityProfile | null>(null);
+  const [memories, setMemories] = useState<MemoryItem[]>([]);
+  const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
+  const [reflections, setReflections] = useState<ReflectionInsight[]>([]);
+  const [patterns, setPatterns] = useState<PatternItem[]>([]);
+  const [isDataLoading, setIsDataLoading] = useState(false);
+
+  const userId = user?.id || "user_default";
+
+  // Fetch engine state
+  const loadEngineData = useCallback(async () => {
+    setIsDataLoading(true);
+    try {
+      // First try fetching identity; if fails or empty, seed state
+      let id = await chronosApi.getIdentity(userId).catch(() => null);
+      if (!id) {
+        await chronosApi.seedState(userId);
+        id = await chronosApi.getIdentity(userId).catch(() => null);
+      }
+      setIdentity(id);
+
+      const [mems, time, refs, pats] = await Promise.all([
+        chronosApi.getMemories(userId),
+        chronosApi.getTimeline(userId),
+        chronosApi.getReflections(userId),
+        chronosApi.getPatterns(userId),
+      ]);
+
+      setMemories(mems);
+      setTimeline(time);
+      setReflections(refs);
+      setPatterns(pats);
+    } catch (e) {
+      console.error("Error loading ChronOS Engine data:", e);
+    } finally {
+      setIsDataLoading(false);
+    }
+  }, [userId]);
+
   useEffect(() => {
     if (!isLoading && !user) {
       router.push("/login");
+    } else if (user) {
+      loadEngineData();
     }
-  }, [user, isLoading, router]);
+  }, [user, isLoading, router, loadEngineData]);
+
+  const handleResponseReceived = async (response: EngineResponse) => {
+    setLatestResponse(response);
+    await loadEngineData();
+  };
+
+  const handleSeedState = async () => {
+    setIsDataLoading(true);
+    await chronosApi.seedState(userId);
+    await loadEngineData();
+  };
 
   if (isLoading || !user) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-10 w-10 animate-spin rounded-full border-3 border-violet-500 border-t-transparent" />
+          <span className="text-sm font-semibold text-violet-400">Initializing ChronOS Engine...</span>
+        </div>
       </div>
     );
   }
@@ -147,210 +113,204 @@ export default function DashboardPage() {
   const firstName = user.full_name?.split(" ")[0] ?? user.email;
 
   return (
-    <div className="min-h-screen">
-      <header className="sticky top-0 z-20 border-b border-border/80 bg-background/80 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-2">
-            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-foreground text-xs font-bold text-background">
-              T
-            </span>
-            <span className="text-base font-semibold tracking-tight">OpenTime</span>
-            <span className="ml-1 hidden rounded-full border border-border px-2 py-0.5 text-[11px] text-muted sm:inline">
-              Evolution Engine
-            </span>
-          </div>
+    <div className="min-h-screen bg-background text-foreground flex flex-col selection:bg-violet-500 selection:text-white">
+      {/* Sticky Header */}
+      <header className="sticky top-0 z-30 border-b border-border/80 bg-background/80 backdrop-blur-md">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3.5">
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-xs font-semibold text-secondary-foreground">
-                {initials(user.full_name, user.email)}
-              </div>
-              <span className="hidden text-sm text-muted sm:inline">
-                {user.full_name ?? user.email}
-              </span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-violet-600 via-indigo-600 to-cyan-500 text-white font-black shadow-lg shadow-violet-600/30">
+              <Cpu className="h-5 w-5" />
             </div>
-            <Button variant="ghost" size="sm" onClick={() => logout()}>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-lg font-extrabold tracking-tight bg-gradient-to-r from-white via-violet-200 to-indigo-300 bg-clip-text text-transparent">
+                  OpenTime
+                </span>
+                <span className="rounded-full bg-violet-500/10 border border-violet-500/30 px-2.5 py-0.5 text-[11px] font-bold text-violet-300">
+                  ChronOS Core Engine
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSeedState}
+              disabled={isDataLoading}
+              className="h-8 text-xs border-violet-500/30 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20 gap-1.5"
+            >
+              <Zap className="h-3.5 w-3.5" /> Seed Historical Context
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={loadEngineData}
+              disabled={isDataLoading}
+              className="h-8 text-xs gap-1 text-muted hover:text-foreground"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isDataLoading ? "animate-spin" : ""}`} /> Refresh
+            </Button>
+
+            <Button variant="ghost" size="sm" onClick={() => logout()} className="h-8 text-xs text-rose-400 hover:bg-rose-500/10">
               Sign out
             </Button>
           </div>
         </div>
       </header>
 
-      <motion.main
-        variants={container}
-        initial="hidden"
-        animate="show"
-        className="mx-auto max-w-6xl px-6 py-10"
-      >
-        {/* Hero */}
-        <motion.section variants={item} className="flex flex-col gap-3">
-          <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs text-muted">
-              <Sparkles className="h-3.5 w-3.5 text-amber" />
-              Preview — memory upload lands in Phase 2
-            </span>
+      {/* Main Container */}
+      <main className="flex-1 mx-auto w-full max-w-7xl px-6 py-8 space-y-8">
+        {/* Hero Section */}
+        <section className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border/60 pb-6">
+          <div>
+            <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl text-foreground">
+              Welcome back, <span className="text-violet-400">{firstName}</span>
+            </h1>
+            <p className="text-sm text-muted mt-1 max-w-2xl leading-relaxed">
+              ChronOS is your model-agnostic reasoning, memory, and orchestration layer. Upload or record voice and video notes to continuously evolve your identity profile and timeline.
+            </p>
           </div>
-          <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
-            Your evolution,{" "}
-            <span className="bg-gradient-to-br from-foreground via-foreground to-muted bg-clip-text text-transparent">
-              as one timeline
-            </span>
-          </h1>
-          <p className="max-w-2xl text-lg leading-relaxed text-muted">
-            Welcome back, {firstName}. OpenTime reads your memories, finds the themes that
-            matter to you, and shows how you changed through them — one reflection at a
-            time.
-          </p>
-        </motion.section>
 
-        {/* Stats */}
-        <motion.section
-          variants={item}
-          className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-4"
-        >
-          {stats.map((s) => (
-            <Card key={s.label} className="p-4">
-              <div className="flex items-center gap-2 text-muted">
-                <s.icon className="h-4 w-4" />
-                <span className="text-[11px] uppercase tracking-wide">{s.label}</span>
-              </div>
-              <p className="mt-3 text-3xl font-semibold tracking-tight">{s.value}</p>
-            </Card>
-          ))}
-        </motion.section>
-
-        <div className="mt-10 grid gap-8 lg:grid-cols-3">
-          {/* Timeline */}
-          <motion.section variants={item} className="lg:col-span-2">
-            <div className="mb-5 flex items-center justify-between">
-              <h2 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-                <Footprints className="h-5 w-5" />
-                Your chapters
-              </h2>
-              <span className="text-sm text-muted-foreground">5 of 5 reflections</span>
+          <div className="flex items-center gap-4 bg-secondary/40 border border-border/80 rounded-2xl p-4 shrink-0">
+            <div className="text-center px-2">
+              <span className="text-2xl font-bold text-violet-400 font-mono">{memories.length}</span>
+              <p className="text-[10px] text-muted font-medium uppercase tracking-wider">Memories</p>
             </div>
-
-            <div className="relative">
-              <div
-                className="absolute bottom-3 left-[9px] top-3 w-px bg-gradient-to-b from-sky/60 via-rose/40 to-violet"
-                aria-hidden
-              />
-              <ol className="space-y-6">
-                {chapters.map((c) => (
-                  <motion.li
-                    key={c.title}
-                    variants={item}
-                    className="group relative pl-9"
-                  >
-                    <span
-                      className="absolute left-0 top-2 h-[18px] w-[18px] rounded-full border-4 border-background shadow"
-                      style={{ backgroundColor: c.accent }}
-                      aria-hidden
-                    />
-                    <Card className="transition-colors group-hover:border-border">
-                      <CardContent className="p-5">
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                          <span className="text-xs font-medium uppercase tracking-wide text-muted">
-                            {c.date}
-                          </span>
-                          <h3 className="text-base font-semibold">{c.title}</h3>
-                        </div>
-                        <p className="mt-2 text-sm leading-relaxed text-muted">{c.body}</p>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {c.tags.map((t) => (
-                            <span
-                              key={t.label}
-                              className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${t.tone}`}
-                            >
-                              {t.label}
-                            </span>
-                          ))}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </motion.li>
-                ))}
-              </ol>
+            <div className="h-8 w-px bg-border" />
+            <div className="text-center px-2">
+              <span className="text-2xl font-bold text-indigo-400 font-mono">{timeline.length}</span>
+              <p className="text-[10px] text-muted font-medium uppercase tracking-wider">Events</p>
             </div>
-          </motion.section>
-
-          {/* Right rail */}
-          <div className="flex flex-col gap-6">
-            {/* AI reflections */}
-            <motion.section variants={item}>
-              <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold tracking-tight">
-                <BrainCircuit className="h-5 w-5" />
-                Reflections
-              </h2>
-              <Card>
-                <CardContent className="divide-y divide-border p-0">
-                  {insights.map((insight) => (
-                    <div key={insight.text} className="flex gap-3 p-4">
-                      <insight.icon className="mt-0.5 h-4 w-4 shrink-0 text-amber" />
-                      <p className="text-sm leading-relaxed text-foreground">
-                        {insight.text}
-                      </p>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            </motion.section>
-
-            {/* Themes */}
-            <motion.section variants={item}>
-              <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold tracking-tight">
-                <Tags className="h-5 w-5" />
-                What you care about
-              </h2>
-              <Card>
-                <CardContent className="space-y-4 p-5">
-                  {themes.map((t) => (
-                    <div key={t.label}>
-                      <div className="mb-1.5 flex items-center justify-between text-sm">
-                        <span>{t.label}</span>
-                        <span className="text-muted">{t.pct}%</span>
-                      </div>
-                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
-                        <motion.div
-                          className={`h-full rounded-full ${t.tone}`}
-                          initial={{ width: 0 }}
-                          whileInView={{ width: `${t.pct}%` }}
-                          viewport={{ once: true }}
-                          transition={{ duration: 0.9, ease: "easeOut" }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            </motion.section>
-
-            {/* CTA */}
-            <motion.section variants={item}>
-              <Card className="bg-foreground text-background">
-                <CardContent className="p-6">
-                  <h3 className="text-lg font-semibold tracking-tight">
-                    Capture tomorrow
-                  </h3>
-                  <p className="mt-2 text-sm leading-relaxed text-background/70">
-                    The more you record, the sharper your story becomes. Your first
-                    memory becomes the seed of every insight.
-                  </p>
-                  <Button
-                    className="mt-5 w-full bg-background text-foreground hover:bg-background/90"
-                    disabled
-                  >
-                    <ArrowUpRight className="h-4 w-4" />
-                    Add a memory — coming soon
-                  </Button>
-                </CardContent>
-              </Card>
-            </motion.section>
+            <div className="h-8 w-px bg-border" />
+            <div className="text-center px-2">
+              <span className="text-2xl font-bold text-emerald-400 font-mono">{reflections.length}</span>
+              <p className="text-[10px] text-muted font-medium uppercase tracking-wider">Reflections</p>
+            </div>
           </div>
+        </section>
+
+        {/* Tab Navigation */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-border/60">
+          <button
+            onClick={() => setActiveTab("overview")}
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+              activeTab === "overview"
+                ? "bg-violet-600 text-white shadow-lg shadow-violet-600/30"
+                : "text-muted hover:text-foreground hover:bg-secondary/50"
+            }`}
+          >
+            <Cpu className="h-4 w-4" /> Overview & Interactive Feed
+          </button>
+          <button
+            onClick={() => setActiveTab("identity")}
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+              activeTab === "identity"
+                ? "bg-violet-600 text-white shadow-lg shadow-violet-600/30"
+                : "text-muted hover:text-foreground hover:bg-secondary/50"
+            }`}
+          >
+            <UserCheck className="h-4 w-4" /> Identity Model (v{identity?.version || 1})
+          </button>
+          <button
+            onClick={() => setActiveTab("timeline")}
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+              activeTab === "timeline"
+                ? "bg-violet-600 text-white shadow-lg shadow-violet-600/30"
+                : "text-muted hover:text-foreground hover:bg-secondary/50"
+            }`}
+          >
+            <Clock className="h-4 w-4" /> Timeline Engine
+          </button>
+          <button
+            onClick={() => setActiveTab("reflections")}
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+              activeTab === "reflections"
+                ? "bg-violet-600 text-white shadow-lg shadow-violet-600/30"
+                : "text-muted hover:text-foreground hover:bg-secondary/50"
+            }`}
+          >
+            <ArrowRightLeft className="h-4 w-4" /> Past vs Current Self
+          </button>
+          <button
+            onClick={() => setActiveTab("patterns")}
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+              activeTab === "patterns"
+                ? "bg-violet-600 text-white shadow-lg shadow-violet-600/30"
+                : "text-muted hover:text-foreground hover:bg-secondary/50"
+            }`}
+          >
+            <Activity className="h-4 w-4" /> Pattern Detection
+          </button>
+          <button
+            onClick={() => setActiveTab("memories")}
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+              activeTab === "memories"
+                ? "bg-violet-600 text-white shadow-lg shadow-violet-600/30"
+                : "text-muted hover:text-foreground hover:bg-secondary/50"
+            }`}
+          >
+            <Database className="h-4 w-4" /> Memory Graph ({memories.length})
+          </button>
         </div>
-      </motion.main>
 
-      <footer className="mx-auto max-w-6xl px-6 pb-10 pt-4 text-center text-sm text-muted-foreground">
-        Your data stays yours. OpenTime only reads what you choose to share.
+        {/* TAB 1: OVERVIEW & INTERACTIVE FEED */}
+        {activeTab === "overview" && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            {/* Left Column: Multimodal Input & ChronOS Output */}
+            <div className="lg:col-span-7 space-y-6">
+              <VoiceVideoRecorder onResponseReceived={handleResponseReceived} userId={userId} />
+              <ChronosEngineFeed response={latestResponse} />
+            </div>
+
+            {/* Right Column: Evolving Identity Profile & Reflection Insights Highlights */}
+            <div className="lg:col-span-5 space-y-6">
+              <IdentityModelCard identity={identity} onRefresh={loadEngineData} />
+              <ReflectionEngineView reflections={reflections.slice(0, 2)} />
+            </div>
+          </div>
+        )}
+
+        {/* TAB 2: IDENTITY MODEL */}
+        {activeTab === "identity" && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            <IdentityModelCard identity={identity} onRefresh={loadEngineData} />
+          </div>
+        )}
+
+        {/* TAB 3: TIMELINE ENGINE */}
+        {activeTab === "timeline" && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            <TimelineEngineView events={timeline} />
+          </div>
+        )}
+
+        {/* TAB 4: REFLECTIONS (PAST VS CURRENT SELF) */}
+        {activeTab === "reflections" && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            <ReflectionEngineView reflections={reflections} />
+          </div>
+        )}
+
+        {/* TAB 5: PATTERN DETECTION */}
+        {activeTab === "patterns" && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            <PatternDetectionView patterns={patterns} />
+          </div>
+        )}
+
+        {/* TAB 6: MEMORY SYSTEM GRAPH */}
+        {activeTab === "memories" && (
+          <div className="max-w-4xl mx-auto space-y-6">
+            <MemoryGraphView memories={memories} />
+          </div>
+        )}
+      </main>
+
+      <footer className="border-t border-border/60 py-6 text-center text-xs text-muted">
+        OpenTime ChronOS Engine • Model-Agnostic Intelligence Layer • All data belongs to user
       </footer>
     </div>
   );

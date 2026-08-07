@@ -1,0 +1,192 @@
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+
+export interface UserInputPayload {
+  id: string;
+  user_id: string;
+  input_type: "text" | "audio" | "video" | "image";
+  content: string;
+  media_url?: string;
+  file_name?: string;
+  media_metadata?: Record<string, any>;
+  timestamp: string;
+}
+
+export interface MemoryItem {
+  id: string;
+  user_id: string;
+  content: string;
+  memory_type: string;
+  embedding: number[];
+  created_at: string;
+  timestamp: string;
+  importance_score: number;
+  linked_memory_ids: string[];
+  tags: string[];
+  metadata: Record<string, any>;
+}
+
+export interface TimelineEvent {
+  id: string;
+  user_id: string;
+  title: string;
+  description: string;
+  timestamp: string;
+  life_phase: string;
+  is_recurring: boolean;
+  frequency?: string;
+  memory_ids: string[];
+  sentiment: number;
+  belief_evolution_notes?: string;
+}
+
+export interface IdentityProfile {
+  user_id: string;
+  interests: string[];
+  goals: string[];
+  values: string[];
+  emotional_tendencies: Record<string, number>;
+  skills: string[];
+  relationships: Record<string, string>;
+  preferences: Record<string, any>;
+  decision_patterns: string[];
+  communication_style: string;
+  version: number;
+  last_updated: string;
+}
+
+export interface ReflectionInsight {
+  id: string;
+  user_id: string;
+  insight_type: string;
+  summary: string;
+  past_state_summary: string;
+  current_state_summary: string;
+  confidence_score: number;
+  supporting_memory_ids: string[];
+  reasoning_trace: string[];
+  affected_time_range: string;
+  timestamp: string;
+}
+
+export interface PatternItem {
+  id: string;
+  user_id: string;
+  category: string;
+  title: string;
+  description: string;
+  frequency: string;
+  confidence_score: number;
+  first_detected: string;
+  last_detected: string;
+  supporting_memory_ids: string[];
+}
+
+export interface ReasoningTrace {
+  confidence_score: number;
+  supporting_memory_ids: string[];
+  reasoning_steps: string[];
+  affected_time_range: string;
+  context_sources: string[];
+}
+
+export interface ValidationResult {
+  is_valid: boolean;
+  validated_response: string;
+  corrections_made: string[];
+  contradictions_detected: string[];
+  personalization_score: number;
+}
+
+export interface EngineResponse {
+  id: string;
+  user_id: string;
+  original_input: UserInputPayload;
+  raw_llm_response: string;
+  final_response: string;
+  provider_name: string;
+  model_name: string;
+  prompt_context: {
+    system_prompt: string;
+    user_prompt: string;
+    retrieved_context: any;
+  };
+  reasoning_trace: ReasoningTrace;
+  validation_result: ValidationResult;
+  processing_time_ms: number;
+  timestamp: string;
+}
+
+export const chronosApi = {
+  async processInput(formData: FormData): Promise<EngineResponse> {
+    const res = await fetch(`${API_URL}/chronos/process`, {
+      method: "POST",
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Engine execution failed" }));
+      throw new Error(err.detail || "ChronOS Engine execution failed");
+    }
+    return res.json();
+  },
+
+  async processInputJson(data: {
+    user_id?: string;
+    content?: string;
+    input_type?: string;
+    base64_data?: string;
+    file_name?: string;
+    provider_key?: string;
+    model_name?: string;
+  }): Promise<EngineResponse> {
+    const res = await fetch(`${API_URL}/chronos/process-json`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: "user_default", ...data }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: "Engine execution failed" }));
+      throw new Error(err.detail || "ChronOS Engine execution failed");
+    }
+    return res.json();
+  },
+
+  async getMemories(userId = "user_default"): Promise<MemoryItem[]> {
+    const res = await fetch(`${API_URL}/chronos/memories?user_id=${userId}`);
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async getTimeline(userId = "user_default"): Promise<TimelineEvent[]> {
+    const res = await fetch(`${API_URL}/chronos/timeline?user_id=${userId}`);
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async getIdentity(userId = "user_default"): Promise<IdentityProfile> {
+    const res = await fetch(`${API_URL}/chronos/identity?user_id=${userId}`);
+    if (!res.ok) throw new Error("Failed to load identity");
+    return res.json();
+  },
+
+  async getReflections(userId = "user_default"): Promise<ReflectionInsight[]> {
+    const res = await fetch(`${API_URL}/chronos/reflections?user_id=${userId}`);
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async getPatterns(userId = "user_default"): Promise<PatternItem[]> {
+    const res = await fetch(`${API_URL}/chronos/patterns?user_id=${userId}`);
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async getProviders(): Promise<{ active: string; available: Record<string, string> }> {
+    const res = await fetch(`${API_URL}/chronos/providers`);
+    if (!res.ok) return { active: "chronos", available: { chronos: "ChronOS Native" } };
+    return res.json();
+  },
+
+  async seedState(userId = "user_default"): Promise<void> {
+    await fetch(`${API_URL}/chronos/seed?user_id=${userId}`, { method: "POST" });
+  },
+};
