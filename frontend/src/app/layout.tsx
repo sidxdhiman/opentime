@@ -6,8 +6,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
-  title: "OpenTime",
-  description: "Understand how you evolve over time",
+  title: "OpenTime — The Personal Evolution Engine",
+  description: "ChronOS-powered AI that remembers who you were and understands who you're becoming. Multimodal memory, identity evolution, and intelligent reflection.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
