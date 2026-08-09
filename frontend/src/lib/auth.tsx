@@ -55,7 +55,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const response = await api.register({ email, password, full_name: fullName });
       api.storeTokens(response.tokens);
       setUser(response.user);
-      router.push("/dashboard");
+      // New users go through onboarding before the dashboard
+      router.push("/onboarding");
     },
     [router],
   );

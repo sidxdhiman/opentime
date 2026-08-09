@@ -21,11 +21,15 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
 
-    # Database
+    # Database (SQLAlchemy – auth)
     # Local dev without Docker: sqlite+aiosqlite:///./opentime-dev.db
     database_url: str = Field(
         default="postgresql+asyncpg://opentime:opentime@localhost:5432/opentime"
     )
+
+    # MongoDB (Chronos state, onboarding, memories)
+    mongodb_url: str = Field(default="mongodb://localhost:27017")
+    mongodb_db_name: str = Field(default="opentime")
 
     # Redis
     redis_url: RedisDsn = Field(default="redis://localhost:6379/0")
@@ -45,6 +49,11 @@ class Settings(BaseSettings):
     s3_secret_key: str = "minioadmin"
     s3_bucket_name: str = "opentime-memories"
     s3_region: str = "us-east-1"
+
+    # LLM / Embeddings (optional – system falls back to mocks when absent)
+    openai_api_key: str | None = Field(default=None)
+    llm_model: str = "gpt-4o-mini"
+    embedding_model: str = "text-embedding-3-small"
 
 
 @lru_cache
