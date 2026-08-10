@@ -76,6 +76,13 @@ class MongoMemoryRepository(MemoryRepository):
         ).sort("importance", -1).limit(20)
         return [Memory(**d) async for d in cursor]
 
+    async def update(self, memory: Memory) -> Memory | None:
+        doc = memory.model_dump(mode="json")
+        result = await self._col.replace_one(
+            {"id": memory.id, "user_id": memory.user_id}, doc
+        )
+        return memory if result.matched_count else None
+
     async def delete_all_for_user(self, user_id: str) -> int:
         result = await self._col.delete_many({"user_id": user_id})
         return result.deleted_count
@@ -150,6 +157,13 @@ class MongoGoalRepository(GoalRepository):
             {"$set": {"status": status}},
         )
         return await self.get_by_id(goal_id, user_id)
+
+    async def update(self, goal: Goal) -> Goal | None:
+        doc = goal.model_dump(mode="json")
+        result = await self._col.replace_one(
+            {"id": goal.id, "user_id": goal.user_id}, doc
+        )
+        return goal if result.matched_count else None
 
     async def delete_all_for_user(self, user_id: str) -> int:
         result = await self._col.delete_many({"user_id": user_id})
@@ -258,6 +272,15 @@ class MongoAnalysisPreferenceRepository(AnalysisPreferenceRepository):
     async def get_for_user(self, user_id: str) -> list[AnalysisPreferenceRecord]:
         cursor = self._col.find({"user_id": user_id}).sort("created_at", 1)
         return [AnalysisPreferenceRecord(**d) async for d in cursor]
+
+    async def replace_all_for_user(
+        self, user_id: str, records: list[AnalysisPreferenceRecord]
+    ) -> list[AnalysisPreferenceRecord]:
+        await self._col.delete_many({"user_id": user_id})
+        if records:
+            docs = [r.model_dump(mode="json") for r in records]
+            await self._col.insert_many(docs)
+        return records
 
     async def delete_all_for_user(self, user_id: str) -> int:
         result = await self._col.delete_many({"user_id": user_id})

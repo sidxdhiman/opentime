@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   Cpu,
@@ -153,6 +154,12 @@ export default function DashboardPage() {
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isDataLoading ? "animate-spin" : ""}`} /> Refresh
             </Button>
+
+            <Link href="/my-data">
+              <Button variant="ghost" size="sm" className="h-8 text-xs text-muted hover:text-foreground gap-1.5">
+                <Database className="h-3.5 w-3.5" /> My Data
+              </Button>
+            </Link>
 
             <Button variant="ghost" size="sm" onClick={() => logout()} className="h-8 text-xs text-rose-400 hover:bg-rose-500/10">
               Sign out

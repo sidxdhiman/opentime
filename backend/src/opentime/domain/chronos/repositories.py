@@ -39,6 +39,9 @@ class MemoryRepository(ABC):
     async def search_by_topics(self, user_id: str, topics: list[str]) -> list[Memory]: ...
 
     @abstractmethod
+    async def update(self, memory: Memory) -> Memory | None: ...
+
+    @abstractmethod
     async def delete_all_for_user(self, user_id: str) -> int: ...
 
 
@@ -76,6 +79,9 @@ class GoalRepository(ABC):
     async def update_status(
         self, goal_id: str, user_id: str, status: GoalStatus
     ) -> Goal | None: ...
+
+    @abstractmethod
+    async def update(self, goal: Goal) -> Goal | None: ...
 
     @abstractmethod
     async def delete_all_for_user(self, user_id: str) -> int: ...
@@ -123,6 +129,13 @@ class AnalysisPreferenceRepository(ABC):
 
     @abstractmethod
     async def get_for_user(self, user_id: str) -> list[AnalysisPreferenceRecord]: ...
+
+    @abstractmethod
+    async def replace_all_for_user(
+        self, user_id: str, records: list[AnalysisPreferenceRecord]
+    ) -> list[AnalysisPreferenceRecord]:
+        """Delete existing prefs and insert new set atomically."""
+        ...
 
     @abstractmethod
     async def delete_all_for_user(self, user_id: str) -> int: ...
