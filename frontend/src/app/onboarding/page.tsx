@@ -207,7 +207,7 @@ export default function OnboardingPage() {
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
     autosaveTimer.current = setTimeout(async () => {
       try {
-        await onboardingApi.saveDraft(session.session_id, form as Record<string, unknown>);
+        await onboardingApi.saveDraft(session.session_id, form as unknown as Record<string, unknown>);
       } catch { /* silent */ }
     }, 1500);
   }, [session, form]);

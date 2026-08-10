@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   ArrowRight,
@@ -17,6 +18,7 @@ import DecryptedText from "@/components/ui/DecryptedText";
 import SpotlightCard from "@/components/ui/SpotlightCard";
 import AuroraBackground from "@/components/ui/Aurora";
 import NeuralBrainCanvas from "@/components/ui/NeuralBrain";
+import { useAuth } from "@/lib/auth";
 
 // Particle field effect for the background
 function ParticleField() {
@@ -177,6 +179,15 @@ const features = [
 
 export default function HomePage() {
   const [heroLoaded, setHeroLoaded] = useState(false);
+  const { user, isLoading: authLoading } = useAuth();
+  const router = useRouter();
+
+  // Redirect authenticated users away from the landing page
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.replace("/dashboard");
+    }
+  }, [user, authLoading, router]);
 
   useEffect(() => {
     const t = setTimeout(() => setHeroLoaded(true), 100);

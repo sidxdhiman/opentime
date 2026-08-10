@@ -26,7 +26,9 @@ import {
   ReflectionInsight,
   TimelineEvent,
 } from "@/lib/chronosApi";
+import { onboardingApi, type OnboardingStatusResponse } from "@/lib/onboardingApi";
 
+import { ChronosRecoveryBanner } from "@/components/dashboard/ChronosRecoveryBanner";
 import { VoiceVideoRecorder } from "@/components/chronos/VoiceVideoRecorder";
 import { ChronosEngineFeed } from "@/components/chronos/ChronosEngineFeed";
 import { IdentityModelCard } from "@/components/chronos/IdentityModelCard";
@@ -48,6 +50,7 @@ export default function DashboardPage() {
   const [reflections, setReflections] = useState<ReflectionInsight[]>([]);
   const [patterns, setPatterns] = useState<PatternItem[]>([]);
   const [isDataLoading, setIsDataLoading] = useState(false);
+  const [onboarding, setOnboarding] = useState<OnboardingStatusResponse | null>(null);
 
   const userId = user?.id || "user_default";
 
@@ -55,21 +58,15 @@ export default function DashboardPage() {
   const loadEngineData = useCallback(async () => {
     setIsDataLoading(true);
     try {
-      // First try fetching identity; if fails or empty, seed state
-      let id = await chronosApi.getIdentity(userId).catch(() => null);
-      if (!id) {
-        await chronosApi.seedState(userId);
-        id = await chronosApi.getIdentity(userId).catch(() => null);
-      }
-      setIdentity(id);
-
-      const [mems, time, refs, pats] = await Promise.all([
+      const [id, mems, time, refs, pats] = await Promise.all([
+        chronosApi.getIdentity(userId).catch(() => null),
         chronosApi.getMemories(userId),
         chronosApi.getTimeline(userId),
         chronosApi.getReflections(userId),
         chronosApi.getPatterns(userId),
       ]);
 
+      setIdentity(id);
       setMemories(mems);
       setTimeline(time);
       setReflections(refs);
@@ -81,13 +78,23 @@ export default function DashboardPage() {
     }
   }, [userId]);
 
+  // Check whether the user went through the onboarding flow
+  const checkOnboarding = useCallback(async () => {
+    try {
+      setOnboarding(await onboardingApi.status());
+    } catch {
+      setOnboarding(null);
+    }
+  }, []);
+
   useEffect(() => {
     if (!isLoading && !user) {
       router.push("/login");
     } else if (user) {
       loadEngineData();
+      checkOnboarding();
     }
-  }, [user, isLoading, router, loadEngineData]);
+  }, [user, isLoading, router, loadEngineData, checkOnboarding]);
 
   const handleResponseReceived = async (response: EngineResponse) => {
     setLatestResponse(response);
@@ -170,6 +177,14 @@ export default function DashboardPage() {
 
       {/* Main Container */}
       <main className="flex-1 mx-auto w-full max-w-7xl px-6 py-8 space-y-8">
+        {/* Unconfigured data notice — always shown until onboarding is completed */}
+        {onboarding && !onboarding.has_completed_session && (
+          <ChronosRecoveryBanner
+            hasActiveSession={onboarding.has_active_session}
+            onRetry={checkOnboarding}
+          />
+        )}
+
         {/* Hero Section */}
         <section className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border/60 pb-6">
           <div>
