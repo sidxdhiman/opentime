@@ -37,12 +37,102 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-sans);
-    background-color: #060614;
+    background-color: var(--color-background);
   }
 
   html {
     scroll-behavior: smooth;
   }
+}
+
+/* ── User mood themes ───────────────────────────────────────────────────────
+   Tailwind v4 emits the @theme tokens above as custom properties on :root.
+   These unlayered overrides win over the layered theme tokens at runtime, so
+   the whole app re-colours when the html element gets a `mood-*` class.      */
+
+.mood-night {
+  --color-background: #060614;
+  --color-foreground: #f8f8ff;
+}
+
+.mood-daylight {
+  --color-background: #f2f5fb;
+  --color-foreground: #0f172a;
+  --color-muted: #5b6b84;
+  --color-muted-foreground: #475569;
+  --color-border: rgba(15, 23, 42, 0.14);
+  --color-input: rgba(15, 23, 42, 0.08);
+  --color-ring: #6d28d9;
+  --color-primary: #6d28d9;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: rgba(15, 23, 42, 0.05);
+  --color-secondary-foreground: #1e293b;
+  --color-destructive: #dc2626;
+  --color-destructive-foreground: #ffffff;
+  --color-accent: rgba(109, 40, 217, 0.12);
+  --color-accent-foreground: #6d28d9;
+  --color-card: #ffffff;
+  --color-card-foreground: #0f172a;
+}
+
+.mood-rain {
+  --color-background: #0a0f24;
+  --color-foreground: #dfe7ff;
+  --color-muted: #93a0c8;
+  --color-muted-foreground: #7884ad;
+  --color-border: rgba(160, 180, 255, 0.14);
+  --color-input: rgba(160, 180, 255, 0.1);
+  --color-ring: #6366f1;
+  --color-primary: #8b5cf6;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: rgba(160, 180, 255, 0.08);
+  --color-secondary-foreground: #cdd6ff;
+  --color-destructive: #f87171;
+  --color-destructive-foreground: #ffffff;
+  --color-accent: rgba(99, 102, 241, 0.22);
+  --color-accent-foreground: #c7d2fe;
+  --color-card: rgba(160, 180, 255, 0.05);
+  --color-card-foreground: #dfe7ff;
+}
+
+.mood-cloudy {
+  --color-background: #171b2e;
+  --color-foreground: #e6eaf7;
+  --color-muted: #9aa3ba;
+  --color-muted-foreground: #6b748c;
+  --color-border: rgba(196, 205, 235, 0.14);
+  --color-input: rgba(196, 205, 235, 0.1);
+  --color-ring: #a78bfa;
+  --color-primary: #a78bfa;
+  --color-primary-foreground: #1e1b4b;
+  --color-secondary: rgba(196, 205, 235, 0.08);
+  --color-secondary-foreground: #dde3f2;
+  --color-destructive: #f87171;
+  --color-destructive-foreground: #ffffff;
+  --color-accent: rgba(167, 139, 250, 0.22);
+  --color-accent-foreground: #ddd6fe;
+  --color-card: rgba(196, 205, 235, 0.05);
+  --color-card-foreground: #e6eaf7;
+}
+
+.mood-sunset {
+  --color-background: #191026;
+  --color-foreground: #ffe9d6;
+  --color-muted: #d8b4a0;
+  --color-muted-foreground: #a67c6f;
+  --color-border: rgba(255, 190, 150, 0.14);
+  --color-input: rgba(255, 190, 150, 0.1);
+  --color-ring: #f97316;
+  --color-primary: #f97316;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: rgba(255, 190, 150, 0.08);
+  --color-secondary-foreground: #ffe1cf;
+  --color-destructive: #fda4af;
+  --color-destructive-foreground: #450a0a;
+  --color-accent: rgba(251, 146, 60, 0.22);
+  --color-accent-foreground: #fed7aa;
+  --color-card: rgba(255, 190, 150, 0.05);
+  --color-card-foreground: #ffe9d6;
 }
 
 @keyframes shining {
@@ -53,4 +143,29 @@
 @keyframes float {
   0%, 100% { transform: translateY(0px); }
   50% { transform: translateY(-8px); }
+}
+
+/* ── Mood ambient animations ──────────────────────────────────────────────── */
+
+@keyframes op-rain-fall {
+  0% { transform: translateY(-12vh); opacity: 0; }
+  12% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { transform: translateY(112vh); opacity: 0; }
+}
+
+@keyframes op-cloud-drift {
+  0% { transform: translateX(-30vw) scaleX(1); }
+  50% { transform: translateX(70vw) scaleX(1.15); }
+  100% { transform: translateX(130vw) scaleX(1); }
+}
+
+@keyframes op-twinkle {
+  0%, 100% { opacity: 0.12; transform: scale(0.9); }
+  50% { opacity: 0.9; transform: scale(1.15); }
+}
+
+@keyframes op-glow {
+  0%, 100% { opacity: 0.45; transform: translateX(-50%) scale(1); }
+  50% { opacity: 0.85; transform: translateX(-50%) scale(1.06); }
 }

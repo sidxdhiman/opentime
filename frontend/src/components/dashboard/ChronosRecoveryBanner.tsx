@@ -49,11 +49,11 @@ export function ChronosRecoveryBanner({ hasActiveSession, onRetry }: Props) {
             <p className="mt-1 text-sm text-muted leading-relaxed">
               Your data hasn&apos;t been configured — kindly configure it in the{" "}
               <Link
-                href="/my-data"
+                href="/me"
                 className="font-medium text-amber-400 underline underline-offset-2 hover:text-amber-300"
               >
-                My Data
-              </Link>{" "}
+                Me
+              </Link>
               section.
               {hasActiveSession && (
                 <span className="mt-1 block">
@@ -70,13 +70,13 @@ export function ChronosRecoveryBanner({ hasActiveSession, onRetry }: Props) {
           )}
 
           <div className="flex flex-wrap items-center gap-3">
-            <Link href="/my-data">
+            <Link href="/me">
               <Button
                 type="button"
                 className="gap-2 bg-violet-600 hover:bg-violet-500 text-white font-semibold shadow-lg shadow-violet-600/20"
               >
                 <Database className="h-4 w-4" />
-                Go to My Data
+                Go to Me
               </Button>
             </Link>
 

@@ -14,6 +14,7 @@ import {
   Sparkles,
   RefreshCw,
   Zap,
+  User,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
@@ -131,7 +132,7 @@ export default function DashboardPage() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-lg font-extrabold tracking-tight bg-gradient-to-r from-white via-violet-200 to-indigo-300 bg-clip-text text-transparent">
+                <span className="text-lg font-extrabold tracking-tight bg-gradient-to-r from-foreground via-violet-400 to-indigo-400 bg-clip-text text-transparent">
                   OpenTime
                 </span>
                 <span className="rounded-full bg-violet-500/10 border border-violet-500/30 px-2.5 py-0.5 text-[11px] font-bold text-violet-300">
@@ -162,9 +163,9 @@ export default function DashboardPage() {
               <RefreshCw className={`h-3.5 w-3.5 ${isDataLoading ? "animate-spin" : ""}`} /> Refresh
             </Button>
 
-            <Link href="/my-data">
+            <Link href="/me">
               <Button variant="ghost" size="sm" className="h-8 text-xs text-muted hover:text-foreground gap-1.5">
-                <Database className="h-3.5 w-3.5" /> My Data
+                <User className="h-3.5 w-3.5" /> Me
               </Button>
             </Link>
 
