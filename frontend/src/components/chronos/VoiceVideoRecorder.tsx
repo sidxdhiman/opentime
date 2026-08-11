@@ -7,15 +7,12 @@ import {
   FileText,
   Upload,
   Square,
-  Play,
-  Pause,
   Sparkles,
   Send,
   Cpu,
   CheckCircle2,
   AlertCircle,
   X,
-  Volume2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -61,14 +58,13 @@ export function VoiceVideoRecorder({
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
 
   const providersList = [
-    { key: "chronos", name: "ChronOS Native Core Engine", model: "chronos-v1-core", badge: "Engine IP" },
+    { key: "chronos", name: "ChronOS Core", model: "chronos-v1-core", badge: "Engine" },
     { key: "openai", name: "OpenAI GPT-4o", model: "gpt-4o", badge: "Cloud" },
-    { key: "anthropic", name: "Claude 3.5 Sonnet", model: "claude-3-5-sonnet", badge: "Cloud" },
-    { key: "gemini", name: "Google Gemini 1.5 Pro", model: "gemini-1.5-pro", badge: "Cloud" },
-    { key: "ollama", name: "Ollama Local (Llama 3)", model: "llama3:latest", badge: "Privacy / Local" },
+    { key: "anthropic", name: "Claude Sonnet", model: "claude-3-5-sonnet", badge: "Cloud" },
+    { key: "gemini", name: "Google Gemini", model: "gemini-1.5-pro", badge: "Cloud" },
+    { key: "ollama", name: "Ollama Local", model: "llama3:latest", badge: "Local" },
   ];
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (audioTimerRef.current) clearInterval(audioTimerRef.current);
@@ -84,7 +80,6 @@ export function VoiceVideoRecorder({
     }
   };
 
-  // --- AUDIO RECORDING HANDLERS ---
   const startAudioRecording = async () => {
     setError(null);
     setAudioBlob(null);
@@ -127,7 +122,6 @@ export function VoiceVideoRecorder({
     }
   };
 
-  // --- VIDEO RECORDING HANDLERS ---
   const startVideoRecording = async () => {
     setError(null);
     setVideoBlob(null);
@@ -177,7 +171,6 @@ export function VoiceVideoRecorder({
     }
   };
 
-  // --- FILE UPLOAD HANDLER ---
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -185,7 +178,6 @@ export function VoiceVideoRecorder({
     }
   };
 
-  // --- SUBMIT TO CHRONOS ENGINE ---
   const handleSubmit = async () => {
     setIsProcessing(true);
     setError(null);
@@ -198,7 +190,7 @@ export function VoiceVideoRecorder({
 
       if (activeTab === "text") {
         if (!textContent.trim()) {
-          throw new Error("Please enter a text note or memory.");
+          throw new Error("Please write something first.");
         }
         formData.append("content", textContent);
         formData.append("input_type", "text");
@@ -231,7 +223,6 @@ export function VoiceVideoRecorder({
       const response = await chronosApi.processInput(formData);
       onResponseReceived(response);
 
-      // Reset state on success
       setTextContent("");
       setAudioBlob(null);
       setAudioUrl(null);
@@ -253,29 +244,35 @@ export function VoiceVideoRecorder({
     return `${m}:${s < 10 ? "0" : ""}${s}`;
   };
 
+  const modeTabs = [
+    { key: "audio" as const, label: "Voice", icon: Mic },
+    { key: "video" as const, label: "Video", icon: Video },
+    { key: "text" as const, label: "Text", icon: FileText },
+    { key: "upload" as const, label: "File", icon: Upload },
+  ];
+
   return (
-    <Card className="border-border/80 bg-card/90 shadow-xl backdrop-blur">
-      <CardContent className="p-6">
-        {/* Engine Header & Model Swapper */}
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border/60 pb-4">
+    <Card className="overflow-hidden">
+      <CardContent className="p-6 sm:p-7">
+        {/* Header */}
+        <div className="mb-6 flex flex-col gap-4 border-b border-border/60 pb-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-tr from-violet-600 to-indigo-500 text-white shadow-lg shadow-violet-500/20">
-              <Cpu className="h-5 w-5 animate-pulse" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent text-accent-foreground">
+              <Cpu className="h-5 w-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-lg font-bold tracking-tight text-foreground">ChronOS Engine</h3>
-                <span className="rounded-full bg-violet-500/10 px-2.5 py-0.5 text-xs font-semibold text-violet-400 border border-violet-500/20">
-                  Model-Agnostic Core
+              <div className="flex items-center gap-2.5">
+                <h3 className="text-[15px] font-semibold">Share a moment</h3>
+                <span className="rounded-full border border-border bg-secondary/40 px-2 py-0.5 text-[11px] font-medium text-muted">
+                  Model-agnostic
                 </span>
               </div>
-              <p className="text-xs text-muted">Input Processing Layer & Orchestrator</p>
+              <p className="text-xs text-muted">Voice, video, text, or a file — ChronOS listens</p>
             </div>
           </div>
 
-          {/* Model Selector Dropdown */}
           <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-muted">LLM Provider:</span>
+            <span className="text-xs text-muted">Engine</span>
             <select
               value={selectedProvider}
               onChange={(e) => {
@@ -284,120 +281,85 @@ export function VoiceVideoRecorder({
                 const found = providersList.find((p) => p.key === provKey);
                 if (found) setSelectedModel(found.model);
               }}
-              className="rounded-lg border border-border bg-secondary px-3 py-1.5 text-xs font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-violet-500"
+              className="rounded-lg border border-border bg-secondary/40 px-3 py-1.5 text-xs font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             >
               {providersList.map((p) => (
                 <option key={p.key} value={p.key}>
-                  {p.name} [{p.badge}]
+                  {p.name}
                 </option>
               ))}
             </select>
           </div>
         </div>
 
-        {/* Input Mode Selector Tabs */}
-        <div className="mb-5 grid grid-cols-4 gap-2 rounded-xl bg-secondary/50 p-1.5">
-          <button
-            onClick={() => setActiveTab("audio")}
-            className={`flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-semibold transition-all ${
-              activeTab === "audio"
-                ? "bg-violet-600 text-white shadow-md shadow-violet-600/30"
-                : "text-muted hover:text-foreground"
-            }`}
-          >
-            <Mic className="h-4 w-4" />
-            Record Voice
-          </button>
-          <button
-            onClick={() => setActiveTab("video")}
-            className={`flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-semibold transition-all ${
-              activeTab === "video"
-                ? "bg-violet-600 text-white shadow-md shadow-violet-600/30"
-                : "text-muted hover:text-foreground"
-            }`}
-          >
-            <Video className="h-4 w-4" />
-            Record Video
-          </button>
-          <button
-            onClick={() => setActiveTab("text")}
-            className={`flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-semibold transition-all ${
-              activeTab === "text"
-                ? "bg-violet-600 text-white shadow-md shadow-violet-600/30"
-                : "text-muted hover:text-foreground"
-            }`}
-          >
-            <FileText className="h-4 w-4" />
-            Text Memory
-          </button>
-          <button
-            onClick={() => setActiveTab("upload")}
-            className={`flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-semibold transition-all ${
-              activeTab === "upload"
-                ? "bg-violet-600 text-white shadow-md shadow-violet-600/30"
-                : "text-muted hover:text-foreground"
-            }`}
-          >
-            <Upload className="h-4 w-4" />
-            Upload File
-          </button>
+        {/* Mode tabs */}
+        <div className="mb-6 grid grid-cols-4 gap-1 rounded-xl bg-secondary/50 p-1">
+          {modeTabs.map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className={`flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-medium transition-all duration-200 ${
+                activeTab === key
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted hover:text-foreground"
+              }`}
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </button>
+          ))}
         </div>
 
         {/* TAB 1: RECORD VOICE */}
         {activeTab === "audio" && (
-          <div className="flex flex-col items-center justify-center py-6 text-center">
+          <div className="flex flex-col items-center justify-center py-8 text-center">
             {!isRecordingAudio && !audioUrl && (
-              <div className="flex flex-col items-center gap-3">
-                <button
-                  onClick={startAudioRecording}
-                  className="group relative flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-tr from-rose-500 to-violet-600 text-white shadow-xl shadow-rose-500/25 transition-transform hover:scale-105 active:scale-95"
-                >
-                  <Mic className="h-8 w-8" />
-                  <span className="absolute -bottom-7 text-xs font-medium text-muted">
-                    Click to Record Voice
-                  </span>
-                </button>
-              </div>
+              <button
+                onClick={startAudioRecording}
+                className="group flex h-20 w-20 items-center justify-center rounded-full border border-border bg-secondary transition-all duration-200 hover:scale-105 hover:bg-secondary/70 active:scale-95"
+              >
+                <Mic className="h-8 w-8 text-accent-foreground" />
+                <span className="sr-only">Record voice</span>
+              </button>
             )}
 
             {isRecordingAudio && (
-              <div className="flex flex-col items-center gap-4">
+              <div className="flex flex-col items-center gap-5">
                 <div className="relative flex h-24 w-24 items-center justify-center">
-                  <span className="absolute h-full w-full animate-ping rounded-full bg-rose-500/30" />
+                  <span className="absolute h-full w-full animate-ping rounded-full bg-rose-500/20" />
                   <button
                     onClick={stopAudioRecording}
-                    className="relative z-10 flex h-16 w-16 items-center justify-center rounded-full bg-rose-600 text-white shadow-lg shadow-rose-600/40"
+                    className="relative z-10 flex h-16 w-16 items-center justify-center rounded-full bg-rose-600 text-white transition-transform hover:scale-105 active:scale-95"
                   >
                     <Square className="h-6 w-6 fill-current" />
                   </button>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-rose-400">Recording Voice...</p>
-                  <p className="text-xl font-bold tracking-tight text-foreground font-mono">
-                    {formatTime(audioDuration)}
-                  </p>
+                  <p className="text-sm font-medium text-rose-400/90">Recording</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums">{formatTime(audioDuration)}</p>
                 </div>
               </div>
             )}
 
             {audioUrl && !isRecordingAudio && (
-              <div className="w-full flex flex-col items-center gap-3">
-                <div className="flex items-center gap-3 rounded-xl border border-border bg-secondary/80 p-3 w-full max-w-md">
-                  <Volume2 className="h-5 w-5 text-violet-400 shrink-0" />
-                  <audio src={audioUrl} controls className="w-full h-8" />
+              <div className="flex w-full max-w-md flex-col items-center gap-3">
+                <div className="flex w-full items-center gap-3 rounded-xl border border-border bg-secondary/30 p-3">
+                  <Mic className="h-5 w-5 shrink-0 text-accent-foreground" />
+                  <audio src={audioUrl} controls className="h-8 w-full" />
                   <button
                     onClick={() => {
                       setAudioUrl(null);
                       setAudioBlob(null);
                     }}
-                    className="text-muted hover:text-foreground"
+                    className="text-muted transition-colors hover:text-foreground"
+                    aria-label="Discard recording"
                   >
                     <X className="h-4 w-4" />
                   </button>
                 </div>
-                <span className="text-xs text-emerald-400 flex items-center gap-1 font-medium">
-                  <CheckCircle2 className="h-3.5 w-3.5" /> Voice recorded successfully ({formatTime(audioDuration)})
-                </span>
+                <p className="flex items-center gap-1.5 text-xs text-emerald-400/90">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Recorded {formatTime(audioDuration)}
+                </p>
               </div>
             )}
           </div>
@@ -405,45 +367,40 @@ export function VoiceVideoRecorder({
 
         {/* TAB 2: RECORD VIDEO */}
         {activeTab === "video" && (
-          <div className="flex flex-col items-center justify-center py-4 text-center">
+          <div className="flex flex-col items-center justify-center py-6 text-center">
             {!isRecordingVideo && !videoUrl && (
-              <div className="flex flex-col items-center gap-3">
-                <button
-                  onClick={startVideoRecording}
-                  className="group relative flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-tr from-indigo-500 to-cyan-500 text-white shadow-xl shadow-indigo-500/25 transition-transform hover:scale-105 active:scale-95"
-                >
-                  <Video className="h-8 w-8" />
-                  <span className="absolute -bottom-7 text-xs font-medium text-muted">
-                    Click to Start Camera & Record
-                  </span>
-                </button>
-              </div>
+              <button
+                onClick={startVideoRecording}
+                className="group flex h-20 w-20 items-center justify-center rounded-full border border-border bg-secondary transition-all duration-200 hover:scale-105 hover:bg-secondary/70 active:scale-95"
+              >
+                <Video className="h-8 w-8 text-accent-foreground" />
+                <span className="sr-only">Record video</span>
+              </button>
             )}
 
             {isRecordingVideo && (
-              <div className="flex flex-col items-center gap-3 w-full max-w-md">
-                <div className="relative overflow-hidden rounded-xl border border-indigo-500/40 bg-black aspect-video w-full">
+              <div className="flex w-full max-w-md flex-col items-center gap-4">
+                <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-border bg-black">
                   <video ref={videoLiveRef} muted className="h-full w-full object-cover" />
-                  <div className="absolute top-3 left-3 flex items-center gap-2 rounded-full bg-black/60 px-3 py-1 text-xs font-medium text-rose-400 backdrop-blur">
-                    <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse" />
+                  <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/60 px-3 py-1 text-xs font-medium text-rose-400 backdrop-blur">
                     REC {formatTime(videoDuration)}
                   </div>
                 </div>
                 <Button variant="destructive" onClick={stopVideoRecording} className="gap-2">
-                  <Square className="h-4 w-4 fill-current" /> Stop Video Recording
+                  <Square className="h-4 w-4 fill-current" /> Stop recording
                 </Button>
               </div>
             )}
 
             {videoUrl && !isRecordingVideo && (
-              <div className="w-full flex flex-col items-center gap-3">
-                <div className="relative overflow-hidden rounded-xl border border-border bg-black aspect-video w-full max-w-md">
+              <div className="flex w-full max-w-md flex-col items-center gap-3">
+                <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-border bg-black">
                   <video src={videoUrl} controls className="h-full w-full object-cover" />
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-emerald-400 flex items-center gap-1 font-medium">
-                    <CheckCircle2 className="h-3.5 w-3.5" /> Video note captured ({formatTime(videoDuration)})
-                  </span>
+                <div className="flex items-center gap-3">
+                  <p className="flex items-center gap-1.5 text-xs text-emerald-400/90">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Captured {formatTime(videoDuration)}
+                  </p>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -466,73 +423,69 @@ export function VoiceVideoRecorder({
             <textarea
               value={textContent}
               onChange={(e) => setTextContent(e.target.value)}
-              placeholder="Record a thought, belief shift, goal update, or question for ChronOS..."
-              className="w-full h-28 rounded-xl border border-border bg-secondary/50 p-4 text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
+              placeholder="A thought, a turning point, or a question for later you..."
+              className="h-32 w-full resize-none rounded-xl border border-border bg-secondary/30 p-4 text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>
         )}
 
         {/* TAB 4: FILE UPLOAD */}
         {activeTab === "upload" && (
-          <div className="py-4 flex flex-col items-center justify-center border-2 border-dashed border-border/80 rounded-xl p-6 bg-secondary/20">
-            <Upload className="h-8 w-8 text-muted mb-2" />
-            <p className="text-sm font-medium text-foreground">Upload Voice, Video, or Document</p>
-            <p className="text-xs text-muted mt-1">Supports MP3, WAV, MP4, WEBM, M4A, TXT</p>
+          <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border bg-secondary/20 p-8 text-center">
+            <Upload className="mb-3 h-7 w-7 text-muted" />
+            <p className="text-sm font-medium">Upload a voice note, video, or document</p>
+            <p className="mt-1 text-xs text-muted">MP3, WAV, MP4, WEBM, M4A, TXT</p>
             <input
               type="file"
               onChange={handleFileUpload}
               accept="audio/*,video/*,text/*"
-              className="mt-4 text-xs text-muted file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-violet-600 file:text-white hover:file:bg-violet-700 cursor-pointer"
+              className="mt-4 cursor-pointer text-xs text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-primary-foreground"
             />
             {uploadedFile && (
-              <span className="mt-3 text-xs text-emerald-400 flex items-center gap-1 font-medium">
-                <CheckCircle2 className="h-3.5 w-3.5" /> Selected: {uploadedFile.name} ({(uploadedFile.size / 1024).toFixed(1)} KB)
-              </span>
+              <p className="mt-3 flex items-center gap-1.5 text-xs text-emerald-400/90">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Selected {uploadedFile.name} ({(uploadedFile.size / 1024).toFixed(1)} KB)
+              </p>
             )}
           </div>
         )}
 
-        {/* Additional Context Note for Voice/Video/Upload */}
         {activeTab !== "text" && (
           <div className="mt-4">
             <input
               type="text"
               value={textContent}
               onChange={(e) => setTextContent(e.target.value)}
-              placeholder="Optional title or note for this media recording..."
-              className="w-full rounded-lg border border-border bg-secondary/50 px-3 py-2 text-xs text-foreground placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-violet-500"
+              placeholder="Optional note to go with this memory..."
+              className="w-full rounded-lg border border-border bg-secondary/30 px-3 py-2 text-xs text-foreground placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>
         )}
 
-        {/* Error banner */}
         {error && (
-          <div className="mt-4 flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 p-3 text-xs text-rose-400">
-            <AlertCircle className="h-4 w-4 shrink-0" />
+          <div className="mt-4 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
-        {/* Action Button */}
-        <div className="mt-5 flex items-center justify-between border-t border-border/60 pt-4">
-          <span className="text-xs text-muted flex items-center gap-1.5">
-            <Sparkles className="h-3.5 w-3.5 text-violet-400" /> Grounded in memory graph & timeline
+        <div className="mt-6 flex items-center justify-between gap-3 border-t border-border/60 pt-5">
+          <span className="hidden items-center gap-1.5 text-xs text-muted sm:flex">
+            <Sparkles className="h-3.5 w-3.5 text-accent-foreground" /> Grounded in your memory and timeline
           </span>
 
           <Button
             onClick={handleSubmit}
             disabled={isProcessing}
-            className="bg-gradient-to-r from-violet-600 to-indigo-600 text-white hover:from-violet-500 hover:to-indigo-500 shadow-md shadow-violet-600/30 gap-2 font-semibold text-xs px-5 py-2.5 h-auto rounded-xl"
+            className="gap-2 bg-primary px-5 text-primary-foreground"
           >
             {isProcessing ? (
               <>
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                Processing through ChronOS...
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                Processing...
               </>
             ) : (
               <>
-                <Send className="h-3.5 w-3.5" />
-                Process with ChronOS
+                <Send className="h-3.5 w-3.5" /> Remember this
               </>
             )}
           </Button>

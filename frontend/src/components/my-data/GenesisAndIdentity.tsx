@@ -37,7 +37,7 @@ export function GenesisSection({ initialMemory }: { initialMemory: GenesisMemory
       title="Genesis Memory"
       description="The first thing Chronos remembers about you. This anchors your entire personal history."
       action={!editing && memory ? (
-        <Button type="button" variant="outline" size="sm" onClick={startEdit} className="gap-1.5 border-violet-500/30 text-violet-400 hover:bg-violet-500/10 text-xs">
+        <Button type="button" variant="outline" size="sm" onClick={startEdit} className="gap-1.5 border-accent/60 text-accent-foreground hover:bg-accent text-xs">
           <Pencil className="h-3.5 w-3.5" />Edit
         </Button>
       ) : undefined}
@@ -48,7 +48,7 @@ export function GenesisSection({ initialMemory }: { initialMemory: GenesisMemory
         <div className="space-y-3">
           <ImpactWarningBanner />
           <textarea
-            className="w-full rounded-lg border border-input bg-background px-4 py-3 text-sm leading-relaxed resize-y focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+            className="w-full rounded-lg border border-input bg-background px-4 py-3 text-sm leading-relaxed resize-y focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             rows={8}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
@@ -57,7 +57,7 @@ export function GenesisSection({ initialMemory }: { initialMemory: GenesisMemory
           {error && <p className="text-xs text-destructive">{error}</p>}
           <div className="flex gap-2 justify-end">
             <Button type="button" variant="ghost" size="sm" onClick={cancel}><X className="h-3.5 w-3.5 mr-1" />Cancel</Button>
-            <Button type="button" size="sm" onClick={save} disabled={saving} className="bg-violet-600 hover:bg-violet-500 text-white"><Check className="h-3.5 w-3.5 mr-1" />{saving ? "Saving..." : "Save"}</Button>
+            <Button type="button" size="sm" onClick={save} disabled={saving} className="bg-primary text-primary-foreground hover:bg-primary/90"><Check className="h-3.5 w-3.5 mr-1" />{saving ? "Saving..." : "Save"}</Button>
           </div>
         </div>
       ) : (
@@ -121,7 +121,7 @@ export function IdentitySection({ initialIdentity }: { initialIdentity: Identity
       title="Identity Snapshot"
       description={`Version ${identity?.version ?? 1} — how Chronos currently understands you. Editing creates a new version; history is preserved.`}
       action={!editing && identity ? (
-        <Button type="button" variant="outline" size="sm" onClick={startEdit} className="gap-1.5 border-violet-500/30 text-violet-400 hover:bg-violet-500/10 text-xs">
+        <Button type="button" variant="outline" size="sm" onClick={startEdit} className="gap-1.5 border-accent/60 text-accent-foreground hover:bg-accent text-xs">
           <Pencil className="h-3.5 w-3.5" />Edit traits
         </Button>
       ) : undefined}
@@ -138,7 +138,7 @@ export function IdentitySection({ initialIdentity }: { initialIdentity: Identity
                 <ImpactWarningBanner />
                 <div className="flex flex-wrap gap-2">
                   {draftTraits.map((t) => (
-                    <span key={t} className="flex items-center gap-1 rounded-full border border-violet-500/30 bg-violet-500/10 px-3 py-1 text-xs text-violet-300">
+                    <span key={t} className="flex items-center gap-1 rounded-full border border-accent/50 bg-accent px-3 py-1 text-xs text-accent-foreground">
                       {t}
                       <button type="button" onClick={() => removeTrait(t)} className="hover:text-destructive">×</button>
                     </span>
@@ -147,12 +147,12 @@ export function IdentitySection({ initialIdentity }: { initialIdentity: Identity
                 </div>
                 <div className="flex gap-2">
                   <Input placeholder="Add a trait..." value={newTrait} onChange={(e) => setNewTrait(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTrait(); }}} className="text-sm" />
-                  <Button type="button" variant="outline" onClick={addTrait} className="shrink-0 border-violet-500/40 text-violet-400 hover:bg-violet-500/10"><Plus className="h-4 w-4" /></Button>
+                  <Button type="button" variant="outline" onClick={addTrait} className="shrink-0 border-accent/60 text-accent-foreground hover:bg-accent"><Plus className="h-4 w-4" /></Button>
                 </div>
                 {error && <p className="text-xs text-destructive">{error}</p>}
                 <div className="flex gap-2 justify-end">
                   <Button type="button" variant="ghost" size="sm" onClick={cancel}><X className="h-3.5 w-3.5 mr-1" />Cancel</Button>
-                  <Button type="button" size="sm" onClick={save} disabled={saving} className="bg-violet-600 hover:bg-violet-500 text-white"><Check className="h-3.5 w-3.5 mr-1" />{saving ? "Saving..." : "Save"}</Button>
+                  <Button type="button" size="sm" onClick={save} disabled={saving} className="bg-primary text-primary-foreground hover:bg-primary/90"><Check className="h-3.5 w-3.5 mr-1" />{saving ? "Saving..." : "Save"}</Button>
                 </div>
               </div>
             ) : (
@@ -174,7 +174,7 @@ export function IdentitySection({ initialIdentity }: { initialIdentity: Identity
               <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">Interests <span className="font-normal normal-case text-muted/50">(inferred by Chronos)</span></p>
               <div className="flex flex-wrap gap-2">
                 {interests.map((v: string) => (
-                  <span key={v} className="rounded-full border border-indigo-500/20 bg-indigo-500/8 px-3 py-1 text-xs text-indigo-300/80">{v}</span>
+                  <span key={v} className="rounded-full border border-border bg-secondary/40 px-3 py-1 text-xs text-foreground/80">{v}</span>
                 ))}
               </div>
             </div>
@@ -186,7 +186,7 @@ export function IdentitySection({ initialIdentity }: { initialIdentity: Identity
               <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">Values <span className="font-normal normal-case text-muted/50">(inferred by Chronos)</span></p>
               <div className="flex flex-wrap gap-2">
                 {values.map((v: string) => (
-                  <span key={v} className="rounded-full border border-emerald-500/20 bg-emerald-500/8 px-3 py-1 text-xs text-emerald-300/80">{v}</span>
+                  <span key={v} className="rounded-full border border-border bg-secondary/40 px-3 py-1 text-xs text-foreground/80">{v}</span>
                 ))}
               </div>
             </div>

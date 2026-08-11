@@ -1,7 +1,15 @@
 "use client";
 
 import React, { useState } from "react";
-import { Sparkles, ArrowRightLeft, ShieldCheck, CheckCircle2, ChevronDown, ChevronUp, History, Compass } from "lucide-react";
+import {
+  Sparkles,
+  ArrowRightLeft,
+  ChevronDown,
+  ChevronUp,
+  ChevronRight,
+  History,
+  Compass,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { ReflectionInsight } from "@/lib/chronosApi";
 
@@ -14,87 +22,91 @@ export function ReflectionEngineView({ reflections }: ReflectionEngineViewProps)
 
   if (!reflections || reflections.length === 0) {
     return (
-      <Card className="border-border/60 p-8 text-center text-xs text-muted">
-        No reflection insights generated yet. Add more inputs to enable Past Self vs Current Self differential analysis.
+      <Card className="p-8 text-center text-sm text-muted">
+        No reflections yet. Keep sharing and ChronOS will quietly notice how you change.
       </Card>
     );
   }
 
   return (
-    <Card className="border-border/80 bg-card/90 shadow-xl overflow-hidden">
-      <div className="bg-gradient-to-r from-indigo-900/40 via-violet-900/30 to-card px-6 py-4 border-b border-border/60 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-600 text-white font-bold text-xs shadow-md shadow-emerald-600/30">
+    <Card className="overflow-hidden">
+      <div className="flex items-center justify-between border-b border-border/60 px-6 py-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent text-accent-foreground">
             <ArrowRightLeft className="h-4 w-4" />
           </div>
           <div>
-            <h3 className="text-base font-bold tracking-tight text-foreground">Reflection Engine</h3>
-            <p className="text-xs text-muted">Past Self vs. Current Self Differential Analysis</p>
+            <h3 className="text-[15px] font-semibold">Reflections</h3>
+            <p className="text-xs text-muted">Past self, compared with today</p>
           </div>
         </div>
-        <span className="rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 text-xs text-emerald-300 font-semibold">
-          AI Auto-Reflections Active
-        </span>
+        <span className="text-xs text-muted">{reflections.length} insights</span>
       </div>
 
-      <CardContent className="p-6 space-y-4">
+      <CardContent className="space-y-3 p-6">
         {reflections.map((ref) => {
           const isExpanded = expandedId === ref.id;
           return (
             <div
               key={ref.id}
-              className="rounded-xl border border-violet-500/30 bg-secondary/30 transition-all overflow-hidden"
+              className="overflow-hidden rounded-xl border border-border bg-secondary/20 transition-colors"
             >
-              {/* Card Header */}
-              <div
+              <button
                 onClick={() => setExpandedId(isExpanded ? null : ref.id)}
-                className="p-4 flex items-center justify-between cursor-pointer hover:bg-secondary/50 transition-colors"
+                className="flex w-full items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-secondary/40"
               >
                 <div className="flex items-start gap-3">
-                  <Sparkles className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />
+                  <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-accent-foreground" />
                   <div>
-                    <h4 className="text-sm font-bold text-foreground">{ref.summary}</h4>
-                    <span className="text-xs text-muted font-mono">{ref.affected_time_range} • Confidence: {(ref.confidence_score * 100).toFixed(0)}%</span>
+                    <h4 className="text-sm font-medium leading-snug text-foreground">{ref.summary}</h4>
+                    <p className="mt-1 text-xs tabular-nums text-muted">
+                      {ref.affected_time_range} — confidence {(ref.confidence_score * 100).toFixed(0)}%
+                    </p>
                   </div>
                 </div>
-
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-violet-500/10 border border-violet-500/20 px-2 py-0.5 text-[10px] uppercase font-bold text-violet-300">
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="hidden rounded-md border border-border bg-secondary/40 px-2 py-0.5 text-[11px] text-muted capitalize sm:inline">
                     {ref.insight_type.replace("_", " ")}
                   </span>
-                  {isExpanded ? <ChevronUp className="h-4 w-4 text-muted" /> : <ChevronDown className="h-4 w-4 text-muted" />}
+                  {isExpanded ? (
+                    <ChevronUp className="h-4 w-4 text-muted" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-muted" />
+                  )}
                 </div>
-              </div>
+              </button>
 
-              {/* Expanded Comparison Details */}
               {isExpanded && (
-                <div className="px-5 pb-5 border-t border-border/60 pt-4 space-y-4 bg-background/50">
-                  {/* Past vs Current Side-by-Side */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="rounded-lg border border-border/80 bg-secondary/30 p-3">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-rose-400 flex items-center gap-1">
-                        <History className="h-3 w-3" /> Past Self
-                      </span>
-                      <p className="text-xs text-muted mt-1.5 leading-relaxed">{ref.past_state_summary}</p>
+                <div className="space-y-4 border-t border-border/60 bg-background/40 p-5">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="rounded-xl border border-border bg-secondary/30 p-4">
+                      <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-widest text-muted">
+                        <History className="h-3 w-3" /> Past
+                      </p>
+                      <p className="mt-2 text-sm leading-relaxed text-muted">
+                        {ref.past_state_summary}
+                      </p>
                     </div>
-
-                    <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-1">
-                        <Compass className="h-3 w-3" /> Current Self
-                      </span>
-                      <p className="text-xs text-emerald-200 mt-1.5 leading-relaxed">{ref.current_state_summary}</p>
+                    <div className="rounded-xl border border-border bg-accent/40 p-4">
+                      <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-widest text-accent-foreground">
+                        <Compass className="h-3 w-3" /> Present
+                      </p>
+                      <p className="mt-2 text-sm leading-relaxed text-foreground">
+                        {ref.current_state_summary}
+                      </p>
                     </div>
                   </div>
 
-                  {/* Reasoning Trace */}
                   {ref.reasoning_trace && ref.reasoning_trace.length > 0 && (
-                    <div className="space-y-1.5">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-muted">Reasoning Trace & Evidence:</span>
-                      <ul className="space-y-1">
+                    <div>
+                      <p className="text-[11px] font-medium uppercase tracking-widest text-muted">
+                        Reasoning
+                      </p>
+                      <ul className="mt-2 space-y-1.5">
                         {ref.reasoning_trace.map((step, idx) => (
-                          <li key={idx} className="text-xs text-muted flex items-center gap-1.5 font-mono">
-                            <span className="h-1.5 w-1.5 rounded-full bg-violet-400" />
-                            <span>{step}</span>
+                          <li key={idx} className="flex items-start gap-2 text-xs text-muted">
+                            <ChevronRight className="mt-0.5 h-3 w-3 shrink-0" />
+                            <span className="leading-relaxed">{step}</span>
                           </li>
                         ))}
                       </ul>

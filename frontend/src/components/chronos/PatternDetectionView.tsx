@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Activity, Repeat, AlertTriangle, Trophy, Zap, TrendingUp, RefreshCcw } from "lucide-react";
+import { Activity, Repeat, AlertTriangle, Trophy, TrendingUp, RefreshCcw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { PatternItem } from "@/lib/chronosApi";
 
@@ -12,72 +12,63 @@ interface PatternDetectionViewProps {
 export function PatternDetectionView({ patterns }: PatternDetectionViewProps) {
   if (!patterns || patterns.length === 0) {
     return (
-      <Card className="border-border/60 p-8 text-center text-xs text-muted">
-        No patterns detected yet. ChronOS continuously scans interaction history to surface habits, loops, and productivity trends.
+      <Card className="p-8 text-center text-sm text-muted">
+        No patterns noticed yet. As you share more of your days, recurring habits will surface gently.
       </Card>
     );
   }
 
-  const getCategoryBadge = (category: string) => {
+  const getCategoryMeta = (category: string) => {
     switch (category) {
-      case "repeated_success":
-        return { icon: Trophy, color: "text-emerald-400 border-emerald-500/30 bg-emerald-500/10" };
-      case "recurring_problem":
-        return { icon: AlertTriangle, color: "text-rose-400 border-rose-500/30 bg-rose-500/10" };
-      case "habit":
-        return { icon: Repeat, color: "text-violet-400 border-violet-500/30 bg-violet-500/10" };
-      case "productivity_trend":
-        return { icon: TrendingUp, color: "text-amber-400 border-amber-500/30 bg-amber-500/10" };
-      case "behavior_loop":
-        return { icon: RefreshCcw, color: "text-sky-400 border-sky-500/30 bg-sky-500/10" };
-      default:
-        return { icon: Zap, color: "text-indigo-400 border-indigo-500/30 bg-indigo-500/10" };
+      case "repeated_success": return Trophy;
+      case "recurring_problem": return AlertTriangle;
+      case "habit": return Repeat;
+      case "productivity_trend": return TrendingUp;
+      case "behavior_loop": return RefreshCcw;
+      default: return Activity;
     }
   };
 
   return (
-    <Card className="border-border/80 bg-card/90 shadow-xl overflow-hidden">
-      <div className="bg-gradient-to-r from-violet-900/30 via-cyan-900/20 to-card px-6 py-4 border-b border-border/60 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-600 text-white font-bold text-xs shadow-md shadow-cyan-600/30">
+    <Card className="overflow-hidden">
+      <div className="flex items-center justify-between border-b border-border/60 px-6 py-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent text-accent-foreground">
             <Activity className="h-4 w-4" />
           </div>
           <div>
-            <h3 className="text-base font-bold tracking-tight text-foreground">Pattern Detection System</h3>
-            <p className="text-xs text-muted">Behavior Loops, Habits, Trends & Mood Shifts</p>
+            <h3 className="text-[15px] font-semibold">Patterns</h3>
+            <p className="text-xs text-muted">Habits, loops and quiet trends</p>
           </div>
         </div>
-        <span className="rounded-full bg-cyan-500/10 border border-cyan-500/20 px-2.5 py-1 text-xs text-cyan-300 font-semibold">
-          {patterns.length} Active Patterns
-        </span>
+        <span className="text-xs text-muted">{patterns.length} observed</span>
       </div>
 
-      <CardContent className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <CardContent className="grid grid-cols-1 gap-4 p-6 sm:grid-cols-2">
         {patterns.map((pat) => {
-          const badge = getCategoryBadge(pat.category);
-          const Icon = badge.icon;
-
+          const Icon = getCategoryMeta(pat.category);
           return (
             <div
               key={pat.id}
-              className="rounded-xl border border-border/80 bg-secondary/30 p-4 space-y-2 hover:border-cyan-500/30 transition-all"
+              className="space-y-3 rounded-xl border border-border bg-secondary/20 p-4 transition-all duration-200 hover:bg-secondary/40"
             >
-              <div className="flex items-center justify-between">
-                <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${badge.color}`}>
-                  <Icon className="h-3 w-3" /> {pat.category.replace("_", " ").toUpperCase()}
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-2 rounded-md border border-border bg-secondary/40 px-2 py-0.5 text-[11px] capitalize text-foreground/80">
+                  <Icon className="h-3 w-3 text-accent-foreground" />
+                  {pat.category.replace("_", " ")}
                 </span>
-                <span className="text-[11px] text-muted font-mono">
-                  {(pat.confidence_score * 100).toFixed(0)}% Conf
+                <span className="text-xs tabular-nums text-muted">
+                  {(pat.confidence_score * 100).toFixed(0)}% confidence
                 </span>
               </div>
 
-              <h4 className="text-sm font-bold text-foreground">{pat.title}</h4>
-              <p className="text-xs text-muted leading-relaxed">{pat.description}</p>
+              <h4 className="text-sm font-medium text-foreground">{pat.title}</h4>
+              <p className="text-sm leading-relaxed text-muted">{pat.description}</p>
 
-              <div className="pt-2 flex items-center justify-between text-[10px] text-muted border-t border-border/40 font-mono">
-                <span>Frequency: {pat.frequency}</span>
-                <span>Supporting memories: {pat.supporting_memory_ids?.length || 1}</span>
-              </div>
+              <p className="pt-3 text-xs text-muted">
+                Observed {pat.frequency.toLowerCase()}
+                {pat.supporting_memory_ids?.length ? ` — ${pat.supporting_memory_ids.length} supporting memories` : ""}
+              </p>
             </div>
           );
         })}

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Database, Search, Link2, Tag, Mic, Video, FileText } from "lucide-react";
+import { Database, Search, Link2, FileText, Mic, Video } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { MemoryItem } from "@/lib/chronosApi";
 
@@ -18,83 +18,78 @@ export function MemoryGraphView({ memories }: MemoryGraphViewProps) {
   );
 
   const getInputIcon = (type?: string) => {
-    if (type === "audio") return <Mic className="h-3.5 w-3.5 text-rose-400" />;
-    if (type === "video") return <Video className="h-3.5 w-3.5 text-indigo-400" />;
-    return <FileText className="h-3.5 w-3.5 text-sky-400" />;
+    if (type === "audio") return <Mic className="h-3.5 w-3.5" />;
+    if (type === "video") return <Video className="h-3.5 w-3.5" />;
+    return <FileText className="h-3.5 w-3.5" />;
   };
 
   return (
-    <Card className="border-border/80 bg-card/90 shadow-xl overflow-hidden">
-      <div className="bg-gradient-to-r from-violet-900/30 via-slate-900/40 to-card px-6 py-4 border-b border-border/60 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-600 text-white font-bold text-xs shadow-md shadow-violet-600/30">
+    <Card className="overflow-hidden">
+      <div className="flex flex-col gap-3 border-b border-border/60 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent text-accent-foreground">
             <Database className="h-4 w-4" />
           </div>
           <div>
-            <h3 className="text-base font-bold tracking-tight text-foreground">User Memory System</h3>
-            <p className="text-xs text-muted">Semantic Vector Store & Memory Link Graph</p>
+            <h3 className="text-[15px] font-semibold">Memories</h3>
+            <p className="text-xs text-muted">Everything you have shared, in your own words</p>
           </div>
         </div>
 
-        {/* Semantic Search Box */}
         <div className="relative w-full sm:w-64">
-          <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted" />
+          <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search semantic memories..."
-            className="w-full rounded-lg border border-border bg-secondary/60 pl-8 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-violet-500"
+            placeholder="Search memories..."
+            className="w-full rounded-lg border border-border bg-secondary/40 py-1.5 pl-9 pr-3 text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
       </div>
 
       <CardContent className="p-6">
         {filteredMemories.length === 0 ? (
-          <p className="text-center text-xs text-muted py-6">No matching memories found.</p>
+          <p className="py-6 text-center text-sm text-muted">Nothing here yet.</p>
         ) : (
-          <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+          <div className="max-h-[420px] space-y-3 overflow-y-auto pr-1">
             {filteredMemories.map((mem) => (
               <div
                 key={mem.id}
-                className="rounded-xl border border-border/80 bg-secondary/30 p-4 space-y-2 hover:border-violet-500/40 transition-all"
+                className="rounded-xl border border-border bg-secondary/20 p-4 transition-all duration-200 hover:bg-secondary/40"
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="flex items-center gap-1 rounded-md bg-secondary px-2 py-0.5 text-[10px] font-mono text-muted">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 text-[11px] text-muted">
+                    <span className="flex items-center gap-1 rounded-md border border-border bg-secondary/40 px-2 py-0.5">
                       {getInputIcon(mem.metadata?.input_type)} {mem.metadata?.input_type?.toUpperCase() || "TEXT"}
                     </span>
-                    <span className="font-mono text-[10px] text-violet-400 font-semibold">
-                      Importance: {(mem.importance_score * 100).toFixed(0)}%
-                    </span>
+                    <span>Importance {(mem.importance_score * 100).toFixed(0)}%</span>
                   </div>
-                  <span className="text-[10px] text-muted font-mono">
-                    {new Date(mem.timestamp).toLocaleString()}
+                  <span className="text-[11px] tabular-nums text-muted">
+                    {new Date(mem.timestamp).toLocaleDateString(undefined, {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
                   </span>
                 </div>
 
-                <p className="text-xs text-foreground leading-relaxed font-medium">{mem.content}</p>
+                <p className="text-sm leading-relaxed text-foreground">{mem.content}</p>
 
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/40 text-[10px]">
-                  {/* Memory Links */}
-                  <div className="flex items-center gap-1 text-muted font-mono">
-                    <Link2 className="h-3 w-3 text-indigo-400" />
-                    <span>
-                      {mem.linked_memory_ids?.length || 0} Connected Memory Nodes
-                    </span>
-                  </div>
-
-                  {/* Tags */}
-                  <div className="flex items-center gap-1 flex-wrap">
-                    {mem.tags?.map((tag) => (
-                      <span
-                        key={tag}
-                        className="rounded bg-violet-500/10 border border-violet-500/20 px-1.5 py-0.5 text-[9px] text-violet-300"
-                      >
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border/40 pt-3 text-[11px] text-muted">
+                  <span className="flex items-center gap-1">
+                    <Link2 className="h-3 w-3" />
+                    {mem.linked_memory_ids?.length || 0} connected
+                  </span>
+                  {mem.tags && mem.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {mem.tags.map((tag) => (
+                        <span key={tag} className="rounded border border-border bg-secondary/40 px-1.5 py-0.5">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

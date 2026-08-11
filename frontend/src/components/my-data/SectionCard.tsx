@@ -11,7 +11,7 @@ interface Props {
 
 export function SectionCard({ title, description, action, children }: Props) {
   return (
-    <div className="rounded-2xl border border-border bg-card">
+    <div className="rounded-2xl border border-border bg-card shadow-card">
       <div className="flex items-start justify-between border-b border-border/60 px-6 py-4">
         <div>
           <h2 className="font-semibold text-foreground">{title}</h2>

@@ -66,7 +66,7 @@ export default function MePage() {
             </Link>
             <span className="text-border">/</span>
             <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-tr from-violet-600 to-indigo-500 text-white">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg border border-border bg-secondary text-accent-foreground">
                 <UserRound className="h-3.5 w-3.5" />
               </div>
               <span className="font-semibold text-sm">Me</span>
@@ -84,10 +84,10 @@ export default function MePage() {
           <button
             type="button"
             onClick={() => setSection("profile")}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-medium rounded-lg transition-all duration-200 ${
               section === "profile"
-                ? "bg-violet-600 text-white shadow-lg shadow-violet-600/30"
-                : "text-muted hover:text-foreground hover:bg-secondary/50"
+                ? "bg-accent text-accent-foreground"
+                : "text-muted hover:text-foreground hover:bg-secondary/60"
             }`}
           >
             <User className="h-4 w-4" /> Profile
@@ -95,10 +95,10 @@ export default function MePage() {
           <button
             type="button"
             onClick={() => setSection("data")}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all ${
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-medium rounded-lg transition-all duration-200 ${
               section === "data"
-                ? "bg-violet-600 text-white shadow-lg shadow-violet-600/30"
-                : "text-muted hover:text-foreground hover:bg-secondary/50"
+                ? "bg-accent text-accent-foreground"
+                : "text-muted hover:text-foreground hover:bg-secondary/60"
             }`}
           >
             <Database className="h-4 w-4" /> Data
@@ -108,10 +108,10 @@ export default function MePage() {
         {section === "profile" && (
           <div className="space-y-6">
             {/* Identity card */}
-            <div className="rounded-2xl border border-border bg-card overflow-hidden">
-              <div className="h-20 bg-gradient-to-r from-violet-600 via-indigo-600 to-cyan-500/80" />
-              <div className="px-6 pb-6 -mt-10">
-                <div className="flex h-20 w-20 items-center justify-center rounded-2xl border-4 border-card bg-gradient-to-tr from-violet-600 to-indigo-500 text-2xl font-black text-white shadow-lg shadow-violet-600/30">
+            <div className="rounded-2xl border border-border bg-card shadow-card overflow-hidden">
+              <div className="h-24 bg-gradient-to-r from-primary/15 via-accent/40 to-foreground/5" />
+              <div className="px-6 pb-6 -mt-11">
+                <div className="flex h-20 w-20 items-center justify-center rounded-2xl border-4 border-card bg-primary text-2xl font-semibold text-primary-foreground shadow-card-hover">
                   {initials || "U"}
                 </div>
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
@@ -145,7 +145,7 @@ export default function MePage() {
                   <div>
                     <p className="text-[11px] uppercase tracking-wider text-muted font-semibold">OpenTime</p>
                     <p className="mt-0.5 flex items-center gap-1.5 text-sm text-foreground">
-                      <Cpu className="h-3.5 w-3.5 text-violet-400" /> ChronOS profile
+                      <Cpu className="h-3.5 w-3.5 text-accent-foreground" /> ChronOS profile
                     </p>
                   </div>
                 </div>
@@ -153,17 +153,17 @@ export default function MePage() {
             </div>
 
             {/* Customization */}
-            <div className="rounded-2xl border border-border bg-card">
+            <div className="rounded-2xl border border-border bg-card shadow-card">
               <div className="flex items-start justify-between border-b border-border/60 px-6 py-4">
                 <div>
                   <h2 className="flex items-center gap-2 font-semibold text-foreground">
-                    <Palette className="h-4 w-4 text-violet-400" /> Customization
+                    <Palette className="h-4 w-4 text-accent-foreground" /> Customization
                   </h2>
                   <p className="text-xs text-muted mt-0.5">
-                    Pick the mood of your OpenTime — this is a mood app, so the whole experience adapts to how you feel.
+                    Pick the mood of your OpenTime — the whole experience adapts to how you feel.
                   </p>
                 </div>
-                <span className="shrink-0 ml-4 rounded-full border border-violet-500/30 bg-violet-500/10 px-2.5 py-0.5 text-xs text-violet-300">
+                <span className="shrink-0 ml-4 rounded-full border border-border bg-accent px-2.5 py-0.5 text-xs text-accent-foreground">
                   {mood.emoji} {mood.name}
                 </span>
               </div>

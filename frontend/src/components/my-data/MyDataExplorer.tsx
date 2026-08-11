@@ -69,7 +69,7 @@ export function MyDataExplorer() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-foreground">Your Data</h1>
+        <h1 className="text-xl font-semibold text-foreground">Your Data</h1>
         <p className="text-sm text-muted mt-1">
           Everything Chronos remembers from your onboarding and beyond. You own this data — view, edit, and correct it any time.
         </p>
@@ -91,7 +91,7 @@ export function MyDataExplorer() {
               onClick={() => setTab(t.key)}
               className={`shrink-0 px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-all ${
                 tab === t.key
-                  ? "border-violet-500 text-violet-400"
+                  ? "border-accent-foreground text-accent-foreground"
                   : "border-transparent text-muted hover:text-foreground"
               }`}
             >
@@ -131,13 +131,13 @@ export function MyDataExplorer() {
               {/* Stats row */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
-                  { label: "Active goals", value: activeGoals.length, color: "text-emerald-400" },
-                  { label: "Total goals", value: goals.filter((g) => g.status !== "abandoned").length, color: "text-violet-400" },
-                  { label: "Preferences", value: prefs.length, color: "text-indigo-400" },
-                  { label: "Patterns", value: patterns.length, color: "text-amber-400" },
+                  { label: "Active goals", value: activeGoals.length },
+                  { label: "Total goals", value: goals.filter((g) => g.status !== "abandoned").length },
+                  { label: "Preferences", value: prefs.length },
+                  { label: "Patterns", value: patterns.length },
                 ].map((s) => (
-                  <div key={s.label} className="rounded-xl border border-border bg-card px-4 py-3 text-center">
-                    <div className={`text-2xl font-bold ${s.color}`}>{s.value}</div>
+                  <div key={s.label} className="rounded-xl border border-border bg-card px-4 py-3 text-center shadow-card">
+                    <div className="text-2xl font-semibold tabular-nums text-foreground">{s.value}</div>
                     <div className="text-xs text-muted mt-0.5">{s.label}</div>
                   </div>
                 ))}
@@ -145,7 +145,7 @@ export function MyDataExplorer() {
 
               {/* Identity summary */}
               {identity && (
-                <SectionCard title="Identity snapshot" description={`v${identity.version} · last updated ${new Date(identity.created_at).toLocaleDateString()}`}>
+                <SectionCard title="Identity snapshot" description={`Version ${identity.version}, updated ${new Date(identity.created_at).toLocaleDateString()}`}>
                   <div className="flex flex-wrap gap-2">
                     {identity.traits.slice(0, 8).map((t) => (
                       <span key={t.trait} className="rounded-full border border-border bg-secondary/30 px-3 py-1 text-xs text-foreground/80">
@@ -161,7 +161,7 @@ export function MyDataExplorer() {
               <SectionCard
                 title="Active goals"
                 action={
-                  <button type="button" onClick={() => setTab("goals")} className="text-xs text-violet-400 hover:underline">
+                  <button type="button" onClick={() => setTab("goals")} className="text-xs text-accent-foreground hover:underline">
                     Edit all →
                   </button>
                 }
@@ -201,8 +201,8 @@ export function MyDataExplorer() {
           {tab === "identity" && <IdentitySection initialIdentity={identity} />}
 
           {!loading && (
-            <p className="pt-2 text-xs text-muted/60">
-              Viewed as {firstName} · data from your onboarding session and Chronos processing.
+            <p className="pt-2 text-xs text-muted/70">
+              Answers from {firstName}&apos;s onboarding, plus insights Chronos has added since.
             </p>
           )}
         </motion.div>

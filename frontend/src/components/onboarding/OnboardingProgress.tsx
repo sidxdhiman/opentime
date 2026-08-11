@@ -20,7 +20,7 @@ export function OnboardingProgress({ steps, currentIndex, completedKeys }: Props
       {/* Progress bar */}
       <div className="relative h-1 bg-border rounded-full overflow-hidden mb-6">
         <div
-          className="absolute inset-y-0 left-0 bg-gradient-to-r from-violet-500 to-indigo-500 transition-all duration-500"
+          className="absolute inset-y-0 left-0 bg-primary transition-all duration-500"
           style={{ width: `${((currentIndex) / (steps.length - 1)) * 100}%` }}
         />
       </div>
@@ -34,11 +34,11 @@ export function OnboardingProgress({ steps, currentIndex, completedKeys }: Props
           return (
             <div key={step.key} className="flex flex-col items-center gap-1.5 flex-1">
               <div
-                className={`flex h-7 w-7 items-center justify-center rounded-full border-2 text-xs font-bold transition-all duration-300 ${
+                className={`flex h-7 w-7 items-center justify-center rounded-full border-2 text-xs font-medium transition-all duration-300 ${
                   isDone
-                    ? "border-violet-500 bg-violet-500 text-white"
+                    ? "border-primary bg-primary text-primary-foreground"
                     : isCurrent
-                    ? "border-violet-500 bg-violet-500/10 text-violet-400 scale-110"
+                    ? "border-accent-foreground bg-accent text-accent-foreground scale-110"
                     : "border-border bg-background text-muted"
                 }`}
               >

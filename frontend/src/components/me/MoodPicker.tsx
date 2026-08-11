@@ -18,10 +18,10 @@ export function MoodPicker() {
               onClick={() => setMood(m.key)}
               aria-pressed={active}
               title={m.description}
-              className={`group rounded-2xl border p-3 text-left transition-all ${
+              className={`group rounded-2xl border p-3 text-left transition-all duration-200 ${
                 active
-                  ? "border-violet-500/70 bg-violet-500/10 shadow-lg shadow-violet-600/10"
-                  : "border-border bg-card hover:-translate-y-0.5 hover:border-violet-500/30 hover:bg-secondary/40"
+                  ? "border-accent bg-accent shadow-card"
+                  : "border-border bg-card hover:-translate-y-0.5 hover:border-border hover:bg-secondary/40 hover:shadow-card"
               }`}
             >
               <div
@@ -36,7 +36,7 @@ export function MoodPicker() {
                   </div>
                   <div className="mt-0.5 text-[11px] text-muted truncate">{m.tagline}</div>
                 </div>
-                {active && <Check className="h-4 w-4 shrink-0 text-violet-400" />}
+                {active && <Check className="h-4 w-4 shrink-0 text-accent-foreground" />}
               </div>
             </button>
           );

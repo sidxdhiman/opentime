@@ -66,7 +66,7 @@ export function PreferencesSection({ initialPrefs }: { initialPrefs: AnalysisPre
       title="Analysis Preferences"
       description="What Chronos focuses on when building insights about you."
       action={!editing ? (
-        <Button type="button" variant="outline" size="sm" onClick={startEdit} className="gap-1.5 border-violet-500/30 text-violet-400 hover:bg-violet-500/10 text-xs">
+        <Button type="button" variant="outline" size="sm" onClick={startEdit} className="gap-1.5 border-accent/60 text-accent-foreground hover:bg-accent text-xs">
           <Pencil className="h-3.5 w-3.5" />Edit
         </Button>
       ) : undefined}
@@ -79,10 +79,10 @@ export function PreferencesSection({ initialPrefs }: { initialPrefs: AnalysisPre
               const on = draft.includes(opt.value);
               return (
                 <button key={opt.value} type="button" onClick={() => toggle(opt.value)}
-                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs text-left transition-all ${on ? "border-violet-500/60 bg-violet-500/10 text-violet-300" : "border-border bg-secondary/20 text-foreground hover:border-violet-500/30"}`}
+                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs text-left transition-all ${on ? "border-accent bg-accent text-accent-foreground" : "border-border bg-secondary/20 text-foreground hover:border-accent/40 hover:bg-accent/20"}`}
                 >
-                  <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-all ${on ? "border-violet-500 bg-violet-500" : "border-border"}`}>
-                    {on && <Check className="h-2.5 w-2.5 text-white" />}
+                  <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-all ${on ? "border-primary bg-primary" : "border-border"}`}>
+                    {on && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
                   </span>
                   {opt.label}
                 </button>
@@ -93,7 +93,7 @@ export function PreferencesSection({ initialPrefs }: { initialPrefs: AnalysisPre
           {draft.filter((d) => !PRESET_OPTIONS.some((o) => o.value === d)).length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               {draft.filter((d) => !PRESET_OPTIONS.some((o) => o.value === d)).map((d) => (
-                <span key={d} className="flex items-center gap-1 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-0.5 text-xs text-indigo-300">
+                <span key={d} className="flex items-center gap-1 rounded-full border border-accent/50 bg-accent px-2.5 py-0.5 text-xs text-accent-foreground">
                   {d}
                   <button type="button" onClick={() => setDraft((prev) => prev.filter((x) => x !== d))} className="hover:text-destructive">×</button>
                 </span>
@@ -102,19 +102,19 @@ export function PreferencesSection({ initialPrefs }: { initialPrefs: AnalysisPre
           )}
           <div className="flex gap-2">
             <Input placeholder="Add a custom preference..." value={custom} onChange={(e) => setCustom(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustom(); }}} className="text-sm" />
-            <Button type="button" variant="outline" onClick={addCustom} className="shrink-0 border-violet-500/40 text-violet-400 hover:bg-violet-500/10"><Plus className="h-4 w-4" /></Button>
+            <Button type="button" variant="outline" onClick={addCustom} className="shrink-0 border-accent/60 text-accent-foreground hover:bg-accent"><Plus className="h-4 w-4" /></Button>
           </div>
           {error && <p className="text-xs text-destructive">{error}</p>}
           <div className="flex gap-2 justify-end">
             <Button type="button" variant="ghost" size="sm" onClick={cancelEdit}><X className="h-3.5 w-3.5 mr-1" />Cancel</Button>
-            <Button type="button" size="sm" onClick={save} disabled={saving} className="bg-violet-600 hover:bg-violet-500 text-white"><Check className="h-3.5 w-3.5 mr-1" />{saving ? "Saving..." : "Save"}</Button>
+            <Button type="button" size="sm" onClick={save} disabled={saving} className="bg-primary text-primary-foreground hover:bg-primary/90"><Check className="h-3.5 w-3.5 mr-1" />{saving ? "Saving..." : "Save"}</Button>
           </div>
         </div>
       ) : (
         <div className="flex flex-wrap gap-2">
           {prefs.length === 0 && <p className="text-sm text-muted">No preferences set.</p>}
           {prefs.map((p) => (
-            <span key={p} className="rounded-full border border-violet-500/30 bg-violet-500/8 px-3 py-1 text-xs text-violet-300">
+            <span key={p} className="rounded-full border border-border bg-secondary/40 px-3 py-1 text-xs text-foreground/80">
               {prefLabel(p)}
             </span>
           ))}

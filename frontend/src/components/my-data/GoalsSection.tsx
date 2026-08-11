@@ -18,7 +18,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 const STATUS_COLORS: Record<string, string> = {
   active: "text-emerald-400 border-emerald-500/30 bg-emerald-500/10",
-  completed: "text-violet-400 border-violet-500/30 bg-violet-500/10",
+  completed: "text-accent-foreground border-accent bg-accent",
   paused: "text-amber-400 border-amber-500/30 bg-amber-500/10",
   abandoned: "text-muted border-border bg-secondary/30",
 };
@@ -105,7 +105,7 @@ function GoalRow({ goal, onUpdated, onDeleted }: {
           {error && <p className="text-xs text-destructive">{error}</p>}
           <div className="flex gap-2 justify-end">
             <Button type="button" variant="ghost" size="sm" onClick={cancelEdit} disabled={saving}><X className="h-3.5 w-3.5 mr-1" />Cancel</Button>
-            <Button type="button" size="sm" onClick={save} disabled={saving || !draft.title.trim()} className="bg-violet-600 hover:bg-violet-500 text-white"><Check className="h-3.5 w-3.5 mr-1" />{saving ? "Saving..." : "Save"}</Button>
+            <Button type="button" size="sm" onClick={save} disabled={saving || !draft.title.trim()} className="bg-primary text-primary-foreground hover:bg-primary/90"><Check className="h-3.5 w-3.5 mr-1" />{saving ? "Saving..." : "Save"}</Button>
           </div>
         </div>
       ) : (
@@ -118,7 +118,7 @@ function GoalRow({ goal, onUpdated, onDeleted }: {
             </div>
             {goal.description && <p className="text-xs text-muted mt-1 line-clamp-2">{goal.description}</p>}
             <div className="mt-2 flex items-center gap-2">
-              <div className="h-1 flex-1 max-w-[120px] rounded-full bg-border overflow-hidden"><div className="h-full bg-violet-500 transition-all" style={{ width: `${goal.importance * 100}%` }} /></div>
+              <div className="h-1 flex-1 max-w-[120px] rounded-full bg-border overflow-hidden"><div className="h-full bg-primary transition-all" style={{ width: `${goal.importance * 100}%` }} /></div>
               <span className="text-xs text-muted">{Math.round(goal.importance * 100)}% importance</span>
             </div>
           </div>
@@ -160,7 +160,7 @@ export function GoalsSection({ initialGoals }: { initialGoals: Goal[] }) {
       title="Goals"
       description="What you're working toward. Chronos uses these to track progress and surface relevant insights."
       action={
-        <Button type="button" variant="outline" size="sm" onClick={() => { setAdding(true); setShowAddWarning(true); }} className="gap-1.5 border-violet-500/30 text-violet-400 hover:bg-violet-500/10 text-xs">
+        <Button type="button" variant="outline" size="sm" onClick={() => { setAdding(true); setShowAddWarning(true); }} className="gap-1.5 border-accent/60 text-accent-foreground hover:bg-accent text-xs">
           <Plus className="h-3.5 w-3.5" />Add goal
         </Button>
       }
@@ -178,7 +178,7 @@ export function GoalsSection({ initialGoals }: { initialGoals: Goal[] }) {
         ))}
 
         {adding && (
-          <div className="rounded-xl border border-violet-500/30 bg-violet-500/5 p-4 space-y-3">
+          <div className="rounded-xl border border-accent/60 bg-accent/40 p-4 space-y-3">
             {showAddWarning && <ImpactWarningBanner onDismiss={() => setShowAddWarning(false)} />}
             <Input value={newGoal.title} onChange={(e) => setNewGoal((d) => ({ ...d, title: e.target.value }))} placeholder="New goal title..." autoFocus />
             <textarea className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm resize-y focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" rows={2} placeholder="Description (optional)" value={newGoal.description} onChange={(e) => setNewGoal((d) => ({ ...d, description: e.target.value }))} />
@@ -197,7 +197,7 @@ export function GoalsSection({ initialGoals }: { initialGoals: Goal[] }) {
             {error && <p className="text-xs text-destructive">{error}</p>}
             <div className="flex gap-2 justify-end">
               <Button type="button" variant="ghost" size="sm" onClick={() => { setAdding(false); setShowAddWarning(false); }}><X className="h-3.5 w-3.5 mr-1" />Cancel</Button>
-              <Button type="button" size="sm" onClick={saveNew} disabled={saving || !newGoal.title.trim()} className="bg-violet-600 hover:bg-violet-500 text-white"><Check className="h-3.5 w-3.5 mr-1" />{saving ? "Saving..." : "Add goal"}</Button>
+              <Button type="button" size="sm" onClick={saveNew} disabled={saving || !newGoal.title.trim()} className="bg-primary text-primary-foreground hover:bg-primary/90"><Check className="h-3.5 w-3.5 mr-1" />{saving ? "Saving..." : "Add goal"}</Button>
             </div>
           </div>
         )}

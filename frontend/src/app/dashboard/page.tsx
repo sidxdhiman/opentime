@@ -11,10 +11,10 @@ import {
   ArrowRightLeft,
   Activity,
   Database,
-  Sparkles,
   RefreshCw,
-  Zap,
+  Sparkles,
   User,
+  Mic,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
@@ -38,11 +38,22 @@ import { ReflectionEngineView } from "@/components/chronos/ReflectionEngineView"
 import { PatternDetectionView } from "@/components/chronos/PatternDetectionView";
 import { MemoryGraphView } from "@/components/chronos/MemoryGraphView";
 
+type Tab = "overview" | "identity" | "timeline" | "reflections" | "patterns" | "memories";
+
+const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
+  { key: "overview", label: "Overview", icon: Sparkles },
+  { key: "identity", label: "Identity Model", icon: UserCheck },
+  { key: "timeline", label: "Timeline", icon: Clock },
+  { key: "reflections", label: "Reflections", icon: ArrowRightLeft },
+  { key: "patterns", label: "Patterns", icon: Activity },
+  { key: "memories", label: "Memories", icon: Database },
+];
+
 export default function DashboardPage() {
   const { user, isLoading, logout } = useAuth();
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<"overview" | "identity" | "timeline" | "reflections" | "patterns" | "memories">("overview");
+  const [activeTab, setActiveTab] = useState<Tab>("overview");
 
   const [latestResponse, setLatestResponse] = useState<EngineResponse | null>(null);
   const [identity, setIdentity] = useState<IdentityProfile | null>(null);
@@ -55,7 +66,6 @@ export default function DashboardPage() {
 
   const userId = user?.id || "user_default";
 
-  // Fetch engine state
   const loadEngineData = useCallback(async () => {
     setIsDataLoading(true);
     try {
@@ -79,7 +89,6 @@ export default function DashboardPage() {
     }
   }, [userId]);
 
-  // Check whether the user went through the onboarding flow
   const checkOnboarding = useCallback(async () => {
     try {
       setOnboarding(await onboardingApi.status());
@@ -102,74 +111,59 @@ export default function DashboardPage() {
     await loadEngineData();
   };
 
-  const handleSeedState = async () => {
-    setIsDataLoading(true);
-    await chronosApi.seedState(userId);
-    await loadEngineData();
-  };
-
   if (isLoading || !user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
-          <div className="h-10 w-10 animate-spin rounded-full border-3 border-violet-500 border-t-transparent" />
-          <span className="text-sm font-semibold text-violet-400">Initializing ChronOS Engine...</span>
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <span className="text-sm font-medium text-muted">Opening your timeline...</span>
         </div>
       </div>
     );
   }
 
   const firstName = user.full_name?.split(" ")[0] ?? user.email;
+  const engineStats = [
+    { value: memories.length, label: "Memories" },
+    { value: timeline.length, label: "Events" },
+    { value: reflections.length, label: "Reflections" },
+  ];
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col selection:bg-violet-500 selection:text-white">
+    <div className="min-h-screen bg-background text-foreground flex flex-col selection:bg-accent selection:text-accent-foreground">
       {/* Sticky Header */}
-      <header className="sticky top-0 z-30 border-b border-border/80 bg-background/80 backdrop-blur-md">
+      <header className="sticky top-0 z-30 border-b border-border/60 bg-background/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3.5">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-violet-600 via-indigo-600 to-cyan-500 text-white font-black shadow-lg shadow-violet-600/30">
-              <Cpu className="h-5 w-5" />
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-secondary">
+              <Cpu className="h-5 w-5 text-accent-foreground" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="text-lg font-extrabold tracking-tight bg-gradient-to-r from-foreground via-violet-400 to-indigo-400 bg-clip-text text-transparent">
-                  OpenTime
-                </span>
-                <span className="rounded-full bg-violet-500/10 border border-violet-500/30 px-2.5 py-0.5 text-[11px] font-bold text-violet-300">
-                  ChronOS Core Engine
+              <div className="flex items-center gap-2.5">
+                <span className="text-lg font-semibold tracking-tight">OpenTime</span>
+                <span className="rounded-full border border-border bg-secondary/60 px-2.5 py-0.5 text-[11px] font-medium text-muted">
+                  ChronOS
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSeedState}
-              disabled={isDataLoading}
-              className="h-8 text-xs border-violet-500/30 bg-violet-500/10 text-violet-300 hover:bg-violet-500/20 gap-1.5"
-            >
-              <Zap className="h-3.5 w-3.5" /> Seed Historical Context
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={loadEngineData}
-              disabled={isDataLoading}
-              className="h-8 text-xs gap-1 text-muted hover:text-foreground"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${isDataLoading ? "animate-spin" : ""}`} /> Refresh
-            </Button>
-
+          <div className="flex items-center gap-1.5">
             <Link href="/me">
               <Button variant="ghost" size="sm" className="h-8 text-xs text-muted hover:text-foreground gap-1.5">
                 <User className="h-3.5 w-3.5" /> Me
               </Button>
             </Link>
-
-            <Button variant="ghost" size="sm" onClick={() => logout()} className="h-8 text-xs text-rose-400 hover:bg-rose-500/10">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={loadEngineData}
+              disabled={isDataLoading}
+              className="h-8 text-xs text-muted hover:text-foreground gap-1.5"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isDataLoading ? "animate-spin" : ""}`} /> Refresh
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => logout()} className="h-8 text-xs text-muted hover:text-destructive hover:bg-destructive/10">
               Sign out
             </Button>
           </div>
@@ -177,8 +171,7 @@ export default function DashboardPage() {
       </header>
 
       {/* Main Container */}
-      <main className="flex-1 mx-auto w-full max-w-7xl px-6 py-8 space-y-8">
-        {/* Unconfigured data notice — always shown until onboarding is completed */}
+      <main className="flex-1 mx-auto w-full max-w-7xl px-6 py-10 space-y-8">
         {onboarding && !onboarding.has_completed_session && (
           <ChronosRecoveryBanner
             hasActiveSession={onboarding.has_active_session}
@@ -187,153 +180,114 @@ export default function DashboardPage() {
         )}
 
         {/* Hero Section */}
-        <section className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border/60 pb-6">
+        <section className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
           <div>
-            <h1 className="text-3xl font-extrabold tracking-tight sm:text-4xl text-foreground">
-              Welcome back, <span className="text-violet-400">{firstName}</span>
+            <p className="mb-2 text-xs font-medium uppercase tracking-widest text-accent-foreground">
+              Your timeline
+            </p>
+            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+              Welcome back, <span className="text-accent-foreground">{firstName}</span>
             </h1>
-            <p className="text-sm text-muted mt-1 max-w-2xl leading-relaxed">
-              ChronOS is your model-agnostic reasoning, memory, and orchestration layer. Upload or record voice and video notes to continuously evolve your identity profile and timeline.
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">
+              A quiet space for everything you have shared. Record a thought, glance at how you
+              have changed, or revisit an old memory.
             </p>
           </div>
 
-          <div className="flex items-center gap-4 bg-secondary/40 border border-border/80 rounded-2xl p-4 shrink-0">
-            <div className="text-center px-2">
-              <span className="text-2xl font-bold text-violet-400 font-mono">{memories.length}</span>
-              <p className="text-[10px] text-muted font-medium uppercase tracking-wider">Memories</p>
-            </div>
-            <div className="h-8 w-px bg-border" />
-            <div className="text-center px-2">
-              <span className="text-2xl font-bold text-indigo-400 font-mono">{timeline.length}</span>
-              <p className="text-[10px] text-muted font-medium uppercase tracking-wider">Events</p>
-            </div>
-            <div className="h-8 w-px bg-border" />
-            <div className="text-center px-2">
-              <span className="text-2xl font-bold text-emerald-400 font-mono">{reflections.length}</span>
-              <p className="text-[10px] text-muted font-medium uppercase tracking-wider">Reflections</p>
-            </div>
+          <div className="flex items-center gap-6 rounded-2xl border border-border bg-card px-5 py-4 shadow-card">
+            <Mic className="h-5 w-5 text-accent-foreground" />
+            {engineStats.map((s, i) => (
+              <React.Fragment key={s.label}>
+                {i > 0 && <span className="h-8 w-px bg-border" aria-hidden />}
+                <div>
+                  <div className="text-xl font-semibold tabular-nums">{s.value}</div>
+                  <div className="text-[10px] font-medium uppercase tracking-wider text-muted">
+                    {s.label}
+                  </div>
+                </div>
+              </React.Fragment>
+            ))}
           </div>
         </section>
 
         {/* Tab Navigation */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-border/60">
-          <button
-            onClick={() => setActiveTab("overview")}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all ${
-              activeTab === "overview"
-                ? "bg-violet-600 text-white shadow-lg shadow-violet-600/30"
-                : "text-muted hover:text-foreground hover:bg-secondary/50"
-            }`}
-          >
-            <Cpu className="h-4 w-4" /> Overview & Interactive Feed
-          </button>
-          <button
-            onClick={() => setActiveTab("identity")}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all ${
-              activeTab === "identity"
-                ? "bg-violet-600 text-white shadow-lg shadow-violet-600/30"
-                : "text-muted hover:text-foreground hover:bg-secondary/50"
-            }`}
-          >
-            <UserCheck className="h-4 w-4" /> Identity Model (v{identity?.version || 1})
-          </button>
-          <button
-            onClick={() => setActiveTab("timeline")}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all ${
-              activeTab === "timeline"
-                ? "bg-violet-600 text-white shadow-lg shadow-violet-600/30"
-                : "text-muted hover:text-foreground hover:bg-secondary/50"
-            }`}
-          >
-            <Clock className="h-4 w-4" /> Timeline Engine
-          </button>
-          <button
-            onClick={() => setActiveTab("reflections")}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all ${
-              activeTab === "reflections"
-                ? "bg-violet-600 text-white shadow-lg shadow-violet-600/30"
-                : "text-muted hover:text-foreground hover:bg-secondary/50"
-            }`}
-          >
-            <ArrowRightLeft className="h-4 w-4" /> Past vs Current Self
-          </button>
-          <button
-            onClick={() => setActiveTab("patterns")}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all ${
-              activeTab === "patterns"
-                ? "bg-violet-600 text-white shadow-lg shadow-violet-600/30"
-                : "text-muted hover:text-foreground hover:bg-secondary/50"
-            }`}
-          >
-            <Activity className="h-4 w-4" /> Pattern Detection
-          </button>
-          <button
-            onClick={() => setActiveTab("memories")}
-            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all ${
-              activeTab === "memories"
-                ? "bg-violet-600 text-white shadow-lg shadow-violet-600/30"
-                : "text-muted hover:text-foreground hover:bg-secondary/50"
-            }`}
-          >
-            <Database className="h-4 w-4" /> Memory Graph ({memories.length})
-          </button>
-        </div>
+        <nav className="flex items-center gap-1 overflow-x-auto border-b border-border/60 pb-3">
+          {TABS.map(({ key, label, icon: Icon }) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className={`flex shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-medium transition-all duration-200 ${
+                activeTab === key
+                  ? "bg-accent text-accent-foreground"
+                  : "text-muted hover:bg-secondary/60 hover:text-foreground"
+              }`}
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </button>
+          ))}
+        </nav>
 
-        {/* TAB 1: OVERVIEW & INTERACTIVE FEED */}
+        {/* TAB 1: OVERVIEW */}
         {activeTab === "overview" && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            {/* Left Column: Multimodal Input & ChronOS Output */}
+          <motion.div
+            key="overview"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            className="grid grid-cols-1 lg:grid-cols-12 gap-8"
+          >
             <div className="lg:col-span-7 space-y-6">
               <VoiceVideoRecorder onResponseReceived={handleResponseReceived} userId={userId} />
               <ChronosEngineFeed response={latestResponse} />
             </div>
-
-            {/* Right Column: Evolving Identity Profile & Reflection Insights Highlights */}
             <div className="lg:col-span-5 space-y-6">
               <IdentityModelCard identity={identity} onRefresh={loadEngineData} />
               <ReflectionEngineView reflections={reflections.slice(0, 2)} />
             </div>
-          </div>
+          </motion.div>
         )}
 
-        {/* TAB 2: IDENTITY MODEL */}
-        {activeTab === "identity" && (
-          <div className="max-w-4xl mx-auto space-y-6">
-            <IdentityModelCard identity={identity} onRefresh={loadEngineData} />
-          </div>
-        )}
-
-        {/* TAB 3: TIMELINE ENGINE */}
-        {activeTab === "timeline" && (
-          <div className="max-w-4xl mx-auto space-y-6">
-            <TimelineEngineView events={timeline} />
-          </div>
-        )}
-
-        {/* TAB 4: REFLECTIONS (PAST VS CURRENT SELF) */}
-        {activeTab === "reflections" && (
-          <div className="max-w-4xl mx-auto space-y-6">
-            <ReflectionEngineView reflections={reflections} />
-          </div>
-        )}
-
-        {/* TAB 5: PATTERN DETECTION */}
-        {activeTab === "patterns" && (
-          <div className="max-w-4xl mx-auto space-y-6">
-            <PatternDetectionView patterns={patterns} />
-          </div>
-        )}
-
-        {/* TAB 6: MEMORY SYSTEM GRAPH */}
-        {activeTab === "memories" && (
-          <div className="max-w-4xl mx-auto space-y-6">
-            <MemoryGraphView memories={memories} />
-          </div>
+        {activeTab !== "overview" && (
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+          >
+            {activeTab === "identity" && (
+              <div className="max-w-4xl mx-auto">
+                <IdentityModelCard identity={identity} onRefresh={loadEngineData} />
+              </div>
+            )}
+            {activeTab === "timeline" && (
+              <div className="max-w-4xl mx-auto">
+                <TimelineEngineView events={timeline} />
+              </div>
+            )}
+            {activeTab === "reflections" && (
+              <div className="max-w-4xl mx-auto">
+                <ReflectionEngineView reflections={reflections} />
+              </div>
+            )}
+            {activeTab === "patterns" && (
+              <div className="max-w-4xl mx-auto">
+                <PatternDetectionView patterns={patterns} />
+              </div>
+            )}
+            {activeTab === "memories" && (
+              <div className="max-w-4xl mx-auto">
+                <MemoryGraphView memories={memories} />
+              </div>
+            )}
+          </motion.div>
         )}
       </main>
 
       <footer className="border-t border-border/60 py-6 text-center text-xs text-muted">
-        OpenTime ChronOS Engine • Model-Agnostic Intelligence Layer • All data belongs to user
+        OpenTime ChronOS Engine
+        <span className="mx-2 text-border" aria-hidden>/</span>
+        All data belongs to user
       </footer>
     </div>
   );
