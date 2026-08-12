@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { Database, Search, Link2, FileText, Mic, Video } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { MemoryItem } from "@/lib/chronosApi";
+import { chronosApi, MemoryItem } from "@/lib/chronosApi";
 
 interface MemoryGraphViewProps {
   memories: MemoryItem[];
@@ -21,6 +21,33 @@ export function MemoryGraphView({ memories }: MemoryGraphViewProps) {
     if (type === "audio") return <Mic className="h-3.5 w-3.5" />;
     if (type === "video") return <Video className="h-3.5 w-3.5" />;
     return <FileText className="h-3.5 w-3.5" />;
+  };
+
+  const renderMedia = (mem: MemoryItem) => {
+    const type = mem.metadata?.input_type;
+    const url = chronosApi.mediaUrl(mem.metadata?.media_url);
+    if (!url) return null;
+    if (type === "video") {
+      return (
+        <video
+          src={url}
+          controls
+          preload="metadata"
+          className="mt-3 w-full rounded-lg border border-border bg-black object-cover"
+        />
+      );
+    }
+    if (type === "audio") {
+      return (
+        <audio
+          src={url}
+          controls
+          preload="metadata"
+          className="mt-3 h-9 w-full"
+        />
+      );
+    }
+    return null;
   };
 
   return (
@@ -75,6 +102,8 @@ export function MemoryGraphView({ memories }: MemoryGraphViewProps) {
                 </div>
 
                 <p className="text-sm leading-relaxed text-foreground">{mem.content}</p>
+
+                {renderMedia(mem)}
 
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border/40 pt-3 text-[11px] text-muted">
                   <span className="flex items-center gap-1">

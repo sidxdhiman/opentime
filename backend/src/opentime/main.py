@@ -1,7 +1,10 @@
 import structlog
 from contextlib import asynccontextmanager
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from opentime.api.v1.router import router as v1_router
 from opentime.infrastructure.config import get_settings
@@ -52,6 +55,11 @@ def create_app() -> FastAPI:
         }
 
     app.include_router(v1_router, prefix=settings.api_prefix)
+
+    # Serve uploaded audio/video memory recordings.
+    upload_path = Path(settings.upload_dir)
+    upload_path.mkdir(parents=True, exist_ok=True)
+    app.mount("/uploads", StaticFiles(directory=upload_path), name="uploads")
 
     return app
 

@@ -1,13 +1,47 @@
+import re
+import uuid
+from pathlib import Path
 from typing import Any, Dict, List, Optional
+
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel
 
 from chronos_engine.engine import ChronosEngine
+from chronos_engine.storage.mongo_repository import MongoStorageAdapter
+from opentime.infrastructure.config import get_settings
 
-router = APIRouter(prefix="/chronos", tags=["ChronOS Engine"])
+router = APIRouter(prefix="/chronos/engine", tags=["ChronOS Engine"])
 
-# Global singleton engine instance (Dependency injection point)
-engine_instance = ChronosEngine()
+# Global engine instance backed by persistent MongoDB storage.
+engine_instance = ChronosEngine(storage=MongoStorageAdapter())
+
+_SAFE_NAME = re.compile(r"[^a-zA-Z0-9._-]")
+
+
+def _upload_dir() -> Path:
+    settings = get_settings()
+    directory = Path(settings.upload_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+    return directory
+
+
+async def _persist_media(user_id: str, file_name: str, media_bytes: bytes) -> Optional[str]:
+    """Save the uploaded recording to disk and return its public URL."""
+    if not media_bytes:
+        return None
+
+    safe_name = _SAFE_NAME.sub("_", file_name or f"recording_{uuid.uuid4().hex[:8]}.webm")
+    user_dir = _upload_dir() / user_id
+    user_dir.mkdir(parents=True, exist_ok=True)
+
+    target = user_dir / safe_name
+    # Never overwrite an existing file.
+    if target.exists():
+        safe_name = f"{uuid.uuid4().hex[:8]}_{safe_name}"
+        target = user_dir / safe_name
+
+    target.write_bytes(media_bytes)
+    return f"/uploads/{user_id}/{safe_name}"
 
 
 class ProcessInputRequest(BaseModel):
@@ -33,12 +67,15 @@ async def process_input(
     """
     Core Input Processing Endpoint for ChronOS Engine.
     Handles Text, Voice Audio Files/Recordings, and Video Files/Recordings.
+    Memories are persisted in MongoDB and media files are saved to disk.
     """
     media_bytes = None
     file_name = None
+    media_url = None
     if file:
         media_bytes = await file.read()
         file_name = file.filename
+        media_url = await _persist_media(user_id, file_name, media_bytes)
         if not input_type or input_type == "text":
             if file.content_type and "audio" in file.content_type:
                 input_type = "audio"
@@ -52,6 +89,7 @@ async def process_input(
             input_type=input_type,
             media_bytes=media_bytes,
             file_name=file_name,
+            media_url=media_url,
             base64_data=base64_data,
             provider_key=provider_key,
             model_name=model_name,
@@ -82,7 +120,12 @@ async def process_input_json(payload: ProcessInputRequest) -> Dict[str, Any]:
 @router.get("/memories")
 async def get_memories(user_id: str = "user_default", limit: int = 100) -> List[Dict[str, Any]]:
     memories = await engine_instance.get_memories(user_id, limit=limit)
-    return [m.model_dump() for m in memories]
+    result = []
+    for m in memories:
+        d = m.model_dump(mode="json")
+        d.pop("embedding", None)  # embeddings are never exposed through the API
+        result.append(d)
+    return result
 
 
 @router.get("/timeline")

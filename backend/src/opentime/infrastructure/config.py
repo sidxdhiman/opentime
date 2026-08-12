@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: list[str] = Field(default=["http://localhost:3000"])
 
+    # Local storage for uploaded audio/video memory recordings
+    upload_dir: str = "./uploads"
+
     # S3-compatible storage (MinIO in dev)
     s3_endpoint_url: str = "http://localhost:9000"
     s3_access_key: str = "minioadmin"

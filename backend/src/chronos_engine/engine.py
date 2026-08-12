@@ -102,6 +102,7 @@ class ChronosEngine:
         base64_data: Optional[str] = None,
         provider_key: Optional[str] = None,
         model_name: Optional[str] = None,
+        media_url: Optional[str] = None,
     ) -> EngineResponse:
         start_time = time.time()
 
@@ -113,6 +114,7 @@ class ChronosEngine:
             media_bytes=media_bytes,
             file_name=file_name,
             base64_data=base64_data,
+            media_url=media_url,
         )
 
         # Step 2: Store in Memory System

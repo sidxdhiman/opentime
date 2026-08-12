@@ -9,3 +9,5 @@ dist/
 build/
 *.db
 *.sqlite3
+
+uploads/

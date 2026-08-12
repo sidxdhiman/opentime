@@ -200,14 +200,14 @@ export function VoiceVideoRecorder({
         }
         formData.append("file", audioBlob, `voice_recording_${Date.now()}.webm`);
         formData.append("input_type", "audio");
-        formData.append("content", textContent || "Voice recording memory log");
+        formData.append("content", textContent.trim());
       } else if (activeTab === "video") {
         if (!videoBlob) {
           throw new Error("Please record a video note first.");
         }
         formData.append("file", videoBlob, `video_recording_${Date.now()}.webm`);
         formData.append("input_type", "video");
-        formData.append("content", textContent || "Video recording memory log");
+        formData.append("content", textContent.trim());
       } else if (activeTab === "upload") {
         if (!uploadedFile) {
           throw new Error("Please choose a file to upload.");

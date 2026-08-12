@@ -82,4 +82,12 @@ async def ensure_indexes() -> None:
 
     await db["chronos_states"].create_index("user_id", unique=True)
 
+    # ChronOS Engine collections (runtime memory store)
+    await db["engine_memories"].create_index("user_id")
+    await db["engine_memories"].create_index([("user_id", 1), ("timestamp", -1)])
+    await db["engine_timeline"].create_index("user_id")
+    await db["engine_identity"].create_index("user_id", unique=True)
+    await db["engine_reflections"].create_index("user_id")
+    await db["engine_patterns"].create_index("user_id")
+
     log.info("mongodb_indexes_ensured")

@@ -1,5 +1,8 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
+const ENGINE_BASE = `${API_URL}/chronos/engine`;
+const BACKEND_ORIGIN = API_URL.replace(/\/api\/v1\/?$/, "");
+
 export interface UserInputPayload {
   id: string;
   user_id: string;
@@ -16,7 +19,7 @@ export interface MemoryItem {
   user_id: string;
   content: string;
   memory_type: string;
-  embedding: number[];
+  embedding?: number[];
   created_at: string;
   timestamp: string;
   importance_score: number;
@@ -117,8 +120,15 @@ export interface EngineResponse {
 }
 
 export const chronosApi = {
+  /** Resolve a relative media path (e.g. /uploads/...) against the backend origin. */
+  mediaUrl(relativePath?: string | null): string | undefined {
+    if (!relativePath) return undefined;
+    if (/^https?:\/\//.test(relativePath)) return relativePath;
+    return `${BACKEND_ORIGIN}${relativePath.startsWith("/") ? "" : "/"}${relativePath}`;
+  },
+
   async processInput(formData: FormData): Promise<EngineResponse> {
-    const res = await fetch(`${API_URL}/chronos/process`, {
+    const res = await fetch(`${ENGINE_BASE}/process`, {
       method: "POST",
       body: formData,
     });
@@ -138,7 +148,7 @@ export const chronosApi = {
     provider_key?: string;
     model_name?: string;
   }): Promise<EngineResponse> {
-    const res = await fetch(`${API_URL}/chronos/process-json`, {
+    const res = await fetch(`${ENGINE_BASE}/process-json`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user_id: "user_default", ...data }),
@@ -151,42 +161,42 @@ export const chronosApi = {
   },
 
   async getMemories(userId = "user_default"): Promise<MemoryItem[]> {
-    const res = await fetch(`${API_URL}/chronos/memories?user_id=${userId}`);
+    const res = await fetch(`${ENGINE_BASE}/memories?user_id=${userId}`);
     if (!res.ok) return [];
     return res.json();
   },
 
   async getTimeline(userId = "user_default"): Promise<TimelineEvent[]> {
-    const res = await fetch(`${API_URL}/chronos/timeline?user_id=${userId}`);
+    const res = await fetch(`${ENGINE_BASE}/timeline?user_id=${userId}`);
     if (!res.ok) return [];
     return res.json();
   },
 
   async getIdentity(userId = "user_default"): Promise<IdentityProfile> {
-    const res = await fetch(`${API_URL}/chronos/identity?user_id=${userId}`);
+    const res = await fetch(`${ENGINE_BASE}/identity?user_id=${userId}`);
     if (!res.ok) throw new Error("Failed to load identity");
     return res.json();
   },
 
   async getReflections(userId = "user_default"): Promise<ReflectionInsight[]> {
-    const res = await fetch(`${API_URL}/chronos/reflections?user_id=${userId}`);
+    const res = await fetch(`${ENGINE_BASE}/reflections?user_id=${userId}`);
     if (!res.ok) return [];
     return res.json();
   },
 
   async getPatterns(userId = "user_default"): Promise<PatternItem[]> {
-    const res = await fetch(`${API_URL}/chronos/patterns?user_id=${userId}`);
+    const res = await fetch(`${ENGINE_BASE}/patterns?user_id=${userId}`);
     if (!res.ok) return [];
     return res.json();
   },
 
   async getProviders(): Promise<{ active: string; available: Record<string, string> }> {
-    const res = await fetch(`${API_URL}/chronos/providers`);
+    const res = await fetch(`${ENGINE_BASE}/providers`);
     if (!res.ok) return { active: "chronos", available: { chronos: "ChronOS Native" } };
     return res.json();
   },
 
   async seedState(userId = "user_default"): Promise<void> {
-    await fetch(`${API_URL}/chronos/seed?user_id=${userId}`, { method: "POST" });
+    await fetch(`${ENGINE_BASE}/seed?user_id=${userId}`, { method: "POST" });
   },
 };
