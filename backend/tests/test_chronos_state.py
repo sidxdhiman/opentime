@@ -127,7 +127,10 @@ async def test_chronos_state_does_not_break_serialization():
     assert state["current_input"]["content"] == (
         "Serialization must keep working with chronos_state present."
     )
-    assert "intent" in state and state["intent"] is None
+    assert "intent" in state and state["intent"] is not None
+    assert state["intent"]["intent"] == "UNKNOWN"
+    assert state["intent"]["confidence"] == 0.0
+    assert state["intent"]["signals"] == []
     assert "user_state" in state and state["user_state"] is None
     assert "context" in state and state["context"] is not None
     assert "goals" in state and isinstance(state["goals"], list)

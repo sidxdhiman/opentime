@@ -12,6 +12,7 @@ from chronos_engine.core.models import (
     UserInput,
     ValidationResult,
 )
+from chronos_engine.state.models import IntentResult
 
 
 class BaseEmbeddingProvider(ABC):
@@ -130,6 +131,13 @@ class BasePatternDetector(ABC):
     @abstractmethod
     async def analyze_patterns(self, user_id: str) -> List[PatternItem]:
         """Identify habits, recurring problems, repeated successes, and mood/behavior shifts."""
+        pass
+
+
+class BaseIntentDetector(ABC):
+    @abstractmethod
+    async def detect_intent(self, user_input: str) -> "IntentResult":
+        """Classify raw input text into one of the intent taxonomy categories."""
         pass
 
 

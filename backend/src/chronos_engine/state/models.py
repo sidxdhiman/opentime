@@ -16,17 +16,18 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
-from chronos_engine.core.models import PatternItem, RetrievedContext, UserInput
+from chronos_engine.core.models import IntentType, PatternItem, RetrievedContext, UserInput
 
 
 class IntentResult(BaseModel):
     """Result of user intent detection.
 
-    Populated by a future ``IntentDetector``. The taxonomy and confidence
-    shape follow the ChronOS plan.
+    Populated by the deterministic ``IntentDetector``. The taxonomy and
+    confidence shape follow the ChronOS plan. ``intent`` is ``None`` only
+    when no detector ran; a detector always resolves to at least ``UNKNOWN``.
     """
 
-    intent: Optional[str] = None
+    intent: Optional[IntentType] = None
     confidence: float = 0.0
     signals: List[str] = Field(default_factory=list)
 

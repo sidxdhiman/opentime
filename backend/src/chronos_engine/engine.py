@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 from chronos_engine.core.interfaces import (
     BaseEmbeddingProvider,
     BaseIdentityModel,
+    BaseIntentDetector,
     BaseMemorySystem,
     BasePatternDetector,
     BasePromptOrchestrator,
@@ -28,6 +29,7 @@ from chronos_engine.core.models import (
 )
 from chronos_engine.embeddings.provider import DefaultEmbeddingProvider
 from chronos_engine.identity.service import IdentityModel
+from chronos_engine.intent.service import IntentDetector
 from chronos_engine.llm.providers import LLMRegistry
 from chronos_engine.memory.service import MemorySystem
 from chronos_engine.orchestrator.service import PromptOrchestrator
@@ -78,6 +80,7 @@ class ChronosEngine:
         validator: Optional[BaseResponseValidator] = None,
         llm_registry: Optional[LLMRegistry] = None,
         state_builder: Optional[StateBuilder] = None,
+        intent_detector: Optional[BaseIntentDetector] = None,
     ):
         self.storage = storage or InMemoryStorageAdapter()
         self.embedding_provider = embedding_provider or DefaultEmbeddingProvider()
@@ -95,6 +98,7 @@ class ChronosEngine:
         self.validator = validator or ResponseValidator()
         self.llm_registry = llm_registry or LLMRegistry()
         self.state_builder = state_builder or StateBuilder()
+        self.intent_detector = intent_detector or IntentDetector()
 
     async def process_user_input(
         self,
@@ -131,9 +135,15 @@ class ChronosEngine:
         # Step 4: Retrieval Engine (Retrieve context before calling LLM)
         retrieved_context = await self.retrieval_engine.retrieve_context(user_input)
 
+        # Step 4a: Detect the user's intent from the raw input. Deterministic
+        # and offline; the result feeds the structured state built next.
+        intent_result = await self.intent_detector.detect_intent(user_input.content)
+
         # Step 4b: Build structured ChronOS state from the retrieved context.
-        # No new detection logic yet — this only assembles existing data.
-        chronos_state: ChronosState = await self.state_builder.build(user_input, retrieved_context)
+        # The intent detector now populates the state's intent section.
+        chronos_state: ChronosState = await self.state_builder.build(
+            user_input, retrieved_context, intent=intent_result
+        )
 
         # Step 5: Prompt Orchestrator
         prompt_context = await self.orchestrator.orchestrate_prompt(user_input, retrieved_context)
@@ -153,6 +163,7 @@ class ChronosEngine:
             reasoning_steps=[
                 f"Input Processing Layer converted {user_input.input_type.value} to structured context.",
                 f"Retrieved {len(retrieved_context.relevant_memories)} semantic memories and timeline phase '{retrieved_context.life_phase}'.",
+                f"Detected user intent '{intent_result.intent.value if intent_result.intent else 'UNKNOWN'}' (confidence {intent_result.confidence}).",
                 f"Constructed structured ChronosState (life phase '{chronos_state.context.life_phase if chronos_state.context else 'n/a'}', {len(chronos_state.context.relevant_memories) if chronos_state.context else 0} memories, {len(chronos_state.patterns)} patterns).",
                 f"Orchestrated prompt with evolving identity (Interests: {', '.join(retrieved_context.identity_summary.get('interests', [])[:2])}).",
                 f"Executed model-agnostic LLM provider '{llm_provider.provider_name()}'.",

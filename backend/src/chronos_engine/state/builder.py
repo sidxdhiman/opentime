@@ -2,9 +2,10 @@
 
 import uuid
 from datetime import datetime, timezone
+from typing import Optional
 
 from chronos_engine.core.models import RetrievedContext, UserInput
-from chronos_engine.state.models import ChronosState
+from chronos_engine.state.models import ChronosState, IntentResult
 
 
 class StateBuilder:
@@ -21,13 +22,14 @@ class StateBuilder:
         self,
         user_input: UserInput,
         retrieved_context: RetrievedContext,
+        intent: Optional[IntentResult] = None,
     ) -> ChronosState:
         return ChronosState(
             id=f"state_{uuid.uuid4().hex[:12]}",
             user_id=user_input.user_id,
             created_at=datetime.now(timezone.utc),
             current_input=user_input,
-            intent=None,
+            intent=intent,
             user_state=None,
             context=retrieved_context,
             goals=list(retrieved_context.goals) if retrieved_context else [],

@@ -35,6 +35,29 @@ class ReflectionInsightType(str, Enum):
     HABIT_CHANGE = "habit_change"
 
 
+class IntentType(str, Enum):
+    """User communication intents understood by the ChronOS engine.
+
+    Values are UPPERCASE so the taxonomy reads clearly in API payloads and
+    reasoning traces (e.g. ``DECISION``). ``UNKNOWN`` is the fallback for
+    inputs that do not clearly signal any communicative need.
+    """
+
+    QUESTION = "QUESTION"
+    REQUEST = "REQUEST"
+    DECISION = "DECISION"
+    PLANNING = "PLANNING"
+    REFLECTION = "REFLECTION"
+    EMOTIONAL_SUPPORT = "EMOTIONAL_SUPPORT"
+    INFORMATION = "INFORMATION"
+    CREATION = "CREATION"
+    PROBLEM_SOLVING = "PROBLEM_SOLVING"
+    STATUS_UPDATE = "STATUS_UPDATE"
+    JOURNAL_ENTRY = "JOURNAL_ENTRY"
+    COMMAND = "COMMAND"
+    UNKNOWN = "UNKNOWN"
+
+
 class UserInput(BaseModel):
     id: str
     user_id: str
