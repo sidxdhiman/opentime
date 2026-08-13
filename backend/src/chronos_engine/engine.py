@@ -38,6 +38,8 @@ from chronos_engine.storage.repository import InMemoryStorageAdapter
 from chronos_engine.timeline.service import TimelineEngine
 from chronos_engine.utils.media_processor import MediaProcessor
 from chronos_engine.validators.service import ResponseValidator
+from chronos_engine.state.builder import StateBuilder
+from chronos_engine.state.models import ChronosState
 
 
 class ChronosEngine:
@@ -75,6 +77,7 @@ class ChronosEngine:
         orchestrator: Optional[BasePromptOrchestrator] = None,
         validator: Optional[BaseResponseValidator] = None,
         llm_registry: Optional[LLMRegistry] = None,
+        state_builder: Optional[StateBuilder] = None,
     ):
         self.storage = storage or InMemoryStorageAdapter()
         self.embedding_provider = embedding_provider or DefaultEmbeddingProvider()
@@ -91,6 +94,7 @@ class ChronosEngine:
         self.orchestrator = orchestrator or PromptOrchestrator()
         self.validator = validator or ResponseValidator()
         self.llm_registry = llm_registry or LLMRegistry()
+        self.state_builder = state_builder or StateBuilder()
 
     async def process_user_input(
         self,
@@ -127,6 +131,10 @@ class ChronosEngine:
         # Step 4: Retrieval Engine (Retrieve context before calling LLM)
         retrieved_context = await self.retrieval_engine.retrieve_context(user_input)
 
+        # Step 4b: Build structured ChronOS state from the retrieved context.
+        # No new detection logic yet — this only assembles existing data.
+        chronos_state: ChronosState = await self.state_builder.build(user_input, retrieved_context)
+
         # Step 5: Prompt Orchestrator
         prompt_context = await self.orchestrator.orchestrate_prompt(user_input, retrieved_context)
 
@@ -145,6 +153,7 @@ class ChronosEngine:
             reasoning_steps=[
                 f"Input Processing Layer converted {user_input.input_type.value} to structured context.",
                 f"Retrieved {len(retrieved_context.relevant_memories)} semantic memories and timeline phase '{retrieved_context.life_phase}'.",
+                f"Constructed structured ChronosState (life phase '{chronos_state.context.life_phase if chronos_state.context else 'n/a'}', {len(chronos_state.context.relevant_memories) if chronos_state.context else 0} memories, {len(chronos_state.patterns)} patterns).",
                 f"Orchestrated prompt with evolving identity (Interests: {', '.join(retrieved_context.identity_summary.get('interests', [])[:2])}).",
                 f"Executed model-agnostic LLM provider '{llm_provider.provider_name()}'.",
                 f"Validated response consistency (Corrections: {len(validation_result.corrections_made)}).",
@@ -167,6 +176,7 @@ class ChronosEngine:
             prompt_context=prompt_context,
             reasoning_trace=reasoning_trace,
             validation_result=validation_result,
+            chronos_state=chronos_state,
             processing_time_ms=elapsed_ms,
         )
 
