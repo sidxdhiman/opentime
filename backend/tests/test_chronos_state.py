@@ -131,7 +131,11 @@ async def test_chronos_state_does_not_break_serialization():
     assert state["intent"]["intent"] == "UNKNOWN"
     assert state["intent"]["confidence"] == 0.0
     assert state["intent"]["signals"] == []
-    assert "user_state" in state and state["user_state"] is None
+    # user_state is now populated by the UserStateDetector; this input carries
+    # no emotion signals, so it resolves to NEUTRAL with zero confidence.
+    assert "user_state" in state and state["user_state"] is not None
+    assert state["user_state"]["emotional_state"] == "NEUTRAL"
+    assert state["user_state"]["confidence"] == 0.0
     assert "context" in state and state["context"] is not None
     assert "goals" in state and isinstance(state["goals"], list)
     assert "patterns" in state and isinstance(state["patterns"], list)

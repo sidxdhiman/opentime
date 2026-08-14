@@ -5,6 +5,9 @@ from chronos_engine.state.models import (
     EngineStateResult,
     EngineStatus,
     IntentResult,
+    UserCognitiveState,
+    UserEmotionState,
+    UserEnergy,
     UserStateResult,
 )
 
@@ -15,5 +18,8 @@ __all__ = [
     "EngineStatus",
     "IntentResult",
     "StateBuilder",
+    "UserCognitiveState",
+    "UserEmotionState",
+    "UserEnergy",
     "UserStateResult",
 ]

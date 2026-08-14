@@ -15,6 +15,7 @@ from chronos_engine.core.interfaces import (
     BaseRetrievalEngine,
     BaseStorageAdapter,
     BaseTimelineEngine,
+    BaseUserStateDetector,
 )
 from chronos_engine.core.models import (
     EngineResponse,
@@ -41,7 +42,8 @@ from chronos_engine.timeline.service import TimelineEngine
 from chronos_engine.utils.media_processor import MediaProcessor
 from chronos_engine.validators.service import ResponseValidator
 from chronos_engine.state.builder import StateBuilder
-from chronos_engine.state.models import ChronosState
+from chronos_engine.state.models import ChronosState, UserStateResult
+from chronos_engine.user_state.service import UserStateDetector
 
 
 class ChronosEngine:
@@ -81,6 +83,7 @@ class ChronosEngine:
         llm_registry: Optional[LLMRegistry] = None,
         state_builder: Optional[StateBuilder] = None,
         intent_detector: Optional[BaseIntentDetector] = None,
+        user_state_detector: Optional[BaseUserStateDetector] = None,
     ):
         self.storage = storage or InMemoryStorageAdapter()
         self.embedding_provider = embedding_provider or DefaultEmbeddingProvider()
@@ -99,6 +102,7 @@ class ChronosEngine:
         self.llm_registry = llm_registry or LLMRegistry()
         self.state_builder = state_builder or StateBuilder()
         self.intent_detector = intent_detector or IntentDetector()
+        self.user_state_detector = user_state_detector or UserStateDetector()
 
     async def process_user_input(
         self,
@@ -139,10 +143,20 @@ class ChronosEngine:
         # and offline; the result feeds the structured state built next.
         intent_result = await self.intent_detector.detect_intent(user_input.content)
 
-        # Step 4b: Build structured ChronOS state from the retrieved context.
-        # The intent detector now populates the state's intent section.
+        # Step 4b: Infer the user's interaction state from the input's language.
+        # Deterministic and offline; the already-detected intent is passed as
+        # optional context but never determines the emotion directly.
+        user_state_result: UserStateResult = await self.user_state_detector.detect_state(
+            user_input, intent=intent_result
+        )
+
+        # Step 4c: Build structured ChronOS state from the retrieved context.
+        # The intent and user-state detectors populate their state sections.
         chronos_state: ChronosState = await self.state_builder.build(
-            user_input, retrieved_context, intent=intent_result
+            user_input,
+            retrieved_context,
+            intent=intent_result,
+            user_state=user_state_result,
         )
 
         # Step 5: Prompt Orchestrator
@@ -157,6 +171,9 @@ class ChronosEngine:
         validation_result = await self.validator.validate_response(raw_llm_response, prompt_context)
 
         # Step 8: Build Explainability Trace
+        state_label = user_state_result.emotional_state.value if user_state_result.emotional_state else "INSUFFICIENT_SIGNALS"
+        if state_label == "NEUTRAL":
+            state_label = "INSUFFICIENT_SIGNALS"
         reasoning_trace = ReasoningTrace(
             confidence_score=validation_result.personalization_score,
             supporting_memory_ids=[m.id for m in retrieved_context.relevant_memories],
@@ -164,13 +181,21 @@ class ChronosEngine:
                 f"Input Processing Layer converted {user_input.input_type.value} to structured context.",
                 f"Retrieved {len(retrieved_context.relevant_memories)} semantic memories and timeline phase '{retrieved_context.life_phase}'.",
                 f"Detected user intent '{intent_result.intent.value if intent_result.intent else 'UNKNOWN'}' (confidence {intent_result.confidence}).",
+                f"Detected user interaction state '{state_label}' (confidence {user_state_result.confidence}).",
                 f"Constructed structured ChronosState (life phase '{chronos_state.context.life_phase if chronos_state.context else 'n/a'}', {len(chronos_state.context.relevant_memories) if chronos_state.context else 0} memories, {len(chronos_state.patterns)} patterns).",
                 f"Orchestrated prompt with evolving identity (Interests: {', '.join(retrieved_context.identity_summary.get('interests', [])[:2])}).",
                 f"Executed model-agnostic LLM provider '{llm_provider.provider_name()}'.",
                 f"Validated response consistency (Corrections: {len(validation_result.corrections_made)}).",
             ],
             affected_time_range="Current interaction window",
-            context_sources=["Memory System", "Timeline Engine", "Identity Profile", "Pattern Detector"],
+            context_sources=[
+                "Memory System",
+                "Timeline Engine",
+                "Identity Profile",
+                "Pattern Detector",
+                "Intent Detector",
+                "User State Detector",
+            ],
         )
 
         elapsed_ms = round((time.time() - start_time) * 1000, 2)

@@ -12,7 +12,7 @@ from chronos_engine.core.models import (
     UserInput,
     ValidationResult,
 )
-from chronos_engine.state.models import IntentResult
+from chronos_engine.state.models import IntentResult, UserStateResult
 
 
 class BaseEmbeddingProvider(ABC):
@@ -138,6 +138,19 @@ class BaseIntentDetector(ABC):
     @abstractmethod
     async def detect_intent(self, user_input: str) -> "IntentResult":
         """Classify raw input text into one of the intent taxonomy categories."""
+        pass
+
+
+class BaseUserStateDetector(ABC):
+    @abstractmethod
+    async def detect_state(
+        self, user_input: "UserInput", intent: "Optional[IntentResult]" = None
+    ) -> UserStateResult:
+        """Infer cautious interaction-state signals from the input's language.
+
+        The already-detected intent may be passed as optional context, but it
+        must never directly determine the emotional state.
+        """
         pass
 
 

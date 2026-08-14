@@ -12,7 +12,7 @@ yet, so those sections default to empty values instead of fabricated ones.
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -32,18 +32,73 @@ class IntentResult(BaseModel):
     signals: List[str] = Field(default_factory=list)
 
 
+class UserEmotionState(str, Enum):
+    """Interaction-language emotion labels inferred by ``UserStateDetector``.
+
+    These describe what the input's *language suggests* about the current
+    interaction, never a claim about the user themselves. ``NEUTRAL`` is the
+    default when the input does not clearly signal an emotion.
+    """
+
+    CALM = "CALM"
+    POSITIVE = "POSITIVE"
+    EXCITED = "EXCITED"
+    CONFIDENT = "CONFIDENT"
+    CURIOUS = "CURIOUS"
+    NEUTRAL = "NEUTRAL"
+    UNCERTAIN = "UNCERTAIN"
+    OVERWHELMED = "OVERWHELMED"
+    FRUSTRATED = "FRUSTRATED"
+    ANXIOUS = "ANXIOUS"
+    SAD = "SAD"
+    TIRED = "TIRED"
+    ANGRY = "ANGRY"
+    MOTIVATED = "MOTIVATED"
+    FOCUSED = "FOCUSED"
+    RELIEVED = "RELIEVED"
+
+
+class UserEnergy(str, Enum):
+    """Coarse interaction-energy levels. ``None`` is used when the input
+    carries no energy signal at all (no fabricated energy level)."""
+
+    LOW = "LOW"
+    MEDIUM = "MEDIUM"
+    HIGH = "HIGH"
+
+
+class UserCognitiveState(str, Enum):
+    """Cognitive-interaction signals, kept separate from emotional state."""
+
+    CLEAR = "CLEAR"
+    UNCERTAIN = "UNCERTAIN"
+    CONFUSED = "CONFUSED"
+    FOCUSED = "FOCUSED"
+    OVERWHELMED = "OVERWHELMED"
+    EXPLORATORY = "EXPLORATORY"
+    DECISIVE = "DECISIVE"
+
+
 class UserStateResult(BaseModel):
     """Inferred interaction-state signals.
 
-    Populated by a future ``UserStateDetector``. These are cautious inferences
-    about the interaction, never claims of fact about the user.
+    Populated by the deterministic ``UserStateDetector``. These are cautious
+    inferences about what the input's language suggests about the current
+    interaction state, never claims of fact about the user.
+
+    Every dimension is ``None`` / ``0.0`` / empty when there is not enough
+    evidence for it — the detector never fabricates a state.
     """
 
-    emotional_state: Optional[Dict[str, Any]] = None
-    energy: Optional[Dict[str, Any]] = None
-    cognitive_state: Optional[Dict[str, Any]] = None
-    urgency: Optional[float] = None
-    engagement: Optional[float] = None
+    emotional_state: Optional[UserEmotionState] = None
+    secondary_states: List[UserEmotionState] = Field(default_factory=list)
+    confidence: float = 0.0
+    signals: List[str] = Field(default_factory=list)
+    valence: Optional[float] = None  # -1.0 (negative) .. +1.0 (positive)
+    energy: Optional[UserEnergy] = None
+    cognitive_state: Optional[UserCognitiveState] = None
+    urgency: Optional[float] = None  # 0.0 (none) .. 1.0 (very urgent)
+    engagement: Optional[float] = None  # 0.0 (low) .. 1.0 (high)
 
 
 class ContradictionResult(BaseModel):
