@@ -16,6 +16,7 @@ from chronos_engine.core.interfaces import (
     BaseStorageAdapter,
     BaseTimelineEngine,
     BaseUserStateDetector,
+    BaseGoalDetector,
 )
 from chronos_engine.core.models import (
     EngineResponse,
@@ -42,8 +43,9 @@ from chronos_engine.timeline.service import TimelineEngine
 from chronos_engine.utils.media_processor import MediaProcessor
 from chronos_engine.validators.service import ResponseValidator
 from chronos_engine.state.builder import StateBuilder
-from chronos_engine.state.models import ChronosState, UserStateResult
+from chronos_engine.state.models import ChronosState, GoalAnalysisResult, UserStateResult
 from chronos_engine.user_state.service import UserStateDetector
+from chronos_engine.goals.service import GoalDetector
 
 
 class ChronosEngine:
@@ -84,6 +86,7 @@ class ChronosEngine:
         state_builder: Optional[StateBuilder] = None,
         intent_detector: Optional[BaseIntentDetector] = None,
         user_state_detector: Optional[BaseUserStateDetector] = None,
+        goal_detector: Optional[BaseGoalDetector] = None,
     ):
         self.storage = storage or InMemoryStorageAdapter()
         self.embedding_provider = embedding_provider or DefaultEmbeddingProvider()
@@ -103,6 +106,7 @@ class ChronosEngine:
         self.state_builder = state_builder or StateBuilder()
         self.intent_detector = intent_detector or IntentDetector()
         self.user_state_detector = user_state_detector or UserStateDetector()
+        self.goal_detector = goal_detector or GoalDetector()
 
     async def process_user_input(
         self,
@@ -150,13 +154,20 @@ class ChronosEngine:
             user_input, intent=intent_result
         )
 
-        # Step 4c: Build structured ChronOS state from the retrieved context.
-        # The intent and user-state detectors populate their state sections.
+        # Step 4c: Analyze how the input relates to the user's goals. Uses the
+        # identity goals surfaced through retrieval as the existing-goal source.
+        goal_analysis_result: GoalAnalysisResult = await self.goal_detector.detect_goals(
+            user_input, retrieved_context.goals
+        )
+
+        # Step 4d: Build structured ChronOS state from the retrieved context.
+        # The intent, user-state and goal detectors populate their sections.
         chronos_state: ChronosState = await self.state_builder.build(
             user_input,
             retrieved_context,
             intent=intent_result,
             user_state=user_state_result,
+            goal_analysis=goal_analysis_result,
         )
 
         # Step 5: Prompt Orchestrator
@@ -174,6 +185,16 @@ class ChronosEngine:
         state_label = user_state_result.emotional_state.value if user_state_result.emotional_state else "INSUFFICIENT_SIGNALS"
         if state_label == "NEUTRAL":
             state_label = "INSUFFICIENT_SIGNALS"
+        goal_status = goal_analysis_result.status.value if goal_analysis_result else "NONE"
+        if goal_analysis_result and goal_analysis_result.status is None:
+            goal_status = "NONE"
+        if goal_analysis_result and goal_analysis_result.goal:
+            goal_step = (
+                f"Detected goal relationship '{goal_status}' on '{goal_analysis_result.goal}' "
+                f"(confidence {goal_analysis_result.confidence})."
+            )
+        else:
+            goal_step = "Detected goal relationship 'NONE' (no relevant goal)."
         reasoning_trace = ReasoningTrace(
             confidence_score=validation_result.personalization_score,
             supporting_memory_ids=[m.id for m in retrieved_context.relevant_memories],
@@ -182,6 +203,7 @@ class ChronosEngine:
                 f"Retrieved {len(retrieved_context.relevant_memories)} semantic memories and timeline phase '{retrieved_context.life_phase}'.",
                 f"Detected user intent '{intent_result.intent.value if intent_result.intent else 'UNKNOWN'}' (confidence {intent_result.confidence}).",
                 f"Detected user interaction state '{state_label}' (confidence {user_state_result.confidence}).",
+                goal_step,
                 f"Constructed structured ChronosState (life phase '{chronos_state.context.life_phase if chronos_state.context else 'n/a'}', {len(chronos_state.context.relevant_memories) if chronos_state.context else 0} memories, {len(chronos_state.patterns)} patterns).",
                 f"Orchestrated prompt with evolving identity (Interests: {', '.join(retrieved_context.identity_summary.get('interests', [])[:2])}).",
                 f"Executed model-agnostic LLM provider '{llm_provider.provider_name()}'.",
@@ -195,6 +217,7 @@ class ChronosEngine:
                 "Pattern Detector",
                 "Intent Detector",
                 "User State Detector",
+                "Goal Detector",
             ],
         )
 

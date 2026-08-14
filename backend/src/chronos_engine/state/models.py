@@ -101,6 +101,49 @@ class UserStateResult(BaseModel):
     engagement: Optional[float] = None  # 0.0 (low) .. 1.0 (high)
 
 
+class GoalStatus(str, Enum):
+    """How the current input relates to a goal.
+
+    ``NONE`` means the input does not meaningfully relate to a goal. The other
+    values describe a specific relationship to an (existing or new) goal.
+    """
+
+    NONE = "NONE"
+    NEW = "NEW"
+    ACTIVE = "ACTIVE"
+    PROGRESS = "PROGRESS"
+    COMPLETED = "COMPLETED"
+    ABANDONED = "ABANDONED"
+    BLOCKED = "BLOCKED"
+    CHANGED = "CHANGED"
+
+
+class GoalAnalysisItem(BaseModel):
+    """A single goal relationship produced by ``GoalDetector``."""
+
+    status: GoalStatus = GoalStatus.NONE
+    goal: str = ""
+    matched_existing_goal: Optional[str] = None
+    confidence: float = 0.0
+    signals: List[str] = Field(default_factory=list)
+
+
+class GoalAnalysisResult(BaseModel):
+    """Goal analysis for one user input.
+
+    ``items`` holds one result per relevant goal (a new goal plus any existing
+    goals the input relates to). The top-level fields mirror the strongest
+    item (highest confidence) so callers get a flat primary read.
+    """
+
+    status: GoalStatus = GoalStatus.NONE
+    goal: Optional[str] = None
+    matched_existing_goal: Optional[str] = None
+    confidence: float = 0.0
+    signals: List[str] = Field(default_factory=list)
+    items: List[GoalAnalysisItem] = Field(default_factory=list)
+
+
 class ContradictionResult(BaseModel):
     """A detected contradiction between the current input and stored context."""
 
@@ -154,6 +197,7 @@ class ChronosState(BaseModel):
 
     intent: Optional[IntentResult] = None
     user_state: Optional[UserStateResult] = None
+    goal_analysis: Optional[GoalAnalysisResult] = None
 
     context: Optional[RetrievedContext] = None
 

@@ -5,7 +5,12 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from chronos_engine.core.models import RetrievedContext, UserInput
-from chronos_engine.state.models import ChronosState, IntentResult, UserStateResult
+from chronos_engine.state.models import (
+    ChronosState,
+    GoalAnalysisResult,
+    IntentResult,
+    UserStateResult,
+)
 
 
 class StateBuilder:
@@ -25,6 +30,7 @@ class StateBuilder:
         retrieved_context: RetrievedContext,
         intent: Optional[IntentResult] = None,
         user_state: Optional[UserStateResult] = None,
+        goal_analysis: Optional[GoalAnalysisResult] = None,
     ) -> ChronosState:
         return ChronosState(
             id=f"state_{uuid.uuid4().hex[:12]}",
@@ -33,6 +39,7 @@ class StateBuilder:
             current_input=user_input,
             intent=intent,
             user_state=user_state,
+            goal_analysis=goal_analysis,
             context=retrieved_context,
             goals=list(retrieved_context.goals) if retrieved_context else [],
             patterns=list(retrieved_context.patterns) if retrieved_context else [],

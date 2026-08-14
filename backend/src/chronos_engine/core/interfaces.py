@@ -12,7 +12,7 @@ from chronos_engine.core.models import (
     UserInput,
     ValidationResult,
 )
-from chronos_engine.state.models import IntentResult, UserStateResult
+from chronos_engine.state.models import GoalAnalysisResult, IntentResult, UserStateResult
 
 
 class BaseEmbeddingProvider(ABC):
@@ -150,6 +150,20 @@ class BaseUserStateDetector(ABC):
 
         The already-detected intent may be passed as optional context, but it
         must never directly determine the emotional state.
+        """
+        pass
+
+
+class BaseGoalDetector(ABC):
+    @abstractmethod
+    async def detect_goals(
+        self, user_input: "UserInput", existing_goals: "List[str]"
+    ) -> GoalAnalysisResult:
+        """Analyze how the current input relates to the user's goals.
+
+        Determines whether the input introduces a new goal or relates to an
+        existing goal (active / progress / completed / abandoned / blocked /
+        changed). Deterministic and offline.
         """
         pass
 
