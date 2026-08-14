@@ -17,6 +17,7 @@ from chronos_engine.core.interfaces import (
     BaseTimelineEngine,
     BaseUserStateDetector,
     BaseGoalDetector,
+    BaseConsistencyEngine,
 )
 from chronos_engine.core.models import (
     EngineResponse,
@@ -43,9 +44,15 @@ from chronos_engine.timeline.service import TimelineEngine
 from chronos_engine.utils.media_processor import MediaProcessor
 from chronos_engine.validators.service import ResponseValidator
 from chronos_engine.state.builder import StateBuilder
-from chronos_engine.state.models import ChronosState, GoalAnalysisResult, UserStateResult
+from chronos_engine.state.models import (
+    ChronosState,
+    ConsistencyResult,
+    GoalAnalysisResult,
+    UserStateResult,
+)
 from chronos_engine.user_state.service import UserStateDetector
 from chronos_engine.goals.service import GoalDetector
+from chronos_engine.consistency.service import ConsistencyEngine
 
 
 class ChronosEngine:
@@ -87,6 +94,7 @@ class ChronosEngine:
         intent_detector: Optional[BaseIntentDetector] = None,
         user_state_detector: Optional[BaseUserStateDetector] = None,
         goal_detector: Optional[BaseGoalDetector] = None,
+        consistency_engine: Optional[BaseConsistencyEngine] = None,
     ):
         self.storage = storage or InMemoryStorageAdapter()
         self.embedding_provider = embedding_provider or DefaultEmbeddingProvider()
@@ -107,6 +115,7 @@ class ChronosEngine:
         self.intent_detector = intent_detector or IntentDetector()
         self.user_state_detector = user_state_detector or UserStateDetector()
         self.goal_detector = goal_detector or GoalDetector()
+        self.consistency_engine = consistency_engine or ConsistencyEngine()
 
     async def process_user_input(
         self,
@@ -160,14 +169,28 @@ class ChronosEngine:
             user_input, retrieved_context.goals
         )
 
-        # Step 4d: Build structured ChronOS state from the retrieved context.
-        # The intent, user-state and goal detectors populate their sections.
+        # Step 4d: Check the input against stored user context. This is the
+        # continuity layer: it flags goal changes / conflicts and statement
+        # contradictions from already-retrieved context — no full-database scan.
+        identity = await self.identity_model.get_or_create_profile(user_id)
+        consistency_result: ConsistencyResult = await self.consistency_engine.check_consistency(
+            user_input,
+            retrieved_context,
+            goal_analysis=goal_analysis_result,
+            identity=identity,
+            current_memory_id=memory_item.id,
+        )
+
+        # Step 4e: Build structured ChronOS state from the retrieved context.
+        # The intent, user-state, goal and consistency detectors populate their
+        # sections.
         chronos_state: ChronosState = await self.state_builder.build(
             user_input,
             retrieved_context,
             intent=intent_result,
             user_state=user_state_result,
             goal_analysis=goal_analysis_result,
+            consistency_result=consistency_result,
         )
 
         # Step 5: Prompt Orchestrator
@@ -195,6 +218,19 @@ class ChronosEngine:
             )
         else:
             goal_step = "Detected goal relationship 'NONE' (no relevant goal)."
+
+        all_events = list(consistency_result.contradictions) + list(consistency_result.changes)
+        if all_events:
+            top_event = max(all_events, key=lambda e: e.confidence)
+            consistency_step = (
+                f"Consistency check -> {top_event.type} "
+                f"(confidence {top_event.confidence})."
+            )
+        else:
+            consistency_step = (
+                f"Consistency check -> CONSISTENT "
+                f"(confidence {consistency_result.confidence})."
+            )
         reasoning_trace = ReasoningTrace(
             confidence_score=validation_result.personalization_score,
             supporting_memory_ids=[m.id for m in retrieved_context.relevant_memories],
@@ -204,6 +240,7 @@ class ChronosEngine:
                 f"Detected user intent '{intent_result.intent.value if intent_result.intent else 'UNKNOWN'}' (confidence {intent_result.confidence}).",
                 f"Detected user interaction state '{state_label}' (confidence {user_state_result.confidence}).",
                 goal_step,
+                consistency_step,
                 f"Constructed structured ChronosState (life phase '{chronos_state.context.life_phase if chronos_state.context else 'n/a'}', {len(chronos_state.context.relevant_memories) if chronos_state.context else 0} memories, {len(chronos_state.patterns)} patterns).",
                 f"Orchestrated prompt with evolving identity (Interests: {', '.join(retrieved_context.identity_summary.get('interests', [])[:2])}).",
                 f"Executed model-agnostic LLM provider '{llm_provider.provider_name()}'.",
@@ -218,6 +255,7 @@ class ChronosEngine:
                 "Intent Detector",
                 "User State Detector",
                 "Goal Detector",
+                "Consistency Engine",
             ],
         )
 

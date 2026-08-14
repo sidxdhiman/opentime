@@ -1,6 +1,7 @@
 from chronos_engine.state.builder import StateBuilder
 from chronos_engine.state.models import (
     ChronosState,
+    ConsistencyResult,
     ContradictionResult,
     EngineStateResult,
     EngineStatus,
@@ -16,6 +17,7 @@ from chronos_engine.state.models import (
 
 __all__ = [
     "ChronosState",
+    "ConsistencyResult",
     "ContradictionResult",
     "EngineStateResult",
     "EngineStatus",

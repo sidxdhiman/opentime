@@ -145,12 +145,36 @@ class GoalAnalysisResult(BaseModel):
 
 
 class ContradictionResult(BaseModel):
-    """A detected contradiction between the current input and stored context."""
+    """A detected difference between the current input and stored context.
+
+    A *change* (e.g. a goal that was abandoned) and a *contradiction* (e.g. a
+    stated preference that actively conflicts with a stored one) share this
+    shape. The field is not a moral judgment about the user — it describes that
+    the current state differs from previously stored state.
+    """
 
     type: Optional[str] = None
-    previous: Optional[str] = None
-    current: Optional[str] = None
+    description: Optional[str] = None
+    previous_value: Optional[str] = None
+    current_value: Optional[str] = None
     confidence: float = 0.0
+    supporting_memory_ids: List[str] = Field(default_factory=list)
+
+
+class ConsistencyResult(BaseModel):
+    """Full output of the consistency / continuity check.
+
+    ``contradictions`` holds events that actively conflict with stored context.
+    ``changes`` holds evolution events (goal changes, decision changes) which
+    are continuity signals rather than conflicts. ``is_consistent`` is True when
+    nothing conflicts; a goal *change* alone does not mark the user inconsistent.
+    """
+
+    is_consistent: bool = True
+    confidence: float = 0.0
+    contradictions: List[ContradictionResult] = Field(default_factory=list)
+    changes: List[ContradictionResult] = Field(default_factory=list)
+    supporting_memory_ids: List[str] = Field(default_factory=list)
 
 
 class EngineStatus(str, Enum):

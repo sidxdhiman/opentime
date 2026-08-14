@@ -12,7 +12,12 @@ from chronos_engine.core.models import (
     UserInput,
     ValidationResult,
 )
-from chronos_engine.state.models import GoalAnalysisResult, IntentResult, UserStateResult
+from chronos_engine.state.models import (
+    ConsistencyResult,
+    GoalAnalysisResult,
+    IntentResult,
+    UserStateResult,
+)
 
 
 class BaseEmbeddingProvider(ABC):
@@ -164,6 +169,25 @@ class BaseGoalDetector(ABC):
         Determines whether the input introduces a new goal or relates to an
         existing goal (active / progress / completed / abandoned / blocked /
         changed). Deterministic and offline.
+        """
+        pass
+
+
+class BaseConsistencyEngine(ABC):
+    @abstractmethod
+    async def check_consistency(
+        self,
+        user_input: "UserInput",
+        retrieved_context: "RetrievedContext",
+        goal_analysis: "Optional[GoalAnalysisResult]" = None,
+        identity: "Optional[IdentityProfile]" = None,
+        current_memory_id: "Optional[str]" = None,
+    ) -> ConsistencyResult:
+        """Compare the current input against stored user context.
+
+        Detects goal changes, goal/preference/identity conflicts, decision
+        changes and statement contradictions. A *change* is a continuity signal,
+        not an accusation that the user is wrong. Deterministic and offline.
         """
         pass
 
