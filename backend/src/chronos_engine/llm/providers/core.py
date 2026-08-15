@@ -1,8 +1,9 @@
 import os
 import httpx
-from typing import Dict, Type
+from typing import Dict, Optional, Type
 from chronos_engine.core.interfaces import BaseLLMProvider
 from chronos_engine.core.models import PromptContext
+from chronos_engine.llm.providers.ollama import OllamaProvider
 
 
 class ChronosNativeLLMProvider(BaseLLMProvider):
@@ -109,18 +110,6 @@ class GeminiLLMProvider(BaseLLMProvider):
         )
 
 
-class OllamaLLMProvider(BaseLLMProvider):
-    def provider_name(self) -> str:
-        return "Ollama Local (Llama 3 / Mistral)"
-
-    async def generate_response(self, prompt_context: PromptContext, model_name: str = "llama3:latest") -> str:
-        return (
-            f"[Ollama Local Provider ({model_name}) simulated response]\n"
-            f"Privacy-preserving local inference via Ollama. "
-            f"User Input: '{prompt_context.current_input.content}' executed with ChronOS local memory RAG."
-        )
-
-
 class LLMRegistry:
     def __init__(self):
         self._providers: Dict[str, BaseLLMProvider] = {
@@ -128,7 +117,7 @@ class LLMRegistry:
             "openai": OpenAILLMProvider(),
             "anthropic": AnthropicLLMProvider(),
             "gemini": GeminiLLMProvider(),
-            "ollama": OllamaLLMProvider(),
+            "ollama": OllamaProvider(),
         }
         self._active_provider_key: str = "chronos"
 

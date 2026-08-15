@@ -1,17 +1,17 @@
-from chronos_engine.llm.providers import (
+from chronos_engine.llm.providers.core import (
     AnthropicLLMProvider,
     ChronosNativeLLMProvider,
     GeminiLLMProvider,
     LLMRegistry,
-    OllamaProvider,
     OpenAILLMProvider,
 )
+from chronos_engine.llm.providers.ollama import OllamaProvider
 
 __all__ = [
-    "ChronosNativeLLMProvider",
-    "OpenAILLMProvider",
     "AnthropicLLMProvider",
+    "ChronosNativeLLMProvider",
     "GeminiLLMProvider",
-    "OllamaProvider",
     "LLMRegistry",
+    "OpenAILLMProvider",
+    "OllamaProvider",
 ]
