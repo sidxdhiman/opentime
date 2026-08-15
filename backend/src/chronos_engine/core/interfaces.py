@@ -239,3 +239,22 @@ class BaseResponseGenerator(ABC):
         retrieval. Identical states always produce identical responses.
         """
         pass
+
+
+class BaseAIRouter(ABC):
+    @abstractmethod
+    def route(self, state: "ChronosState") -> "AIRoutingResult":
+        """Decide whether the state requires an AI model.
+
+        Deterministic and offline: the router never calls an LLM. It only
+        classifies the interaction as ``FAST`` (deterministic is sufficient)
+        or ``DEEP`` (AI would materially improve the result).
+        """
+        pass
+
+
+# Imported at the end to avoid a circular import: routing.service imports
+# BaseAIRouter above, and importing routing.models mid-module would trigger
+# the routing package __init__ -> routing.service -> core.interfaces loop
+# while core.interfaces is still partially initialized.
+from chronos_engine.routing.models import AIRoutingResult  # noqa: E402
