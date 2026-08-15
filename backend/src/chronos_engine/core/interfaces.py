@@ -13,11 +13,13 @@ from chronos_engine.core.models import (
     ValidationResult,
 )
 from chronos_engine.state.models import (
+    ChronosState,
     ConsistencyResult,
     GoalAnalysisResult,
     IntentResult,
     UserStateResult,
 )
+from chronos_engine.response.models import DeterministicResponse
 
 
 class BaseEmbeddingProvider(ABC):
@@ -225,4 +227,15 @@ class BaseResponseValidator(ABC):
         self, raw_response: str, prompt_context: PromptContext
     ) -> ValidationResult:
         """Verify factual consistency, remove contradictions, and inject missing context."""
+        pass
+
+
+class BaseResponseGenerator(ABC):
+    @abstractmethod
+    def generate(self, state: "ChronosState") -> DeterministicResponse:
+        """Build a fully deterministic, human-readable interpretation of a state.
+
+        Pure computation over ``ChronosState``: no LLM, no network, no
+        retrieval. Identical states always produce identical responses.
+        """
         pass

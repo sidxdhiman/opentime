@@ -18,6 +18,7 @@ from chronos_engine.core.interfaces import (
     BaseUserStateDetector,
     BaseGoalDetector,
     BaseConsistencyEngine,
+    BaseResponseGenerator,
 )
 from chronos_engine.core.models import (
     EngineResponse,
@@ -53,6 +54,7 @@ from chronos_engine.state.models import (
 from chronos_engine.user_state.service import UserStateDetector
 from chronos_engine.goals.service import GoalDetector
 from chronos_engine.consistency.service import ConsistencyEngine
+from chronos_engine.response.service import ResponseGenerator
 
 
 class ChronosEngine:
@@ -95,6 +97,7 @@ class ChronosEngine:
         user_state_detector: Optional[BaseUserStateDetector] = None,
         goal_detector: Optional[BaseGoalDetector] = None,
         consistency_engine: Optional[BaseConsistencyEngine] = None,
+        response_generator: Optional[BaseResponseGenerator] = None,
     ):
         self.storage = storage or InMemoryStorageAdapter()
         self.embedding_provider = embedding_provider or DefaultEmbeddingProvider()
@@ -116,6 +119,7 @@ class ChronosEngine:
         self.user_state_detector = user_state_detector or UserStateDetector()
         self.goal_detector = goal_detector or GoalDetector()
         self.consistency_engine = consistency_engine or ConsistencyEngine()
+        self.response_generator = response_generator or ResponseGenerator()
 
     async def process_user_input(
         self,
@@ -193,6 +197,11 @@ class ChronosEngine:
             consistency_result=consistency_result,
         )
 
+        # Step 4f: Deterministic response generation. Pure template/rule logic
+        # over the structured ChronosState — no LLM, no network. This is the
+        # AI-free interpretation that accompanies the LLM response.
+        deterministic_response = self.response_generator.generate(chronos_state)
+
         # Step 5: Prompt Orchestrator
         prompt_context = await self.orchestrator.orchestrate_prompt(user_input, retrieved_context)
 
@@ -245,6 +254,7 @@ class ChronosEngine:
                 f"Orchestrated prompt with evolving identity (Interests: {', '.join(retrieved_context.identity_summary.get('interests', [])[:2])}).",
                 f"Executed model-agnostic LLM provider '{llm_provider.provider_name()}'.",
                 f"Validated response consistency (Corrections: {len(validation_result.corrections_made)}).",
+                "Deterministic response generation -> generated (ai_used: False).",
             ],
             affected_time_range="Current interaction window",
             context_sources=[
@@ -256,6 +266,7 @@ class ChronosEngine:
                 "User State Detector",
                 "Goal Detector",
                 "Consistency Engine",
+                "Response Generator",
             ],
         )
 
@@ -274,6 +285,7 @@ class ChronosEngine:
             reasoning_trace=reasoning_trace,
             validation_result=validation_result,
             chronos_state=chronos_state,
+            deterministic_response=deterministic_response,
             processing_time_ms=elapsed_ms,
         )
 

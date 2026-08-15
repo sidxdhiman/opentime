@@ -185,13 +185,16 @@ class EngineResponse(BaseModel):
     reasoning_trace: ReasoningTrace
     validation_result: ValidationResult
     chronos_state: Optional["ChronosState"] = None
+    deterministic_response: Optional["DeterministicResponse"] = None
     processing_time_ms: float = 0.0
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 # Imported at the end to avoid a circular import: ChronosState lives in the
-# chronos_engine.state package but itself references core models defined above.
+# chronos_engine.state package but itself references core models defined above,
+# and DeterministicResponse lives in the chronos_engine.response package.
 from chronos_engine.state.models import ChronosState  # noqa: E402
+from chronos_engine.response.models import DeterministicResponse  # noqa: E402
 
 # Force schema resolution for the deferred forward reference on EngineResponse.
 EngineResponse.model_rebuild()
