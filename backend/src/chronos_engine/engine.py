@@ -257,6 +257,10 @@ class ChronosEngine:
                     "primary_mode": plan.primary_mode.value,
                     "confidence": plan.confidence,
                 }
+            latency_entry: dict = {
+                "step": "AI_LATENCY",
+                **ai_execution.latency_report(),
+            }
         else:
             # FAST path: the deterministic response IS the final output. The
             # legacy prompt/LLM pipeline still runs to provide the response
@@ -338,6 +342,7 @@ class ChronosEngine:
                 ]
                 if plan_entry is not None:
                     ai_execution_steps.append(plan_entry)
+                ai_execution_steps.append(latency_entry)
             else:
                 error_type = ai_execution.error_type or "unknown"
                 validation_step = (
@@ -359,6 +364,7 @@ class ChronosEngine:
                 ai_execution_steps = [fallback_step]
                 if plan_entry is not None:
                     ai_execution_steps.append(plan_entry)
+                ai_execution_steps.append(latency_entry)
         else:
             prompt_step = (
                 "Orchestrated prompt with evolving identity "

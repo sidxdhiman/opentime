@@ -16,6 +16,8 @@ Key properties verified:
   the ``OLLAMA_*`` environment.
 """
 
+import json
+
 import httpx
 import pytest
 
@@ -202,6 +204,95 @@ def test_disabled_by_default_in_registry(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# Test 7b — Prompt payload: safety system prompt is always sent
+# ---------------------------------------------------------------------------
+
+
+def capturing_ok_handler(request: httpx.Request, captured: dict) -> httpx.Response:
+    captured["json"] = json.loads(request.content)
+    return httpx.Response(
+        200,
+        json={"model": "qwen3:4b", "response": "CHRONOS_OLLAMA_OK", "done": True},
+    )
+
+
+async def test_generation_sends_full_prompt_with_safety_instructions():
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return capturing_ok_handler(request, captured)
+
+    provider = make_provider(handler)
+    await provider.generate(make_prompt())
+
+    sent = captured["json"]["prompt"]
+    assert sent == "system prompt\n\nuser prompt"
+    assert "system prompt" in sent
+    assert "user prompt" in sent
+
+
+async def test_generation_omits_options_by_default():
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return capturing_ok_handler(request, captured)
+
+    provider = make_provider(handler)
+    await provider.generate(make_prompt())
+
+    assert "options" not in captured["json"]
+    assert "format" not in captured["json"]
+
+
+async def test_generation_sends_format_json_when_configured():
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return capturing_ok_handler(request, captured)
+
+    config = OllamaConfig(
+        base_url="http://ollama:11434",
+        model="qwen3:4b",
+        timeout=2.0,
+        enabled=True,
+        format_json=True,
+    )
+    transport = httpx.MockTransport(handler)
+    client = httpx.AsyncClient(transport=transport, timeout=2.0)
+    provider = OllamaProvider(config=config, client=client)
+    await provider.generate(make_prompt())
+
+    assert captured["json"]["format"] == "json"
+
+
+async def test_generation_sends_configured_options():
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return capturing_ok_handler(request, captured)
+
+    config = OllamaConfig(
+        base_url="http://ollama:11434",
+        model="qwen3:4b",
+        timeout=2.0,
+        enabled=True,
+        temperature=0.7,
+        num_ctx=4096,
+        num_predict=256,
+    )
+    transport = httpx.MockTransport(handler)
+    client = httpx.AsyncClient(transport=transport, timeout=2.0)
+    provider = OllamaProvider(config=config, client=client)
+    await provider.generate(make_prompt())
+
+    assert captured["json"]["options"] == {
+        "temperature": 0.7,
+        "num_ctx": 4096,
+        "num_predict": 256,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Test 8 — Configuration loading
 # ---------------------------------------------------------------------------
 
@@ -232,6 +323,34 @@ def test_configuration_from_env(monkeypatch):
     assert config.model == "qwen3:4b"
     assert config.timeout == 5.5
     assert config.enabled is True
+
+
+def test_generation_options_load_from_env(monkeypatch):
+    monkeypatch.setenv("OLLAMA_TEMPERATURE", "0.4")
+    monkeypatch.setenv("OLLAMA_NUM_CTX", "8192")
+    monkeypatch.setenv("OLLAMA_NUM_PREDICT", "128")
+
+    config = OllamaConfig()
+
+    assert config.temperature == 0.4
+    assert config.num_ctx == 8192
+    assert config.num_predict == 128
+
+
+def test_generation_options_default_to_none():
+    config = OllamaConfig()
+    assert config.temperature is None
+    assert config.num_ctx is None
+    assert config.num_predict is None
+    assert config.format_json is False
+
+
+def test_format_json_loads_from_env(monkeypatch):
+    monkeypatch.setenv("OLLAMA_FORMAT_JSON", "true")
+
+    config = OllamaConfig()
+
+    assert config.format_json is True
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,90 @@
+{
+  "cases": [
+    {
+      "id": "case_1_simple_interpretation",
+      "input": "I'm frustrated because I'm stuck trying to finish ChronOS.",
+      "intent": "EMOTIONAL_SUPPORT",
+      "user_state": {"emotional_state": "FRUSTRATED", "confidence": 0.7},
+      "goal": {"status": "BLOCKED", "goal": "Finish ChronOS"},
+      "context_memories": ["I am building ChronOS as a personal evolution engine."],
+      "expected_modes": ["INTERPRET", "GENERATE"],
+      "expected_prompt_concepts": [
+        "I'm frustrated because I'm stuck",
+        "suggests emotional state: FRUSTRATED",
+        "Finish ChronOS"
+      ],
+      "expects_uncertainty": false
+    },
+    {
+      "id": "case_2_complex_decision",
+      "input": "Should I continue building ChronOS or focus on interview preparation?",
+      "intent": "DECISION",
+      "routing_signals": ["complex decision", "multiple relevant goals"],
+      "goal_items": [
+        {"status": "ACTIVE", "goal": "Build ChronOS"},
+        {"status": "NEW", "goal": "Prepare for interviews"}
+      ],
+      "expected_modes": ["REASON", "GENERATE"],
+      "expected_prompt_concepts": [
+        "Build ChronOS",
+        "Prepare for interviews"
+      ],
+      "expects_uncertainty": true
+    },
+    {
+      "id": "case_3_historical_reflection",
+      "input": "Considering everything I've told you, how have my priorities changed?",
+      "intent": "REFLECTION",
+      "routing_signals": ["historical reasoning", "reflection request"],
+      "context_memories": [
+        "I wanted to launch OpenTime as a product quickly.",
+        "I shifted from generic dashboards to deep personal intelligence."
+      ],
+      "patterns": [
+        {
+          "name": "RECURRING_PROBLEM",
+          "title": "Starting new projects",
+          "description": "Tends to start new projects before finishing the current one."
+        }
+      ],
+      "expected_modes": ["REFLECT", "GENERATE"],
+      "expected_prompt_concepts": [
+        "[memory:m1",
+        "[memory:m2",
+        "GOAL CHANGES",
+        "PATTERNS",
+        "[pattern:p1"
+      ],
+      "expects_uncertainty": true
+    },
+    {
+      "id": "case_4_unsupported_conclusion",
+      "input": "Should I move to Berlin?",
+      "intent": "DECISION",
+      "expected_modes": ["REASON", "GENERATE"],
+      "expected_prompt_concepts": [
+        "Goal relationship: none detected.",
+        "Relevant context: none retrieved."
+      ],
+      "expects_uncertainty": true
+    },
+    {
+      "id": "case_5_emotional_interpretation",
+      "input": "I'm exhausted and don't know whether this project is worth continuing.",
+      "intent": "EMOTIONAL_SUPPORT",
+      "user_state": {
+        "emotional_state": "TIRED",
+        "cognitive_state": "UNCERTAIN",
+        "confidence": 0.6
+      },
+      "goal": {"status": "ACTIVE", "goal": "Continue ChronOS"},
+      "expected_modes": ["INTERPRET", "GENERATE"],
+      "expected_prompt_concepts": [
+        "suggests emotional state: TIRED",
+        "suggests cognitive state: UNCERTAIN (confidence 0.6)",
+        "Continue ChronOS"
+      ],
+      "expects_uncertainty": true
+    }
+  ]
+}

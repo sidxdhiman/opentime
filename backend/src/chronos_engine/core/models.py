@@ -156,6 +156,18 @@ class PromptContext(BaseModel):
     user_prompt: str
     assembled_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+    def full_prompt(self) -> str:
+        """The complete prompt sent to a provider: system rules + user prompt.
+
+        Providers that have no separate system slot (e.g. Ollama's
+        ``/api/generate``) send this single string, so the safety
+        instructions always reach the model and prompt-size measurement
+        reflects exactly what is transmitted.
+        """
+        if not self.system_prompt.strip():
+            return self.user_prompt
+        return f"{self.system_prompt}\n\n{self.user_prompt}"
+
 
 class ReasoningTrace(BaseModel):
     confidence_score: float = 0.9

@@ -22,3 +22,19 @@ class OllamaConfig(BaseSettings):
     model: str = "llama3:latest"
     timeout: float = 60.0
     enabled: bool = False
+
+    # Optional generation controls, passed through to Ollama's ``options``.
+    # ``None`` (the default) preserves current behavior — nothing is sent, so
+    # Ollama uses its own defaults. These are exposed only because they are
+    # supported by the existing /api/generate client and tested; they are NOT
+    # used to force aggressive limits.
+    temperature: float | None = None
+    num_ctx: int | None = None
+    num_predict: int | None = None
+
+    # Request structured JSON output via ``"format": "json"``. Default OFF:
+    # reasoning models like ``qwen3:4b`` route their final answer into the
+    # ``thinking`` channel when this is set, leaving ``response`` empty and
+    # failing generation. The DEEP path prompts for JSON regardless and its
+    # parser tolerates surrounding text, so JSON mode is opt-in only.
+    format_json: bool = False

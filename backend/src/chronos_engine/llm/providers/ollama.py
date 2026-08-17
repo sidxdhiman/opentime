@@ -64,6 +64,21 @@ class OllamaProvider(BaseLLMProvider):
     # Generation
     # ------------------------------------------------------------------
 
+    def _generation_options(self) -> dict:
+        """Generation options supported by the /api/generate client.
+
+        Only options explicitly configured are returned; the defaults keep the
+        current behavior (Ollama's own defaults) untouched.
+        """
+        options: dict = {}
+        if self.config.temperature is not None:
+            options["temperature"] = self.config.temperature
+        if self.config.num_ctx is not None:
+            options["num_ctx"] = self.config.num_ctx
+        if self.config.num_predict is not None:
+            options["num_predict"] = self.config.num_predict
+        return options
+
     async def generate_response(self, prompt_context: PromptContext, model_name: str = "") -> str:
         result = await self.generate(prompt_context, model_name=model_name)
         return result.text
@@ -83,10 +98,14 @@ class OllamaProvider(BaseLLMProvider):
         url = f"{self.config.base_url.rstrip('/')}/api/generate"
         payload = {
             "model": model,
-            "prompt": prompt_context.user_prompt,
+            "prompt": prompt_context.full_prompt(),
             "stream": False,
-            "format": "json",
         }
+        if self.config.format_json:
+            payload["format"] = "json"
+        options = self._generation_options()
+        if options:
+            payload["options"] = options
 
         start = time.perf_counter()
         try:

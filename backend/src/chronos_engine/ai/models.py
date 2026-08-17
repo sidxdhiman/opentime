@@ -44,6 +44,44 @@ class AIExecutionResult(BaseModel):
     reasoning_plan: "ReasoningPlan | None" = None
     ai_reasoning: "AIReasoningResult | None" = None
 
+    # Prompt sizing (measured, never fabricated). The token count is a
+    # deterministic ESTIMATE (characters / 4), clearly labeled as such.
+    prompt_chars: int | None = None
+    prompt_tokens_estimate: int | None = None
+    prompt_context_hash: str | None = None
+
+    # Monotonic timing breakdown of the DEEP path (milliseconds).
+    reasoning_plan_ms: float | None = None
+    prompt_build_ms: float | None = None
+    provider_latency_ms: float | None = None
+    parse_ms: float | None = None
+    validation_ms: float | None = None
+    total_ai_ms: float | None = None
+
+    def latency_report(self) -> dict[str, float | int | str | None]:
+        """Structured latency + prompt-size breakdown for one AI attempt.
+
+        Every value comes from an actual monotonic measurement recorded during
+        execution — nothing is fabricated. ``provider_latency_ms`` falls back to
+        ``latency_ms`` (which measures the same provider call) when the newer
+        field was not populated.
+        """
+        return {
+            "reasoning_plan_ms": self.reasoning_plan_ms,
+            "prompt_build_ms": self.prompt_build_ms,
+            "provider_latency_ms": (
+                self.provider_latency_ms
+                if self.provider_latency_ms is not None
+                else self.latency_ms
+            ),
+            "parse_ms": self.parse_ms,
+            "validation_ms": self.validation_ms,
+            "total_ai_ms": self.total_ai_ms,
+            "prompt_chars": self.prompt_chars,
+            "prompt_tokens_estimate": self.prompt_tokens_estimate,
+            "prompt_context_hash": self.prompt_context_hash,
+        }
+
 
 # Deferred imports: see module docstring. PromptContext and ValidationResult
 # are defined above the deferred-import block in ``core.models``, so this is

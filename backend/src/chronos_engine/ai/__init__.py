@@ -1,3 +1,4 @@
+from chronos_engine.ai.context import ContextBudget, ReasoningContext, ReasoningContextBuilder
 from chronos_engine.ai.models import AIExecutionResult
 from chronos_engine.ai.prompts import ChronosAIPromptBuilder
 from chronos_engine.ai.reasoning.models import AIReasoningResult, ReasoningMode, ReasoningPlan
@@ -12,6 +13,9 @@ __all__ = [
     "AIResponseParseError",
     "AIResponseParser",
     "ChronosAIPromptBuilder",
+    "ContextBudget",
+    "ReasoningContext",
+    "ReasoningContextBuilder",
     "ReasoningMode",
     "ReasoningPlan",
     "ReasoningPlanner",
