@@ -16,6 +16,8 @@ All provider failures are simulated with typed provider errors; no real
 Ollama installation is required.
 """
 
+import json
+
 import pytest
 
 from chronos_engine import ChronosEngine
@@ -46,7 +48,20 @@ FAST_INPUT = "What is Python?"
 
 def ok_result(text: str = "CHRONOS_AI_RESPONSE") -> LLMResult:
     return LLMResult(
-        text=text, provider="ollama", model="qwen3:4b", latency_ms=12.5, success=True
+        text=json.dumps(
+            {
+                "interpretation": None,
+                "reasoning": "ChronOS weighed the deterministic state.",
+                "reflection": None,
+                "answer": text,
+                "uncertainties": [],
+                "evidence_used": [],
+            }
+        ),
+        provider="ollama",
+        model="qwen3:4b",
+        latency_ms=12.5,
+        success=True,
     )
 
 

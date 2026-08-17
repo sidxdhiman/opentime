@@ -26,6 +26,8 @@ import time
 
 from chronos_engine.ai.models import AIExecutionResult
 from chronos_engine.ai.prompts import ChronosAIPromptBuilder
+from chronos_engine.ai.reasoning.parser import AIResponseParseError, AIResponseParser
+from chronos_engine.ai.reasoning.planner import ReasoningPlanner
 from chronos_engine.config.ollama import OllamaConfig
 from chronos_engine.core.interfaces import BaseAIExecutor, BaseResponseValidator
 from chronos_engine.llm.errors import LLMProviderError
@@ -44,11 +46,15 @@ class AIExecutor(BaseAIExecutor):
         config: OllamaConfig = None,
         validator: BaseResponseValidator = None,
         prompt_builder: ChronosAIPromptBuilder = None,
+        planner: ReasoningPlanner = None,
+        parser: AIResponseParser = None,
     ):
         self.llm_registry = llm_registry or LLMRegistry()
         self.config = config or OllamaConfig()
         self.validator = validator or ResponseValidator()
         self.prompt_builder = prompt_builder or ChronosAIPromptBuilder()
+        self.planner = planner or ReasoningPlanner()
+        self.parser = parser or AIResponseParser()
 
     async def execute(
         self,
@@ -62,13 +68,22 @@ class AIExecutor(BaseAIExecutor):
         touching the provider. ``use_ai=True`` with a disabled or unavailable
         provider returns an honest ``fallback_used=True`` result — the engine
         is never allowed to crash because AI is unavailable.
+
+        Exactly one provider call happens per DEEP request: the reasoning plan
+        is built deterministically, the prompt targets that plan, and the
+        provider's single response is parsed into the structured output
+        contract before validation.
         """
         if routing_result is None or not routing_result.use_ai:
             return AIExecutionResult(
                 attempted=False, used=False, success=False, fallback_used=False
             )
 
-        prompt_context = self.prompt_builder.build(chronos_state, deterministic_response)
+        plan = self.planner.plan(chronos_state, routing_result)
+        allowed_evidence_ids = self.prompt_builder.evidence_ids(chronos_state)
+        prompt_context = self.prompt_builder.build(
+            chronos_state, deterministic_response, plan
+        )
 
         if not self.config.enabled:
             return AIExecutionResult(
@@ -80,6 +95,7 @@ class AIExecutor(BaseAIExecutor):
                 prompt_context=prompt_context,
                 fallback_used=True,
                 error_type="LLMDisabledError",
+                reasoning_plan=plan,
             )
 
         provider = self.llm_registry.get_provider("ollama")
@@ -99,6 +115,7 @@ class AIExecutor(BaseAIExecutor):
                 prompt_context=prompt_context,
                 fallback_used=True,
                 error_type=type(exc).__name__,
+                reasoning_plan=plan,
             )
         latency_ms = self._latency(start)
 
@@ -114,11 +131,14 @@ class AIExecutor(BaseAIExecutor):
                 prompt_context=prompt_context,
                 fallback_used=True,
                 error_type=result.error_type or "INVALID_LLM_RESULT",
+                reasoning_plan=plan,
             )
 
-        validation = await self.validator.validate_response(result.text, prompt_context)
-
-        if not validation.is_valid:
+        try:
+            parsed = self.parser.parse(
+                result.text, allowed_evidence_ids=allowed_evidence_ids
+            )
+        except AIResponseParseError as exc:
             return AIExecutionResult(
                 attempted=True,
                 used=False,
@@ -129,8 +149,27 @@ class AIExecutor(BaseAIExecutor):
                 response=result.text,
                 prompt_context=prompt_context,
                 fallback_used=True,
+                error_type=exc.reason,
+                reasoning_plan=plan,
+            )
+
+        validation = await self.validator.validate_response(parsed.answer, prompt_context)
+
+        if not validation.is_valid:
+            return AIExecutionResult(
+                attempted=True,
+                used=False,
+                success=False,
+                provider="ollama",
+                model=model,
+                latency_ms=latency_ms,
+                response=parsed.answer,
+                prompt_context=prompt_context,
+                fallback_used=True,
                 error_type="VALIDATION_FAILED",
                 validation_result=validation,
+                reasoning_plan=plan,
+                ai_reasoning=parsed,
             )
 
         return AIExecutionResult(
@@ -144,6 +183,8 @@ class AIExecutor(BaseAIExecutor):
             prompt_context=prompt_context,
             fallback_used=False,
             validation_result=validation,
+            reasoning_plan=plan,
+            ai_reasoning=parsed,
         )
 
     @staticmethod

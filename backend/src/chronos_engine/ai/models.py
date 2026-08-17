@@ -41,10 +41,17 @@ class AIExecutionResult(BaseModel):
     prompt_context: "PromptContext | None" = None
     validation_result: "ValidationResult | None" = None
 
+    reasoning_plan: "ReasoningPlan | None" = None
+    ai_reasoning: "AIReasoningResult | None" = None
+
 
 # Deferred imports: see module docstring. PromptContext and ValidationResult
 # are defined above the deferred-import block in ``core.models``, so this is
 # safe even while ``core.models`` is still partially initialized.
+from chronos_engine.ai.reasoning.models import (  # noqa: E402
+    AIReasoningResult,
+    ReasoningPlan,
+)
 from chronos_engine.core.models import PromptContext, ValidationResult  # noqa: E402
 
 AIExecutionResult.model_rebuild()

@@ -243,6 +243,20 @@ class ChronosEngine:
             raw_llm_response = ai_execution.response or final_response
             provider_name = self.llm_registry.get_provider("ollama").provider_name()
             target_model = ai_execution.model
+            plan = ai_execution.reasoning_plan
+            plan_step = None
+            plan_entry = None
+            if plan is not None:
+                plan_step = (
+                    f"Reasoning plan -> {', '.join(m.value for m in plan.modes)} "
+                    f"(primary: {plan.primary_mode.value})."
+                )
+                plan_entry = {
+                    "step": "REASONING_PLAN",
+                    "modes": [m.value for m in plan.modes],
+                    "primary_mode": plan.primary_mode.value,
+                    "confidence": plan.confidence,
+                }
         else:
             # FAST path: the deterministic response IS the final output. The
             # legacy prompt/LLM pipeline still runs to provide the response
@@ -265,6 +279,8 @@ class ChronosEngine:
                 raw_llm_response, prompt_context
             )
             provider_name = llm_provider.provider_name()
+            plan_step = None
+            plan_entry = None
 
         # Step 8: Build Explainability Trace
         state_label = user_state_result.emotional_state.value if user_state_result.emotional_state else "INSUFFICIENT_SIGNALS"
@@ -320,6 +336,8 @@ class ChronosEngine:
                         "provider": "ollama",
                     }
                 ]
+                if plan_entry is not None:
+                    ai_execution_steps.append(plan_entry)
             else:
                 error_type = ai_execution.error_type or "unknown"
                 validation_step = (
@@ -339,6 +357,8 @@ class ChronosEngine:
                 if ai_execution.error_type:
                     fallback_step["error_type"] = ai_execution.error_type
                 ai_execution_steps = [fallback_step]
+                if plan_entry is not None:
+                    ai_execution_steps.append(plan_entry)
         else:
             prompt_step = (
                 "Orchestrated prompt with evolving identity "
@@ -378,6 +398,7 @@ class ChronosEngine:
                 validation_step,
                 "Deterministic response generation -> generated (ai_used: False).",
                 f"AI routing -> {ai_routing.path.value} (use_ai: {str(ai_routing.use_ai).lower()}, confidence {ai_routing.confidence}).",
+                *([plan_step] if plan_step else []),
                 ai_execution_step,
             ],
             ai_execution_steps=ai_execution_steps,

@@ -271,9 +271,26 @@ class BaseAIExecutor(ABC):
         pass
 
 
+class BaseReasoningPlanner(ABC):
+    @abstractmethod
+    def plan(
+        self,
+        state: "ChronosState",
+        routing_result: "AIRoutingResult",
+    ) -> "ReasoningPlan":
+        """Decide the minimum-sufficient reasoning modes for one AI call.
+
+        Deterministic and offline: the planner never calls an LLM. It only
+        translates deterministic state into a ``ReasoningPlan`` that always
+        ends with ``GENERATE``.
+        """
+        pass
+
+
 # Imported at the end to avoid a circular import: routing.service imports
 # BaseAIRouter above, and importing routing.models mid-module would trigger
 # the routing package __init__ -> routing.service -> core.interfaces loop
 # while core.interfaces is still partially initialized.
 from chronos_engine.routing.models import AIRoutingResult  # noqa: E402
 from chronos_engine.ai.models import AIExecutionResult  # noqa: E402
+from chronos_engine.ai.reasoning.models import ReasoningPlan  # noqa: E402

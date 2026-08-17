@@ -85,6 +85,7 @@ class OllamaProvider(BaseLLMProvider):
             "model": model,
             "prompt": prompt_context.user_prompt,
             "stream": False,
+            "format": "json",
         }
 
         start = time.perf_counter()
