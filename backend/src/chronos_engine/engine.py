@@ -20,6 +20,7 @@ from chronos_engine.core.interfaces import (
     BaseConsistencyEngine,
     BaseResponseGenerator,
     BaseAIRouter,
+    BaseAIExecutor,
 )
 from chronos_engine.core.models import (
     EngineResponse,
@@ -27,10 +28,12 @@ from chronos_engine.core.models import (
     InputType,
     MemoryItem,
     PatternItem,
+    PromptContext,
     ReasoningTrace,
     ReflectionInsight,
     TimelineEvent,
     UserInput,
+    ValidationResult,
 )
 from chronos_engine.embeddings.provider import DefaultEmbeddingProvider
 from chronos_engine.identity.service import IdentityModel
@@ -57,6 +60,8 @@ from chronos_engine.goals.service import GoalDetector
 from chronos_engine.consistency.service import ConsistencyEngine
 from chronos_engine.response.service import ResponseGenerator
 from chronos_engine.routing.service import AIRouter
+from chronos_engine.ai.service import AIExecutor
+from chronos_engine.ai.models import AIExecutionResult
 
 
 class ChronosEngine:
@@ -101,6 +106,7 @@ class ChronosEngine:
         consistency_engine: Optional[BaseConsistencyEngine] = None,
         response_generator: Optional[BaseResponseGenerator] = None,
         ai_router: Optional[BaseAIRouter] = None,
+        ai_executor: Optional[BaseAIExecutor] = None,
     ):
         self.storage = storage or InMemoryStorageAdapter()
         self.embedding_provider = embedding_provider or DefaultEmbeddingProvider()
@@ -124,6 +130,7 @@ class ChronosEngine:
         self.consistency_engine = consistency_engine or ConsistencyEngine()
         self.response_generator = response_generator or ResponseGenerator()
         self.ai_router = ai_router or AIRouter()
+        self.ai_executor = ai_executor or AIExecutor()
 
     async def process_user_input(
         self,
@@ -208,20 +215,56 @@ class ChronosEngine:
 
         # Step 4g: AI routing. Decides whether the deterministic state is
         # sufficient (FAST) or whether an AI model would materially help
-        # (DEEP). Observational only — the AI path is NOT invoked in this
-        # phase; the current LLM pipeline continues to run unchanged.
+        # (DEEP). The routing decision is now operational: FAST returns the
+        # deterministic response; DEEP invokes the AI executor (Ollama) with a
+        # graceful deterministic fallback if AI is disabled or unavailable.
         ai_routing = self.ai_router.route(chronos_state)
 
-        # Step 5: Prompt Orchestrator
-        prompt_context = await self.orchestrator.orchestrate_prompt(user_input, retrieved_context)
-
-        # Step 6: Model-Agnostic LLM Provider Call
-        llm_provider = self.llm_registry.get_provider(provider_key)
-        target_model = model_name or ("chronos-v1-core" if provider_key == "chronos" or not provider_key else "gpt-4o")
-        raw_llm_response = await llm_provider.generate_response(prompt_context, target_model)
-
-        # Step 7: Response Validation & Post-Processing
-        validation_result = await self.validator.validate_response(raw_llm_response, prompt_context)
+        # Step 4h: AI execution. The AI executor is ONLY invoked on the DEEP
+        # path — a FAST routing must never touch Ollama. The executor never
+        # mutates ChronosState and never writes memory.
+        if ai_routing.use_ai:
+            ai_execution: AIExecutionResult = await self.ai_executor.execute(
+                ai_routing, chronos_state, deterministic_response
+            )
+            if ai_execution.used:
+                final_response = ai_execution.response
+            else:
+                final_response = deterministic_response.rendered
+            prompt_context = ai_execution.prompt_context or PromptContext(
+                current_input=user_input,
+                retrieved_context=retrieved_context,
+                system_prompt="",
+                user_prompt="",
+            )
+            validation_result = ai_execution.validation_result or ValidationResult(
+                is_valid=True, validated_response=final_response
+            )
+            raw_llm_response = ai_execution.response or final_response
+            provider_name = self.llm_registry.get_provider("ollama").provider_name()
+            target_model = ai_execution.model
+        else:
+            # FAST path: the deterministic response IS the final output. The
+            # legacy prompt/LLM pipeline still runs to provide the response
+            # metadata fields, but no Ollama interaction happens here.
+            ai_execution = AIExecutionResult(
+                attempted=False, used=False, success=False, fallback_used=False
+            )
+            final_response = deterministic_response.rendered
+            prompt_context = await self.orchestrator.orchestrate_prompt(
+                user_input, retrieved_context
+            )
+            llm_provider = self.llm_registry.get_provider(provider_key)
+            target_model = model_name or (
+                "chronos-v1-core" if provider_key == "chronos" or not provider_key else "gpt-4o"
+            )
+            raw_llm_response = await llm_provider.generate_response(
+                prompt_context, target_model
+            )
+            validation_result = await self.validator.validate_response(
+                raw_llm_response, prompt_context
+            )
+            provider_name = llm_provider.provider_name()
 
         # Step 8: Build Explainability Trace
         state_label = user_state_result.emotional_state.value if user_state_result.emotional_state else "INSUFFICIENT_SIGNALS"
@@ -250,6 +293,75 @@ class ChronosEngine:
                 f"Consistency check -> CONSISTENT "
                 f"(confidence {consistency_result.confidence})."
             )
+        if ai_routing.use_ai:
+            latency_text = (
+                f"{ai_execution.latency_ms}ms"
+                if ai_execution.latency_ms is not None
+                else "n/a"
+            )
+            prompt_step = "Assembled AI prompt from structured ChronOS state."
+            execution_step = (
+                f"Executed AI provider '{provider_name}' (model: {target_model or 'n/a'}, "
+                f"latency: {latency_text})."
+            )
+            if ai_execution.used:
+                validation_step = (
+                    "Validated AI response consistency "
+                    f"(Corrections: {len(validation_result.corrections_made)})."
+                )
+                ai_execution_step = (
+                    "AI execution -> OLLAMA_SUCCESS (ai_used: true, provider: ollama)."
+                )
+                ai_execution_steps = [
+                    {
+                        "step": "AI_EXECUTION",
+                        "result": "OLLAMA_SUCCESS",
+                        "ai_used": True,
+                        "provider": "ollama",
+                    }
+                ]
+            else:
+                error_type = ai_execution.error_type or "unknown"
+                validation_step = (
+                    f"AI execution failed ({error_type}); "
+                    "deterministic response used (fallback)."
+                )
+                ai_execution_step = (
+                    "AI execution -> OLLAMA_FAILED_DETERMINISTIC_FALLBACK "
+                    "(ai_used: false, fallback_used: true)."
+                )
+                fallback_step: dict = {
+                    "step": "AI_EXECUTION",
+                    "result": "OLLAMA_FAILED_DETERMINISTIC_FALLBACK",
+                    "ai_used": False,
+                    "fallback_used": True,
+                }
+                if ai_execution.error_type:
+                    fallback_step["error_type"] = ai_execution.error_type
+                ai_execution_steps = [fallback_step]
+        else:
+            prompt_step = (
+                "Orchestrated prompt with evolving identity "
+                f"(Interests: {', '.join(retrieved_context.identity_summary.get('interests', [])[:2])})."
+            )
+            execution_step = (
+                f"Executed model-agnostic LLM provider '{provider_name}'."
+            )
+            validation_step = (
+                "Validated response consistency "
+                f"(Corrections: {len(validation_result.corrections_made)})."
+            )
+            ai_execution_step = (
+                "AI execution -> SKIPPED_FAST_PATH (ai_used: false)."
+            )
+            ai_execution_steps = [
+                {
+                    "step": "AI_EXECUTION",
+                    "result": "SKIPPED_FAST_PATH",
+                    "ai_used": False,
+                }
+            ]
+
         reasoning_trace = ReasoningTrace(
             confidence_score=validation_result.personalization_score,
             supporting_memory_ids=[m.id for m in retrieved_context.relevant_memories],
@@ -261,12 +373,14 @@ class ChronosEngine:
                 goal_step,
                 consistency_step,
                 f"Constructed structured ChronosState (life phase '{chronos_state.context.life_phase if chronos_state.context else 'n/a'}', {len(chronos_state.context.relevant_memories) if chronos_state.context else 0} memories, {len(chronos_state.patterns)} patterns).",
-                f"Orchestrated prompt with evolving identity (Interests: {', '.join(retrieved_context.identity_summary.get('interests', [])[:2])}).",
-                f"Executed model-agnostic LLM provider '{llm_provider.provider_name()}'.",
-                f"Validated response consistency (Corrections: {len(validation_result.corrections_made)}).",
+                prompt_step,
+                execution_step,
+                validation_step,
                 "Deterministic response generation -> generated (ai_used: False).",
                 f"AI routing -> {ai_routing.path.value} (use_ai: {str(ai_routing.use_ai).lower()}, confidence {ai_routing.confidence}).",
+                ai_execution_step,
             ],
+            ai_execution_steps=ai_execution_steps,
             affected_time_range="Current interaction window",
             context_sources=[
                 "Memory System",
@@ -279,6 +393,7 @@ class ChronosEngine:
                 "Consistency Engine",
                 "Response Generator",
                 "AI Router",
+                "AI Executor",
             ],
         )
 
@@ -290,8 +405,8 @@ class ChronosEngine:
             user_id=user_id,
             original_input=user_input,
             raw_llm_response=raw_llm_response,
-            final_response=validation_result.validated_response,
-            provider_name=llm_provider.provider_name(),
+            final_response=final_response,
+            provider_name=provider_name,
             model_name=target_model,
             prompt_context=prompt_context,
             reasoning_trace=reasoning_trace,
@@ -299,6 +414,7 @@ class ChronosEngine:
             chronos_state=chronos_state,
             deterministic_response=deterministic_response,
             ai_routing=ai_routing,
+            ai_execution=ai_execution,
             processing_time_ms=elapsed_ms,
         )
 

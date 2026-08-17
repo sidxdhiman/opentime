@@ -7,16 +7,22 @@ Run this only when a local Ollama instance is installed and running:
 Performs:
     1. Health check against the configured Ollama instance.
     2. A simple generation round-trip.
+    3. Phase 2C end-to-end: user input -> Chronos analysis -> AIRouter=DEEP
+       -> Ollama -> ResponseValidator -> final AI response.
 
 Expected successful output:
 
     health: reachable=True model_available=True model=qwen3:4b
     CHRONOS_OLLAMA_OK
+    route: DEEP | ai_used: True | fallback: False
+    final_response:
+    <the model's grounded natural-language response>
 """
 
 import asyncio
 import sys
 
+from chronos_engine import ChronosEngine
 from chronos_engine.config import OllamaConfig
 from chronos_engine.core.models import PromptContext, RetrievedContext, UserInput
 from chronos_engine.llm import OllamaProvider
@@ -51,9 +57,42 @@ async def main() -> int:
         )
         result = await provider.generate(prompt)
         print(result.text)
+
+        # Phase 2C end-to-end DEEP path.
+        from chronos_engine.ai import AIExecutor
+
+        registry = _make_registry_with(config)
+        engine = ChronosEngine(
+            ai_executor=AIExecutor(llm_registry=registry, config=config),
+            llm_registry=registry,
+        )
+        response = await engine.process_user_input(
+            user_id="smoke_e2e",
+            content=(
+                "Considering everything I've told you about ChronOS, "
+                "do you think I should continue investing my time in it?"
+            ),
+            provider_key="chronos",
+        )
+        ai = response.ai_execution
+        print(f"route: {response.ai_routing.path.value} | "
+              f"ai_used: {ai.used} | fallback: {ai.fallback_used} | "
+              f"latency_ms: {ai.latency_ms}")
+        if not ai.used:
+            print("AI was not used — inspect the deterministic fallback output below.")
+        print("final_response:")
+        print(response.final_response)
         return 0
     finally:
         await provider.close()
+
+
+def _make_registry_with(config: OllamaConfig):
+    from chronos_engine.llm import LLMRegistry
+
+    registry = LLMRegistry()
+    registry.register_provider("ollama", OllamaProvider(config=config))
+    return registry
 
 
 if __name__ == "__main__":

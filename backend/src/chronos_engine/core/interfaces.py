@@ -253,8 +253,27 @@ class BaseAIRouter(ABC):
         pass
 
 
+class BaseAIExecutor(ABC):
+    @abstractmethod
+    async def execute(
+        self,
+        routing_result: "AIRoutingResult",
+        chronos_state: "ChronosState",
+        deterministic_response: "DeterministicResponse",
+    ) -> "AIExecutionResult":
+        """Execute a DEEP routing decision through the configured AI provider.
+
+        The executor is the ONLY component allowed to invoke the provider. It
+        never decides whether AI is needed (that is the router's job), never
+        mutates ``ChronosState``, never writes memory, and never crashes the
+        engine when AI is unavailable — it returns an honest fallback result.
+        """
+        pass
+
+
 # Imported at the end to avoid a circular import: routing.service imports
 # BaseAIRouter above, and importing routing.models mid-module would trigger
 # the routing package __init__ -> routing.service -> core.interfaces loop
 # while core.interfaces is still partially initialized.
 from chronos_engine.routing.models import AIRoutingResult  # noqa: E402
+from chronos_engine.ai.models import AIExecutionResult  # noqa: E402

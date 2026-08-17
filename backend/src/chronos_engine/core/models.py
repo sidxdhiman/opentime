@@ -161,6 +161,7 @@ class ReasoningTrace(BaseModel):
     confidence_score: float = 0.9
     supporting_memory_ids: List[str] = Field(default_factory=list)
     reasoning_steps: List[str] = Field(default_factory=list)
+    ai_execution_steps: List[Dict[str, Any]] = Field(default_factory=list)
     affected_time_range: str = "Recent interactions"
     context_sources: List[str] = Field(default_factory=list)
 
@@ -187,17 +188,20 @@ class EngineResponse(BaseModel):
     chronos_state: Optional["ChronosState"] = None
     deterministic_response: Optional["DeterministicResponse"] = None
     ai_routing: Optional["AIRoutingResult"] = None
+    ai_execution: Optional["AIExecutionResult"] = None
     processing_time_ms: float = 0.0
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 # Imported at the end to avoid a circular import: ChronosState lives in the
 # chronos_engine.state package but itself references core models defined above,
-# DeterministicResponse lives in the chronos_engine.response package, and
-# AIRoutingResult lives in the chronos_engine.routing package.
+# DeterministicResponse lives in the chronos_engine.response package,
+# AIRoutingResult lives in the chronos_engine.routing package, and
+# AIExecutionResult lives in the chronos_engine.ai package.
 from chronos_engine.state.models import ChronosState  # noqa: E402
 from chronos_engine.response.models import DeterministicResponse  # noqa: E402
 from chronos_engine.routing.models import AIRoutingResult  # noqa: E402
+from chronos_engine.ai.models import AIExecutionResult  # noqa: E402
 
 # Force schema resolution for the deferred forward reference on EngineResponse.
 EngineResponse.model_rebuild()
