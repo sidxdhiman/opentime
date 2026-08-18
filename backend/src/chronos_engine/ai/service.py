@@ -37,6 +37,7 @@ from chronos_engine.ai.reasoning.planner import ReasoningPlanner
 from chronos_engine.config.ollama import OllamaConfig
 from chronos_engine.core.interfaces import BaseAIExecutor, BaseResponseValidator
 from chronos_engine.llm.errors import LLMProviderError
+from chronos_engine.llm.inference import InferenceOptions
 from chronos_engine.llm.providers import LLMRegistry
 from chronos_engine.response.models import DeterministicResponse
 from chronos_engine.state.models import ChronosState
@@ -103,6 +104,8 @@ class AIExecutor(BaseAIExecutor):
         plan = self.planner.plan(chronos_state, routing_result)
         reasoning_plan_ms = self._latency(plan_start)
 
+        inference_options = self._inference_options(plan)
+
         build_start = time.perf_counter()
         allowed_evidence_ids = self.prompt_builder.evidence_ids(chronos_state)
         prompt_context = self.prompt_builder.build(
@@ -129,6 +132,7 @@ class AIExecutor(BaseAIExecutor):
                 "prompt_build_ms": prompt_build_ms,
                 "total_ai_ms": self._latency(total_start),
                 "reasoning_plan": plan,
+                "inference_options": inference_options,
             }
             fields.update(overrides)
             return AIExecutionResult(**fields)
@@ -141,7 +145,11 @@ class AIExecutor(BaseAIExecutor):
 
         provider_start = time.perf_counter()
         try:
-            llm_result = await provider.generate(prompt_context, model_name=model)
+            llm_result = await provider.generate(
+                prompt_context,
+                model_name=model,
+                inference_options=inference_options,
+            )
         except LLMProviderError as exc:
             provider_latency_ms = self._latency(provider_start)
             return result(
@@ -213,3 +221,24 @@ class AIExecutor(BaseAIExecutor):
     @staticmethod
     def _latency(start: float) -> float:
         return round((time.perf_counter() - start) * 1000.0, 2)
+
+    def _inference_options(self, plan: ReasoningPlan) -> InferenceOptions:
+        """Resolve per-call inference knobs from the plan + configuration.
+
+        Mode-specific overrides (``mode_thinking_enabled`` /
+        ``mode_num_predict``) take precedence over the global settings; the
+        plan's ``primary_mode`` selects the override. Falls back to global
+        configuration when no mode override is configured, preserving current
+        behavior unless explicitly configured.
+        """
+        primary = plan.primary_mode.value
+        return InferenceOptions(
+            thinking_enabled=self.config.mode_thinking_enabled.get(
+                primary, self.config.thinking_enabled
+            ),
+            num_predict=self.config.mode_num_predict.get(
+                primary, self.config.num_predict
+            ),
+            num_ctx=self.config.num_ctx,
+            temperature=self.config.temperature,
+        )

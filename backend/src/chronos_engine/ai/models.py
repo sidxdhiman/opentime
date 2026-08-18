@@ -44,6 +44,9 @@ class AIExecutionResult(BaseModel):
     reasoning_plan: "ReasoningPlan | None" = None
     ai_reasoning: "AIReasoningResult | None" = None
 
+    # Resolved per-call inference knobs (thinking channel, output budget, ...).
+    inference_options: "InferenceOptions | None" = None
+
     # Prompt sizing (measured, never fabricated). The token count is a
     # deterministic ESTIMATE (characters / 4), clearly labeled as such.
     prompt_chars: int | None = None
@@ -91,5 +94,6 @@ from chronos_engine.ai.reasoning.models import (  # noqa: E402
     ReasoningPlan,
 )
 from chronos_engine.core.models import PromptContext, ValidationResult  # noqa: E402
+from chronos_engine.llm.inference import InferenceOptions  # noqa: E402
 
 AIExecutionResult.model_rebuild()

@@ -45,6 +45,9 @@ intent, goals, or contradictions on your own.
 
 Ground rules:
 - Return only the JSON object requested in OUTPUT FORMAT, nothing else.
+- The supplied CHRONOS STATE is the complete, final analysis. Do not re-derive,
+  restate, or re-evaluate the user's emotion, intent, goals, or contradictions
+  — perform only the specific reasoning task below.
 - Do not invent historical facts, goals, recurring patterns, or memories. \
 Reference only evidence tagged in the CHRONOS STATE section.
 - Do not claim that the user feels something as a fact; use cautious language \

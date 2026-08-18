@@ -226,8 +226,8 @@ class FakeOllama:
     def provider_name(self):
         return "Ollama Local"
 
-    async def generate(self, prompt_context, model_name: str = ""):
-        self.generate_calls.append((prompt_context, model_name))
+    async def generate(self, prompt_context, model_name: str = "", inference_options=None):
+        self.generate_calls.append((prompt_context, model_name, inference_options))
         if self.error is not None:
             raise self.error
         return self.result

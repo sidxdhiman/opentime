@@ -20,7 +20,27 @@ MALFORMED_JSON = "MALFORMED_JSON"
 MISSING_ANSWER = "MISSING_ANSWER"
 HALLUCINATED_EVIDENCE = "HALLUCINATED_EVIDENCE"
 
-_EVIDENCE_TAG = re.compile(r"\[(memory|timeline|pattern):([^\]]+)\]")
+# Accepts the evidence tag formats the real Qwen3 output actually produces:
+# ``[memory:mem_x]``, ``memory:mem_x``, ``[timeline:evt_x]``, ``pattern:p1``,
+# etc. The optional brackets and the ``memory:/timeline:/pattern:`` prefix are
+# normalized away so a real cited id is accepted regardless of formatting.
+_EVIDENCE_TAG = re.compile(r"^\[?(memory|timeline|pattern):([^\]]+?)\]?$")
+
+
+def _normalize_evidence_id(entry: str) -> str:
+    """Normalize a model-supplied evidence tag to its bare id.
+
+    Phase 2G inspection found qwen3:4b emits the tag both bracketed and
+    unbracketed (``[memory:mem_x]`` vs ``memory:mem_x``) on the same state,
+    which previously rejected otherwise-valid citations. Normalize the prefix
+    and stray brackets; anything that is not a recognized tag is returned
+    stripped and still rejected by the allowed-id guardrail below.
+    """
+    stripped = entry.strip()
+    match = _EVIDENCE_TAG.match(stripped)
+    if match is not None:
+        return match.group(2)
+    return stripped.strip("[]")
 
 
 class AIResponseParseError(ValueError):
@@ -57,11 +77,7 @@ class AIResponseParser:
         if allowed_evidence_ids:
             cited: set[str] = set()
             for entry in result.evidence_used:
-                match = _EVIDENCE_TAG.fullmatch(entry.strip())
-                if match is not None:
-                    cited.add(match.group(2))
-                else:
-                    cited.add(entry.strip())
+                cited.add(_normalize_evidence_id(entry))
             if cited and not cited.issubset(allowed_evidence_ids):
                 raise AIResponseParseError(HALLUCINATED_EVIDENCE)
 

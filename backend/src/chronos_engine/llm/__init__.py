@@ -1,3 +1,4 @@
+from chronos_engine.llm.inference import InferenceOptions
 from chronos_engine.llm.providers import (
     AnthropicLLMProvider,
     ChronosNativeLLMProvider,
@@ -8,10 +9,11 @@ from chronos_engine.llm.providers import (
 )
 
 __all__ = [
-    "ChronosNativeLLMProvider",
-    "OpenAILLMProvider",
     "AnthropicLLMProvider",
+    "ChronosNativeLLMProvider",
     "GeminiLLMProvider",
-    "OllamaProvider",
+    "InferenceOptions",
     "LLMRegistry",
+    "OllamaProvider",
+    "OpenAILLMProvider",
 ]

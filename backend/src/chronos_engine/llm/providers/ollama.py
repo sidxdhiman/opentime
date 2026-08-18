@@ -24,6 +24,7 @@ from chronos_engine.llm.errors import (
     LLMModelUnavailableError,
     LLMTimeoutError,
 )
+from chronos_engine.llm.inference import InferenceOptions
 from chronos_engine.llm.result import LLMResult
 
 
@@ -64,26 +65,67 @@ class OllamaProvider(BaseLLMProvider):
     # Generation
     # ------------------------------------------------------------------
 
-    def _generation_options(self) -> dict:
+    def _generation_options(self, inference_options: InferenceOptions | None = None) -> dict:
         """Generation options supported by the /api/generate client.
 
         Only options explicitly configured are returned; the defaults keep the
-        current behavior (Ollama's own defaults) untouched.
+        current behavior (Ollama's own defaults) untouched. Per-call
+        ``inference_options`` override the configuration-level values.
         """
+        opts = inference_options or InferenceOptions()
+        temperature = (
+            opts.temperature
+            if opts.temperature is not None
+            else self.config.temperature
+        )
+        num_ctx = opts.num_ctx if opts.num_ctx is not None else self.config.num_ctx
+        num_predict = (
+            opts.num_predict
+            if opts.num_predict is not None
+            else self.config.num_predict
+        )
         options: dict = {}
-        if self.config.temperature is not None:
-            options["temperature"] = self.config.temperature
-        if self.config.num_ctx is not None:
-            options["num_ctx"] = self.config.num_ctx
-        if self.config.num_predict is not None:
-            options["num_predict"] = self.config.num_predict
+        if temperature is not None:
+            options["temperature"] = temperature
+        if num_ctx is not None:
+            options["num_ctx"] = num_ctx
+        if num_predict is not None:
+            options["num_predict"] = num_predict
         return options
 
-    async def generate_response(self, prompt_context: PromptContext, model_name: str = "") -> str:
+    def _effective_timeout(self, inference_options: InferenceOptions | None = None) -> float:
+        """Per-request timeout, kept safely above a configured output budget.
+
+        When a generation budget (``num_predict``) is in effect, the client
+        timeout is raised to at least ``num_predict / min_tokens_per_sec`` plus
+        ``timeout_margin`` seconds so the budget can always complete instead of
+        being silently cut off. Never below ``config.timeout``.
+        """
+        timeout = self.config.timeout
+        opts = inference_options or InferenceOptions()
+        num_predict = (
+            opts.num_predict
+            if opts.num_predict is not None
+            else self.config.num_predict
+        )
+        if num_predict is not None:
+            floor_tps = max(self.config.min_tokens_per_sec, 0.1)
+            budget_secs = num_predict / floor_tps
+            timeout = max(timeout, budget_secs + self.config.timeout_margin)
+        return timeout
+
+    async def generate_response(
+        self, prompt_context: PromptContext, model_name: str = ""
+    ) -> str:
         result = await self.generate(prompt_context, model_name=model_name)
         return result.text
 
-    async def generate(self, prompt_context: PromptContext, model_name: str = "") -> LLMResult:
+    async def generate(
+        self,
+        prompt_context: PromptContext,
+        model_name: str = "",
+        inference_options: InferenceOptions | None = None,
+    ) -> LLMResult:
         """Generate a response from the configured Ollama model.
 
         Returns a structured :class:`LLMResult` on success and raises a typed
@@ -101,18 +143,27 @@ class OllamaProvider(BaseLLMProvider):
             "prompt": prompt_context.full_prompt(),
             "stream": False,
         }
+        opts = inference_options or InferenceOptions()
+        thinking_enabled = (
+            opts.thinking_enabled
+            if opts.thinking_enabled is not None
+            else self.config.thinking_enabled
+        )
+        if thinking_enabled is not None:
+            payload["think"] = thinking_enabled
         if self.config.format_json:
             payload["format"] = "json"
-        options = self._generation_options()
+        options = self._generation_options(inference_options)
         if options:
             payload["options"] = options
 
+        timeout = self._effective_timeout(inference_options)
         start = time.perf_counter()
         try:
-            response = await self.client.post(url, json=payload)
+            response = await self.client.post(url, json=payload, timeout=timeout)
         except httpx.TimeoutException as exc:
             raise LLMTimeoutError(
-                f"Ollama request timed out after {self.config.timeout}s."
+                f"Ollama request timed out after {timeout}s."
             ) from exc
         except httpx.HTTPError as exc:
             raise LLMConnectionError(

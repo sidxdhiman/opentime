@@ -73,12 +73,14 @@ class FakeOllama:
         self.error = error
         self.generate_calls = []
         self.generate_response_calls = []
+        self.last_inference_options = None
 
     def provider_name(self) -> str:
         return "Ollama Local"
 
-    async def generate(self, prompt_context, model_name: str = ""):
+    async def generate(self, prompt_context, model_name: str = "", inference_options=None):
         self.generate_calls.append((prompt_context, model_name))
+        self.last_inference_options = inference_options
         if self.error is not None:
             raise self.error
         return self.result
