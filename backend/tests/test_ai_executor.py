@@ -108,7 +108,10 @@ class RejectValidator:
 class NoopExecutor:
     """Executor that returns a fallback without touching any provider."""
 
-    async def execute(self, routing_result, chronos_state, deterministic_response):
+    async def execute(
+        self, routing_result, chronos_state, deterministic_response,
+        inference_policy_decision=None,
+    ):
         prompt_context = PromptContext(
             current_input=chronos_state.current_input,
             retrieved_context=chronos_state.context or RetrievedContext(),

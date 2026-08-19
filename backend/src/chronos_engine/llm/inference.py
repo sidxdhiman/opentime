@@ -26,9 +26,15 @@ class InferenceOptions(BaseModel):
       generation to finish, otherwise the JSON answer is truncated.
     * ``num_ctx`` / ``temperature`` — maps to the matching ``options.*``
       fields, passed through unchanged.
+    * ``format_json`` — maps to the top-level Ollama ``format`` field. When
+      ``None`` the provider falls back to the configuration default, so the
+      global default (OFF, Phase 2G) is preserved unless a specific call
+      overrides it. This lets the LIGHT tier enable JSON per-model without
+      changing the global behavior.
     """
 
     thinking_enabled: bool | None = None
     num_predict: int | None = None
     num_ctx: int | None = None
     temperature: float | None = None
+    format_json: bool | None = None

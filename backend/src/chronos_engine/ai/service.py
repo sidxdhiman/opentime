@@ -7,16 +7,22 @@ response into either an AI result or an honest fallback.
 
 Responsibilities (and only these):
 
-* Build a reasoning plan and the mode-filtered DEEP-path prompt.
-* Invoke the configured Ollama provider through ``LLMRegistry -> ollama``.
-* Measure every stage of the DEEP path with monotonic timing — never
+* Consume the ``InferencePolicy`` decision and execute the selected
+  tier/model — ``LIGHT`` runs the configured light model, ``DEEP`` runs the
+  configured capable model, ``NONE`` never touches a provider. Model
+  selection is NEVER duplicated here.
+* Build a reasoning plan and the mode-filtered prompt (same prompt
+  architecture for every tier).
+* Invoke the selected provider through ``LLMRegistry``.
+* Measure every stage of the AI path with monotonic timing — never
   fabricated (Phase 2E): reasoning planning, prompt construction, provider
   call, response parsing, response validation, and the total wall time.
 * Measure the actual prompt size sent to the provider (characters) plus a
   clearly-labeled token estimate and a diagnostic context hash.
 * Run the existing ``ResponseValidator`` on the AI output.
 * Catch every typed provider error and translate it into a structured
-  ``AIExecutionResult`` with ``fallback_used=True``.
+  ``AIExecutionResult`` with ``fallback_used=True`` — a LIGHT failure falls
+  back deterministically; it is never automatically escalated to DEEP.
 
 Non-responsibilities (kept out of this class by design):
 
@@ -31,7 +37,9 @@ import time
 
 from chronos_engine.ai.context import ContextBudget
 from chronos_engine.ai.models import AIExecutionResult
+from chronos_engine.ai.policy.models import InferencePolicyDecision, InferenceTier
 from chronos_engine.ai.prompts import ChronosAIPromptBuilder
+from chronos_engine.ai.reasoning.models import ReasoningPlan
 from chronos_engine.ai.reasoning.parser import AIResponseParseError, AIResponseParser
 from chronos_engine.ai.reasoning.planner import ReasoningPlanner
 from chronos_engine.config.ollama import OllamaConfig
@@ -80,6 +88,7 @@ class AIExecutor(BaseAIExecutor):
         routing_result,
         chronos_state: ChronosState,
         deterministic_response: DeterministicResponse,
+        inference_policy_decision: InferencePolicyDecision | None = None,
     ) -> AIExecutionResult:
         """Execute the AI request for a routing decision.
 
@@ -88,15 +97,45 @@ class AIExecutor(BaseAIExecutor):
         provider returns an honest ``fallback_used=True`` result — the engine
         is never allowed to crash because AI is unavailable.
 
-        Exactly one provider call happens per DEEP request: the reasoning plan
-        is built deterministically, the prompt targets that plan, and the
+        The tier/provider/model actually executed are resolved ONLY from the
+        ``InferencePolicy`` decision (never re-derived here). ``LIGHT`` runs
+        the configured light model, ``DEEP`` runs the configured capable
+        model, and a ``NONE`` decision means no model is executed. Without a
+        decision (direct executor use), the configured capable model is used,
+        preserving current behavior.
+
+        Exactly one provider call happens per request: the reasoning plan is
+        built deterministically, the prompt targets that plan, and the
         provider's single response is parsed into the structured output
         contract before validation.
         """
+        decision = inference_policy_decision
+        tier_label = decision.tier.value if decision is not None else InferenceTier.NONE.value
+
         if routing_result is None or not routing_result.use_ai:
             return AIExecutionResult(
-                attempted=False, used=False, success=False, fallback_used=False
+                attempted=False, used=False, success=False, fallback_used=False,
+                tier=tier_label,
             )
+
+        target = self._resolve_target(decision)
+        if target is None:
+            # NONE decision: the policy selected no model for this
+            # interaction. When AI is enabled, nothing executes and no
+            # provider is ever touched. When AI is disabled, the prompt path
+            # below still records honest disabled-fallback metrics.
+            if self.config.enabled:
+                return AIExecutionResult(
+                    attempted=False, used=False, success=False,
+                    fallback_used=False, tier=tier_label,
+                )
+            tier, provider_key, model = (
+                InferenceTier.NONE.value,
+                "ollama",
+                decision.model or self.config.model,
+            )
+        else:
+            tier, provider_key, model = target
 
         total_start = time.perf_counter()
 
@@ -104,7 +143,7 @@ class AIExecutor(BaseAIExecutor):
         plan = self.planner.plan(chronos_state, routing_result)
         reasoning_plan_ms = self._latency(plan_start)
 
-        inference_options = self._inference_options(plan)
+        inference_options = self._inference_options(plan, tier)
 
         build_start = time.perf_counter()
         allowed_evidence_ids = self.prompt_builder.evidence_ids(chronos_state)
@@ -122,8 +161,9 @@ class AIExecutor(BaseAIExecutor):
                 "attempted": True,
                 "used": False,
                 "success": False,
-                "provider": "ollama",
-                "model": self.config.model,
+                "tier": tier,
+                "provider": provider_key,
+                "model": model,
                 "prompt_context": prompt_context,
                 "prompt_chars": prompt_chars,
                 "prompt_tokens_estimate": prompt_tokens_estimate,
@@ -140,8 +180,7 @@ class AIExecutor(BaseAIExecutor):
         if not self.config.enabled:
             return result(fallback_used=True, error_type="LLMDisabledError")
 
-        provider = self.llm_registry.get_provider("ollama")
-        model = self.config.model
+        provider = self.llm_registry.get_provider(provider_key)
 
         provider_start = time.perf_counter()
         try:
@@ -222,23 +261,66 @@ class AIExecutor(BaseAIExecutor):
     def _latency(start: float) -> float:
         return round((time.perf_counter() - start) * 1000.0, 2)
 
-    def _inference_options(self, plan: ReasoningPlan) -> InferenceOptions:
+    def _resolve_target(
+        self, decision: InferencePolicyDecision | None
+    ) -> tuple[str, str, str] | None:
+        """Resolve ``(tier, provider, model)`` from the policy decision.
+
+        The executor never re-derives model-selection logic — it only reads
+        the decision produced by ``InferencePolicy``. A ``LIGHT`` decision
+        selects the configured light model; ``DEEP`` selects the configured
+        capable model; ``NONE`` (or a decision without a model) returns
+        ``None`` so no provider is ever called. Without a decision, the
+        configured capable model is used (direct executor use).
+        """
+        if decision is None:
+            return (InferenceTier.DEEP.value, "ollama", self.config.model)
+        if decision.tier == InferenceTier.LIGHT:
+            if not decision.model:
+                return None
+            return (
+                InferenceTier.LIGHT.value,
+                decision.provider or "ollama",
+                decision.model,
+            )
+        if decision.tier == InferenceTier.DEEP:
+            return (
+                InferenceTier.DEEP.value,
+                decision.provider or "ollama",
+                decision.model or self.config.model,
+            )
+        return None
+
+    def _inference_options(
+        self, plan: ReasoningPlan, tier: str | None = None
+    ) -> InferenceOptions:
         """Resolve per-call inference knobs from the plan + configuration.
 
-        Mode-specific overrides (``mode_thinking_enabled`` /
-        ``mode_num_predict``) take precedence over the global settings; the
-        plan's ``primary_mode`` selects the override. Falls back to global
-        configuration when no mode override is configured, preserving current
-        behavior unless explicitly configured.
+        The LIGHT tier uses its own model-specific knobs
+        (``light_thinking_enabled`` / ``light_format_json``) so it never
+        inherits the DEEP model's thinking configuration (the installed
+        ``qwen3:4b`` always generates thinking tokens; ``qwen2.5:1.5b`` has no
+        thinking channel). For every other tier, mode-specific overrides
+        (``mode_thinking_enabled`` / ``mode_num_predict``) take precedence
+        over the global settings; the plan's ``primary_mode`` selects the
+        override. Falls back to global configuration when no override is
+        configured, preserving current behavior unless explicitly configured.
         """
         primary = plan.primary_mode.value
-        return InferenceOptions(
-            thinking_enabled=self.config.mode_thinking_enabled.get(
+        if tier == InferenceTier.LIGHT.value:
+            thinking_enabled = self.config.light_thinking_enabled
+            format_json = self.config.light_format_json
+        else:
+            thinking_enabled = self.config.mode_thinking_enabled.get(
                 primary, self.config.thinking_enabled
-            ),
+            )
+            format_json = None  # let the global default apply
+        return InferenceOptions(
+            thinking_enabled=thinking_enabled,
             num_predict=self.config.mode_num_predict.get(
                 primary, self.config.num_predict
             ),
             num_ctx=self.config.num_ctx,
             temperature=self.config.temperature,
+            format_json=format_json,
         )

@@ -67,3 +67,30 @@ class OllamaConfig(BaseSettings):
     # failing generation. The DEEP path prompts for JSON regardless and its
     # parser tolerates surrounding text, so JSON mode is opt-in only.
     format_json: bool = False
+
+    # Inference-policy knobs (Phase 2H). These are read ONLY by
+    # ``InferencePolicy`` — never by the provider itself. ``light_model``
+    # names the lightweight local model for the LIGHT tier; when empty, LIGHT
+    # cannot execute and the policy falls back to the configured DEEP model.
+    # The remaining knobs are the configurable thresholds a light candidate
+    # must satisfy (parameter count, runtime memory vs available VRAM,
+    # minimum context, expected-latency budget for the LIGHT tier).
+    light_model: str = ""
+    light_max_parameters: float = 3.0
+    light_max_memory_gb: float = 4.0
+    light_min_context: int = 4096
+    light_max_latency_seconds: float = 30.0
+    available_vram_gb: float = 4.0
+
+    # LIGHT-tier inference knobs (Phase 2J). These apply ONLY when the
+    # executor runs the LIGHT model; the DEEP/global behavior is untouched.
+    # ``light_thinking_enabled`` prefers concise, non-thinking generation for
+    # small models (``qwen2.5:1.5b`` has no thinking channel; sending
+    # ``think: true`` to it would be inventing an unsupported behavior).
+    # ``light_format_json`` enables Ollama's ``"format": "json"`` for the
+    # LIGHT model only — the global ``format_json`` default stays OFF because
+    # Phase 2G demonstrated compatibility problems with ``qwen3:4b``. The LIGHT
+    # prompt requests the JSON contract regardless and the parser tolerates
+    # surrounding text, so this stays opt-in.
+    light_thinking_enabled: bool = False
+    light_format_json: bool = False

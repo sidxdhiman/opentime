@@ -201,6 +201,7 @@ class EngineResponse(BaseModel):
     deterministic_response: Optional["DeterministicResponse"] = None
     ai_routing: Optional["AIRoutingResult"] = None
     ai_execution: Optional["AIExecutionResult"] = None
+    inference_policy: Optional["InferencePolicyDecision"] = None
     processing_time_ms: float = 0.0
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -214,6 +215,7 @@ from chronos_engine.state.models import ChronosState  # noqa: E402
 from chronos_engine.response.models import DeterministicResponse  # noqa: E402
 from chronos_engine.routing.models import AIRoutingResult  # noqa: E402
 from chronos_engine.ai.models import AIExecutionResult  # noqa: E402
+from chronos_engine.ai.policy.models import InferencePolicyDecision  # noqa: E402
 
 # Force schema resolution for the deferred forward reference on EngineResponse.
 EngineResponse.model_rebuild()

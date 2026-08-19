@@ -260,13 +260,15 @@ class BaseAIExecutor(ABC):
         routing_result: "AIRoutingResult",
         chronos_state: "ChronosState",
         deterministic_response: "DeterministicResponse",
+        inference_policy_decision: "InferencePolicyDecision | None" = None,
     ) -> "AIExecutionResult":
-        """Execute a DEEP routing decision through the configured AI provider.
+        """Execute the AI routing decision through the selected provider.
 
         The executor is the ONLY component allowed to invoke the provider. It
-        never decides whether AI is needed (that is the router's job), never
-        mutates ``ChronosState``, never writes memory, and never crashes the
-        engine when AI is unavailable — it returns an honest fallback result.
+        never decides which model to use (that is the ``InferencePolicy``'s
+        job — the decision is consumed here), never mutates ``ChronosState``,
+        never writes memory, and never crashes the engine when AI is
+        unavailable — it returns an honest fallback result.
         """
         pass
 
@@ -293,4 +295,5 @@ class BaseReasoningPlanner(ABC):
 # while core.interfaces is still partially initialized.
 from chronos_engine.routing.models import AIRoutingResult  # noqa: E402
 from chronos_engine.ai.models import AIExecutionResult  # noqa: E402
+from chronos_engine.ai.policy.models import InferencePolicyDecision  # noqa: E402
 from chronos_engine.ai.reasoning.models import ReasoningPlan  # noqa: E402

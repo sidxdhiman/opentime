@@ -151,7 +151,12 @@ class OllamaProvider(BaseLLMProvider):
         )
         if thinking_enabled is not None:
             payload["think"] = thinking_enabled
-        if self.config.format_json:
+        format_json = (
+            opts.format_json
+            if opts.format_json is not None
+            else self.config.format_json
+        )
+        if format_json:
             payload["format"] = "json"
         options = self._generation_options(inference_options)
         if options:

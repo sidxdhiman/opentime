@@ -16,6 +16,11 @@ A result can be in exactly one of three observable states:
   is True in this state and the deterministic response became the final
   output.
 
+``tier`` names the inference tier that was actually executed (``LIGHT`` /
+``DEEP`` / ``NONE``) and ``provider`` / ``model`` name the actual provider and
+model that were called — the executor resolves these from the
+``InferencePolicy`` decision and records reality, never a fabricated target.
+
 These models intentionally avoid importing ``chronos_engine.core.models`` at
 module top: ``core.models`` defers its own cross-package imports to the end of
 the module, so the deferred import below keeps this package out of that cycle
@@ -31,6 +36,7 @@ class AIExecutionResult(BaseModel):
     attempted: bool = False
     used: bool = False
     success: bool = False
+    tier: str | None = None
     provider: str | None = None
     model: str | None = None
     latency_ms: float | None = None

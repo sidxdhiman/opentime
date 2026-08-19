@@ -36,6 +36,7 @@ from chronos_engine.core.models import (
     ValidationResult,
 )
 from chronos_engine.embeddings.provider import DefaultEmbeddingProvider
+from chronos_engine.config import OllamaConfig
 from chronos_engine.identity.service import IdentityModel
 from chronos_engine.intent.service import IntentDetector
 from chronos_engine.llm.providers import LLMRegistry
@@ -62,6 +63,8 @@ from chronos_engine.response.service import ResponseGenerator
 from chronos_engine.routing.service import AIRouter
 from chronos_engine.ai.service import AIExecutor
 from chronos_engine.ai.models import AIExecutionResult
+from chronos_engine.ai.policy import InferencePolicy, capabilities_from_config
+from chronos_engine.ai.reasoning.planner import ReasoningPlanner
 
 
 class ChronosEngine:
@@ -107,6 +110,8 @@ class ChronosEngine:
         response_generator: Optional[BaseResponseGenerator] = None,
         ai_router: Optional[BaseAIRouter] = None,
         ai_executor: Optional[BaseAIExecutor] = None,
+        inference_policy: Optional[InferencePolicy] = None,
+        reasoning_planner: Optional[ReasoningPlanner] = None,
     ):
         self.storage = storage or InMemoryStorageAdapter()
         self.embedding_provider = embedding_provider or DefaultEmbeddingProvider()
@@ -131,6 +136,16 @@ class ChronosEngine:
         self.response_generator = response_generator or ResponseGenerator()
         self.ai_router = ai_router or AIRouter()
         self.ai_executor = ai_executor or AIExecutor()
+        # The default inference policy reads the SAME configuration the
+        # executor executes with, so the recorded decision and the executed
+        # tier/model always agree. The catalog is built from the configured
+        # DEEP + LIGHT models with honest (unknown) metadata.
+        executor_config = getattr(self.ai_executor, "config", None) or OllamaConfig()
+        self.inference_policy = inference_policy or InferencePolicy(
+            config=executor_config,
+            available_models=capabilities_from_config(executor_config),
+        )
+        self.reasoning_planner = reasoning_planner or ReasoningPlanner()
 
     async def process_user_input(
         self,
@@ -220,12 +235,29 @@ class ChronosEngine:
         # graceful deterministic fallback if AI is disabled or unavailable.
         ai_routing = self.ai_router.route(chronos_state)
 
+        # Step 4g2: Inference policy. Decides which tier/model the AI executor
+        # must use for this interaction: NONE (no model), LIGHT (the
+        # configured light model) or DEEP (the configured capable model). The
+        # decision is passed to the executor, which executes exactly that
+        # model — never another one.
+        policy_plan = self.reasoning_planner.plan(chronos_state, ai_routing)
+        inference_policy_decision = self.inference_policy.decide(
+            routing_result=ai_routing,
+            plan=policy_plan,
+            chronos_state=chronos_state,
+        )
+
         # Step 4h: AI execution. The AI executor is ONLY invoked on the DEEP
         # path — a FAST routing must never touch Ollama. The executor never
-        # mutates ChronosState and never writes memory.
+        # mutates ChronosState and never writes memory. The model it calls is
+        # dictated by the inference-policy decision (LIGHT vs DEEP); a LIGHT
+        # failure falls back deterministically instead of escalating to DEEP.
         if ai_routing.use_ai:
             ai_execution: AIExecutionResult = await self.ai_executor.execute(
-                ai_routing, chronos_state, deterministic_response
+                ai_routing,
+                chronos_state,
+                deterministic_response,
+                inference_policy_decision=inference_policy_decision,
             )
             if ai_execution.used:
                 final_response = ai_execution.response
@@ -266,7 +298,8 @@ class ChronosEngine:
             # legacy prompt/LLM pipeline still runs to provide the response
             # metadata fields, but no Ollama interaction happens here.
             ai_execution = AIExecutionResult(
-                attempted=False, used=False, success=False, fallback_used=False
+                attempted=False, used=False, success=False, fallback_used=False,
+                tier=inference_policy_decision.tier.value,
             )
             final_response = deterministic_response.rendered
             prompt_context = await self.orchestrator.orchestrate_prompt(
@@ -321,7 +354,8 @@ class ChronosEngine:
             )
             prompt_step = "Assembled AI prompt from structured ChronOS state."
             execution_step = (
-                f"Executed AI provider '{provider_name}' (model: {target_model or 'n/a'}, "
+                f"Executed AI provider '{provider_name}' (tier: {ai_execution.tier or 'n/a'}, "
+                f"model: {target_model or 'n/a'}, "
                 f"latency: {latency_text})."
             )
             if ai_execution.used:
@@ -338,6 +372,8 @@ class ChronosEngine:
                         "result": "OLLAMA_SUCCESS",
                         "ai_used": True,
                         "provider": "ollama",
+                        "tier": ai_execution.tier,
+                        "model": ai_execution.model,
                     }
                 ]
                 if plan_entry is not None:
@@ -358,6 +394,8 @@ class ChronosEngine:
                     "result": "OLLAMA_FAILED_DETERMINISTIC_FALLBACK",
                     "ai_used": False,
                     "fallback_used": True,
+                    "tier": ai_execution.tier,
+                    "model": ai_execution.model,
                 }
                 if ai_execution.error_type:
                     fallback_step["error_type"] = ai_execution.error_type
@@ -442,6 +480,7 @@ class ChronosEngine:
             deterministic_response=deterministic_response,
             ai_routing=ai_routing,
             ai_execution=ai_execution,
+            inference_policy=inference_policy_decision,
             processing_time_ms=elapsed_ms,
         )
 
