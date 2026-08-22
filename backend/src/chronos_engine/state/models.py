@@ -17,6 +17,7 @@ from typing import List, Optional
 from pydantic import BaseModel, Field
 
 from chronos_engine.core.models import IntentType, PatternItem, RetrievedContext, UserInput
+from chronos_engine.temporal.models import TemporalEventDetectionResult
 
 
 class IntentResult(BaseModel):
@@ -228,6 +229,8 @@ class ChronosState(BaseModel):
     goals: List[str] = Field(default_factory=list)
     patterns: List[PatternItem] = Field(default_factory=list)
     contradictions: List[ContradictionResult] = Field(default_factory=list)
+
+    temporal_event_detection: Optional[TemporalEventDetectionResult] = None
 
     engine_state: Optional[EngineStateResult] = None
     confidence: Optional[float] = None

@@ -21,6 +21,7 @@ from chronos_engine.core.interfaces import (
     BaseResponseGenerator,
     BaseAIRouter,
     BaseAIExecutor,
+    BaseTemporalEventDetector,
 )
 from chronos_engine.core.models import (
     EngineResponse,
@@ -65,6 +66,7 @@ from chronos_engine.ai.service import AIExecutor
 from chronos_engine.ai.models import AIExecutionResult
 from chronos_engine.ai.policy import InferencePolicy, capabilities_from_config
 from chronos_engine.ai.reasoning.planner import ReasoningPlanner
+from chronos_engine.temporal.detector import TemporalEventDetector
 
 
 class ChronosEngine:
@@ -112,6 +114,7 @@ class ChronosEngine:
         ai_executor: Optional[BaseAIExecutor] = None,
         inference_policy: Optional[InferencePolicy] = None,
         reasoning_planner: Optional[ReasoningPlanner] = None,
+        temporal_event_detector: Optional[BaseTemporalEventDetector] = None,
     ):
         self.storage = storage or InMemoryStorageAdapter()
         self.embedding_provider = embedding_provider or DefaultEmbeddingProvider()
@@ -146,6 +149,7 @@ class ChronosEngine:
             available_models=capabilities_from_config(executor_config),
         )
         self.reasoning_planner = reasoning_planner or ReasoningPlanner()
+        self.temporal_event_detector = temporal_event_detector or TemporalEventDetector()
 
     async def process_user_input(
         self,
@@ -211,9 +215,22 @@ class ChronosEngine:
             current_memory_id=memory_item.id,
         )
 
+        # Step 4d2: Temporal event detection. Deterministic and offline: it
+        # classifies whether this input is a meaningful moment worth
+        # remembering as a TemporalEvent, reusing intent / user-state / goal
+        # evidence already computed above. Detection only — nothing is
+        # persisted and no threads are created or searched.
+        temporal_detection = await self.temporal_event_detector.detect_temporal_event(
+            user_input,
+            intent=intent_result,
+            user_state=user_state_result,
+            goal_analysis=goal_analysis_result,
+            memory_id=memory_item.id,
+        )
+
         # Step 4e: Build structured ChronOS state from the retrieved context.
-        # The intent, user-state, goal and consistency detectors populate their
-        # sections.
+        # The intent, user-state, goal, consistency detectors and the
+        # temporal event detector populate their sections.
         chronos_state: ChronosState = await self.state_builder.build(
             user_input,
             retrieved_context,
@@ -221,6 +238,7 @@ class ChronosEngine:
             user_state=user_state_result,
             goal_analysis=goal_analysis_result,
             consistency_result=consistency_result,
+            temporal_event_detection=temporal_detection,
         )
 
         # Step 4f: Deterministic response generation. Pure template/rule logic
@@ -346,6 +364,16 @@ class ChronosEngine:
                 f"Consistency check -> CONSISTENT "
                 f"(confidence {consistency_result.confidence})."
             )
+        if temporal_detection.detected and temporal_detection.event is not None:
+            temporal_step = (
+                f"Temporal event detection -> {temporal_detection.event.temporal_type.value} "
+                f"(confidence {temporal_detection.confidence})."
+            )
+        else:
+            temporal_step = (
+                "Temporal event detection -> NONE "
+                f"({temporal_detection.reason or 'no significant temporal event'})."
+            )
         if ai_routing.use_ai:
             latency_text = (
                 f"{ai_execution.latency_ms}ms"
@@ -436,6 +464,7 @@ class ChronosEngine:
                 f"Detected user interaction state '{state_label}' (confidence {user_state_result.confidence}).",
                 goal_step,
                 consistency_step,
+                temporal_step,
                 f"Constructed structured ChronosState (life phase '{chronos_state.context.life_phase if chronos_state.context else 'n/a'}', {len(chronos_state.context.relevant_memories) if chronos_state.context else 0} memories, {len(chronos_state.patterns)} patterns).",
                 prompt_step,
                 execution_step,
@@ -456,6 +485,7 @@ class ChronosEngine:
                 "User State Detector",
                 "Goal Detector",
                 "Consistency Engine",
+                "Temporal Event Detector",
                 "Response Generator",
                 "AI Router",
                 "AI Executor",

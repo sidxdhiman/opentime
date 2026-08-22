@@ -22,6 +22,7 @@ from chronos_engine.state.models import (
 from chronos_engine.response.models import DeterministicResponse
 from chronos_engine.temporal.models import (
     TemporalEvent,
+    TemporalEventDetectionResult,
     TemporalSnapshot,
     TemporalThread,
 )
@@ -63,6 +64,30 @@ class BaseTemporalStore(ABC):
 
     @abstractmethod
     async def get_snapshots_by_user(self, user_id: str) -> List["TemporalSnapshot"]:
+        pass
+
+
+class BaseTemporalEventDetector(ABC):
+    """Deterministic detection of meaningful temporal moments.
+
+    Answers whether the current input is a moment worth recognizing as a
+    ``TemporalEvent``. Purely offline: no LLM, no embeddings, no database.
+    The detector may consume already-computed ChronOS evidence (intent,
+    user state, goal analysis) but must never fabricate an event — when
+    evidence is insufficient it returns ``detected=False`` with
+    ``event=None``. It never persists anything and never touches threads;
+    thread matching belongs to a later temporal phase.
+    """
+
+    @abstractmethod
+    async def detect_temporal_event(
+        self,
+        user_input: "UserInput",
+        intent: "Optional[IntentResult]" = None,
+        user_state: "Optional[UserStateResult]" = None,
+        goal_analysis: "Optional[GoalAnalysisResult]" = None,
+        memory_id: Optional[str] = None,
+    ) -> TemporalEventDetectionResult:
         pass
 
 

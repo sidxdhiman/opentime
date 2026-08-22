@@ -103,10 +103,14 @@ class TemporalEvent(BaseModel):
     An event anchors to at most one existing engine memory via
     ``memory_id``. Detection and automatic persistence do not exist in
     Phase 3A; events are pure representations.
+
+    ``thread_id`` is ``None`` until thread matching assigns the event to a
+    thread (a later temporal phase). Detected-but-unmatched events keep it
+    empty rather than fabricating a thread reference.
     """
 
     id: str = Field(default_factory=lambda: f"tevent_{_short_uuid()}")
-    thread_id: str
+    thread_id: Optional[str] = None
     temporal_type: Optional[TemporalType] = None
     description: str = ""
     memory_id: Optional[str] = None
@@ -114,6 +118,26 @@ class TemporalEvent(BaseModel):
     recorded_at: datetime = Field(default_factory=_utcnow)
     importance: float = 0.5
     confidence: float = 0.5
+
+
+class TemporalEventDetectionResult(BaseModel):
+    """Structured output of deterministic temporal event detection.
+
+    Kept separate from ``TemporalEvent`` so the event stays a clean domain
+    representation while detector metadata lives here. When evidence is
+    insufficient, ``detected`` is ``False`` and ``event`` is ``None`` — an
+    event is never fabricated.
+
+    ``confidence`` is a deterministic, evidence-weighted score in ``[0, 1]``
+    derived from matched signals and existing ChronOS detector outputs. It
+    reflects evidence strength, not a calibrated AI probability.
+    """
+
+    detected: bool = False
+    event: Optional[TemporalEvent] = None
+    confidence: float = 0.0
+    reason: str = ""
+    signals: List[str] = Field(default_factory=list)
 
 
 class TemporalSnapshot(BaseModel):
