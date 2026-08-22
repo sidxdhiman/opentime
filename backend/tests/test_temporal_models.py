@@ -255,6 +255,7 @@ async def test_temporal_models_are_isolated_from_storage_and_engine():
         "save_thread",
         "get_thread",
         "get_threads_by_user",
+        "get_candidate_threads",
         "save_event",
         "get_events_by_thread",
         "save_snapshot",

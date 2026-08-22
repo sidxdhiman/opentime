@@ -140,6 +140,37 @@ class TemporalEventDetectionResult(BaseModel):
     signals: List[str] = Field(default_factory=list)
 
 
+class TemporalThreadMatchResult(BaseModel):
+    """Structured output of deterministic TemporalThread matching (Phase 3C).
+
+    Answers one question for a newly detected ``TemporalEvent``: does it
+    belong to an existing thread? A false connection is worse than no
+    connection, so the result is conservative:
+
+    - no current event            -> ``attempted=False``, ``matched=False``
+    - no candidate threads        -> ``attempted=True``,  ``matched=False``
+    - candidates below threshold  -> ``matched=False`` (never force a match)
+    - several plausible threads   -> ``ambiguous=True``, ``matched=False``
+
+    ``confidence`` mirrors the winning candidate's deterministic score; it is
+    an explainable evidence-weighted value in ``[0, 1]``, not a statistically
+    calibrated probability.
+
+    When matched, the event's ``thread_id`` may be populated *in memory* by
+    the caller; this model never persists anything and never creates threads.
+    """
+
+    attempted: bool = False
+    matched: bool = False
+    thread_id: Optional[str] = None
+    confidence: float = 0.0
+    reason: str = ""
+    signals: List[str] = Field(default_factory=list)
+    ambiguous: bool = False
+    candidate_count: int = 0
+    matched_thread: Optional[TemporalThread] = None
+
+
 class TemporalSnapshot(BaseModel):
     """The user's situation as it stood at one point in time.
 

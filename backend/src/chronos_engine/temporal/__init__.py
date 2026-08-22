@@ -2,13 +2,15 @@
 
 Phase 3A: domain models and a dormant storage abstraction.
 Phase 3B: deterministic TemporalEvent detection (``temporal.detector``).
+Phase 3C: deterministic TemporalThread matching (``temporal.matcher``).
 
 This package ``__init__`` intentionally exposes only the leaf ``models``
-module: importing the detector here would create an import cycle
-(state.models -> temporal.__init__ -> detector -> core.interfaces ->
-state.models). Import the detector explicitly::
+module: importing the detector or matcher here would create an import cycle
+(state.models -> temporal.__init__ -> matcher -> core.interfaces ->
+state.models). Import implementations explicitly::
 
     from chronos_engine.temporal.detector import TemporalEventDetector
+    from chronos_engine.temporal.matcher import TemporalThreadMatcher
 """
 
 from chronos_engine.temporal.models import (
@@ -16,6 +18,7 @@ from chronos_engine.temporal.models import (
     TemporalEventDetectionResult,
     TemporalSnapshot,
     TemporalThread,
+    TemporalThreadMatchResult,
     TemporalThreadStatus,
     TemporalType,
 )
@@ -25,6 +28,7 @@ __all__ = [
     "TemporalEventDetectionResult",
     "TemporalSnapshot",
     "TemporalThread",
+    "TemporalThreadMatchResult",
     "TemporalThreadStatus",
     "TemporalType",
 ]

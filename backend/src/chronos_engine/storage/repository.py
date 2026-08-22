@@ -8,7 +8,12 @@ from chronos_engine.core.models import (
     ReflectionInsight,
     TimelineEvent,
 )
-from chronos_engine.temporal.models import TemporalEvent, TemporalSnapshot, TemporalThread
+from chronos_engine.temporal.models import (
+    TemporalEvent,
+    TemporalSnapshot,
+    TemporalThread,
+    TemporalThreadStatus,
+)
 
 
 class InMemoryStorageAdapter(BaseStorageAdapter):
@@ -99,13 +104,14 @@ class InMemoryStorageAdapter(BaseStorageAdapter):
 
 
 class InMemoryTemporalStore(BaseTemporalStore):
-    """In-memory temporal store for the dormant Phase 3A temporal domain.
+    """In-memory temporal store for the temporal domain.
 
     Follows the same shape as ``InMemoryStorageAdapter`` so a MongoDB
     implementation (preferred collection: ``engine_temporal_threads``) can
-    be dropped in later without changing callers. Nothing in the engine
-    instantiates this yet — it exists so the temporal contract is real and
-    testable without any database.
+    be dropped in later without changing callers. Wired into the engine in
+    Phase 3C for read-only candidate retrieval during thread matching —
+    no automatic writes happen yet (thread lifecycle belongs to later
+    temporal phases).
     """
 
     def __init__(self):
@@ -135,6 +141,22 @@ class InMemoryTemporalStore(BaseTemporalStore):
         async with self._lock:
             threads = self._threads.get(user_id, [])
             return sorted(threads, key=lambda t: t.created_at, reverse=True)
+
+    async def get_candidate_threads(self, user_id: str, limit: int = 25) -> List[TemporalThread]:
+        """Bounded candidate retrieval for thread matching (Phase 3C).
+
+        Live threads only: OPEN / ACTIVE / CHANGED. Resolved, abandoned and
+        archived stories are excluded so they cannot absorb new events.
+        Most recent first, capped at ``limit``.
+        """
+        live = {
+            TemporalThreadStatus.OPEN,
+            TemporalThreadStatus.ACTIVE,
+            TemporalThreadStatus.CHANGED,
+        }
+        async with self._lock:
+            threads = [t for t in self._threads.get(user_id, []) if t.status in live]
+            return sorted(threads, key=lambda t: t.created_at, reverse=True)[:limit]
 
     async def save_event(self, event: TemporalEvent) -> TemporalEvent:
         async with self._lock:

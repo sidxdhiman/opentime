@@ -12,7 +12,10 @@ from chronos_engine.state.models import (
     IntentResult,
     UserStateResult,
 )
-from chronos_engine.temporal.models import TemporalEventDetectionResult
+from chronos_engine.temporal.models import (
+    TemporalEventDetectionResult,
+    TemporalThreadMatchResult,
+)
 
 
 class StateBuilder:
@@ -35,6 +38,7 @@ class StateBuilder:
         goal_analysis: Optional[GoalAnalysisResult] = None,
         consistency_result: Optional[ConsistencyResult] = None,
         temporal_event_detection: Optional[TemporalEventDetectionResult] = None,
+        temporal_thread_match: Optional[TemporalThreadMatchResult] = None,
     ) -> ChronosState:
         contradictions = []
         if consistency_result is not None:
@@ -55,6 +59,7 @@ class StateBuilder:
             patterns=list(retrieved_context.patterns) if retrieved_context else [],
             contradictions=contradictions,
             temporal_event_detection=temporal_event_detection,
+            temporal_thread_match=temporal_thread_match,
             engine_state=None,
             confidence=None,
         )

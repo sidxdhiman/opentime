@@ -25,6 +25,7 @@ from chronos_engine.temporal.models import (
     TemporalEventDetectionResult,
     TemporalSnapshot,
     TemporalThread,
+    TemporalThreadMatchResult,
 )
 
 
@@ -48,6 +49,17 @@ class BaseTemporalStore(ABC):
 
     @abstractmethod
     async def get_threads_by_user(self, user_id: str) -> List["TemporalThread"]:
+        pass
+
+    @abstractmethod
+    async def get_candidate_threads(self, user_id: str, limit: int = 25) -> List["TemporalThread"]:
+        """Return bounded candidate threads for matching.
+
+        Phase 3C contract: candidates for thread matching are live threads
+        (not archived/resolved/abandoned), most recent first, capped by
+        ``limit``. This is a targeted read over the temporal store only —
+        never a scan of user memories and never a vector/embedding query.
+        """
         pass
 
     @abstractmethod
@@ -88,6 +100,32 @@ class BaseTemporalEventDetector(ABC):
         goal_analysis: "Optional[GoalAnalysisResult]" = None,
         memory_id: Optional[str] = None,
     ) -> TemporalEventDetectionResult:
+        pass
+
+
+class BaseTemporalThreadMatcher(ABC):
+    """Deterministic matching of a new TemporalEvent to existing threads.
+
+    Answers one question: does this newly detected event belong to an
+    existing ``TemporalThread``? The matcher is purely offline and
+    conservative — a false connection is worse than no connection. It
+    combines multiple deterministic evidence signals (topic overlap,
+    temporal-type compatibility, goal association, consistency/change
+    evidence, memory continuity); no single weak signal may produce a match.
+
+    Candidates are supplied by the caller through a ``BaseTemporalStore``
+    abstraction; the matcher itself never queries storage, never scans
+    memories, never creates threads and never persists anything.
+    """
+
+    @abstractmethod
+    async def match_threads(
+        self,
+        event: "TemporalEvent",
+        candidate_threads: "List[TemporalThread]",
+        goal_analysis: "Optional[GoalAnalysisResult]" = None,
+        consistency_result: "Optional[ConsistencyResult]" = None,
+    ) -> TemporalThreadMatchResult:
         pass
 
 

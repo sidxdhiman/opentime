@@ -22,6 +22,8 @@ from chronos_engine.core.interfaces import (
     BaseAIRouter,
     BaseAIExecutor,
     BaseTemporalEventDetector,
+    BaseTemporalStore,
+    BaseTemporalThreadMatcher,
 )
 from chronos_engine.core.models import (
     EngineResponse,
@@ -46,7 +48,7 @@ from chronos_engine.orchestrator.service import PromptOrchestrator
 from chronos_engine.patterns.service import PatternDetector
 from chronos_engine.reflection.service import ReflectionEngine
 from chronos_engine.retrieval.service import RetrievalEngine
-from chronos_engine.storage.repository import InMemoryStorageAdapter
+from chronos_engine.storage.repository import InMemoryStorageAdapter, InMemoryTemporalStore
 from chronos_engine.timeline.service import TimelineEngine
 from chronos_engine.utils.media_processor import MediaProcessor
 from chronos_engine.validators.service import ResponseValidator
@@ -67,6 +69,8 @@ from chronos_engine.ai.models import AIExecutionResult
 from chronos_engine.ai.policy import InferencePolicy, capabilities_from_config
 from chronos_engine.ai.reasoning.planner import ReasoningPlanner
 from chronos_engine.temporal.detector import TemporalEventDetector
+from chronos_engine.temporal.matcher import TemporalThreadMatcher
+from chronos_engine.temporal.models import TemporalThreadMatchResult
 
 
 class ChronosEngine:
@@ -115,6 +119,8 @@ class ChronosEngine:
         inference_policy: Optional[InferencePolicy] = None,
         reasoning_planner: Optional[ReasoningPlanner] = None,
         temporal_event_detector: Optional[BaseTemporalEventDetector] = None,
+        temporal_store: Optional[BaseTemporalStore] = None,
+        temporal_thread_matcher: Optional[BaseTemporalThreadMatcher] = None,
     ):
         self.storage = storage or InMemoryStorageAdapter()
         self.embedding_provider = embedding_provider or DefaultEmbeddingProvider()
@@ -150,6 +156,8 @@ class ChronosEngine:
         )
         self.reasoning_planner = reasoning_planner or ReasoningPlanner()
         self.temporal_event_detector = temporal_event_detector or TemporalEventDetector()
+        self.temporal_store = temporal_store or InMemoryTemporalStore()
+        self.temporal_thread_matcher = temporal_thread_matcher or TemporalThreadMatcher()
 
     async def process_user_input(
         self,
@@ -228,9 +236,37 @@ class ChronosEngine:
             memory_id=memory_item.id,
         )
 
+        # Step 4d3: Temporal thread matching (Phase 3C). Only runs when a
+        # meaningful event was detected: compares it against the user's
+        # existing live threads (bounded read from the temporal store) and
+        # decides whether this moment belongs to an ongoing story.
+        # Deterministic and conservative — a false connection is worse than
+        # no connection. On a confident match the event's ``thread_id`` is
+        # populated *in memory* only; nothing is persisted and no threads
+        # are created here.
+        if temporal_detection.detected and temporal_detection.event is not None:
+            candidate_threads = await self.temporal_store.get_candidate_threads(
+                user_input.user_id
+            )
+            temporal_thread_match = await self.temporal_thread_matcher.match_threads(
+                temporal_detection.event,
+                candidate_threads,
+                goal_analysis=goal_analysis_result,
+                consistency_result=consistency_result,
+            )
+            if temporal_thread_match.matched and temporal_thread_match.thread_id:
+                temporal_detection.event.thread_id = temporal_thread_match.thread_id
+        else:
+            temporal_thread_match = TemporalThreadMatchResult(
+                attempted=False,
+                matched=False,
+                reason="No temporal event detected; thread matching skipped.",
+            )
+
         # Step 4e: Build structured ChronOS state from the retrieved context.
-        # The intent, user-state, goal, consistency detectors and the
-        # temporal event detector populate their sections.
+        # The intent, user-state, goal, consistency detectors, the temporal
+        # event detector and the temporal thread matcher populate their
+        # sections.
         chronos_state: ChronosState = await self.state_builder.build(
             user_input,
             retrieved_context,
@@ -239,6 +275,7 @@ class ChronosEngine:
             goal_analysis=goal_analysis_result,
             consistency_result=consistency_result,
             temporal_event_detection=temporal_detection,
+            temporal_thread_match=temporal_thread_match,
         )
 
         # Step 4f: Deterministic response generation. Pure template/rule logic
@@ -374,6 +411,21 @@ class ChronosEngine:
                 "Temporal event detection -> NONE "
                 f"({temporal_detection.reason or 'no significant temporal event'})."
             )
+        if temporal_thread_match.matched and temporal_thread_match.thread_id:
+            thread_step = (
+                f"Temporal event matched existing thread "
+                f"'{temporal_thread_match.thread_id}' "
+                f"(confidence {temporal_thread_match.confidence})."
+            )
+        elif temporal_thread_match.ambiguous:
+            thread_step = (
+                "Multiple temporal threads similarly plausible; "
+                "no reliable match chosen."
+            )
+        elif not temporal_thread_match.attempted:
+            thread_step = "No temporal event detected; thread matching skipped."
+        else:
+            thread_step = "No sufficiently reliable temporal thread match found."
         if ai_routing.use_ai:
             latency_text = (
                 f"{ai_execution.latency_ms}ms"
@@ -465,6 +517,7 @@ class ChronosEngine:
                 goal_step,
                 consistency_step,
                 temporal_step,
+                thread_step,
                 f"Constructed structured ChronosState (life phase '{chronos_state.context.life_phase if chronos_state.context else 'n/a'}', {len(chronos_state.context.relevant_memories) if chronos_state.context else 0} memories, {len(chronos_state.patterns)} patterns).",
                 prompt_step,
                 execution_step,
