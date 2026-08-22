@@ -20,6 +20,50 @@ from chronos_engine.state.models import (
     UserStateResult,
 )
 from chronos_engine.response.models import DeterministicResponse
+from chronos_engine.temporal.models import (
+    TemporalEvent,
+    TemporalSnapshot,
+    TemporalThread,
+)
+
+
+class BaseTemporalStore(ABC):
+    """Persistence contract for the temporal domain.
+
+    Dormant in Phase 3A: nothing in the engine creates or reads temporal
+    documents yet. The abstraction exists so later temporal phases can add
+    persistence without reshaping existing interfaces. Implementations must
+    never fabricate threads, events or snapshots — they only store and
+    return what they were given.
+    """
+
+    @abstractmethod
+    async def save_thread(self, thread: "TemporalThread") -> "TemporalThread":
+        pass
+
+    @abstractmethod
+    async def get_thread(self, thread_id: str, user_id: str) -> Optional["TemporalThread"]:
+        pass
+
+    @abstractmethod
+    async def get_threads_by_user(self, user_id: str) -> List["TemporalThread"]:
+        pass
+
+    @abstractmethod
+    async def save_event(self, event: "TemporalEvent") -> "TemporalEvent":
+        pass
+
+    @abstractmethod
+    async def get_events_by_thread(self, thread_id: str, user_id: str) -> List["TemporalEvent"]:
+        pass
+
+    @abstractmethod
+    async def save_snapshot(self, snapshot: "TemporalSnapshot") -> "TemporalSnapshot":
+        pass
+
+    @abstractmethod
+    async def get_snapshots_by_user(self, user_id: str) -> List["TemporalSnapshot"]:
+        pass
 
 
 class BaseEmbeddingProvider(ABC):

@@ -1,6 +1,6 @@
 import asyncio
 from typing import Dict, List, Optional
-from chronos_engine.core.interfaces import BaseStorageAdapter
+from chronos_engine.core.interfaces import BaseStorageAdapter, BaseTemporalStore
 from chronos_engine.core.models import (
     IdentityProfile,
     MemoryItem,
@@ -8,6 +8,7 @@ from chronos_engine.core.models import (
     ReflectionInsight,
     TimelineEvent,
 )
+from chronos_engine.temporal.models import TemporalEvent, TemporalSnapshot, TemporalThread
 
 
 class InMemoryStorageAdapter(BaseStorageAdapter):
@@ -95,3 +96,72 @@ class InMemoryStorageAdapter(BaseStorageAdapter):
         async with self._lock:
             patterns = self._patterns.get(user_id, [])
             return sorted(patterns, key=lambda p: p.confidence_score, reverse=True)
+
+
+class InMemoryTemporalStore(BaseTemporalStore):
+    """In-memory temporal store for the dormant Phase 3A temporal domain.
+
+    Follows the same shape as ``InMemoryStorageAdapter`` so a MongoDB
+    implementation (preferred collection: ``engine_temporal_threads``) can
+    be dropped in later without changing callers. Nothing in the engine
+    instantiates this yet — it exists so the temporal contract is real and
+    testable without any database.
+    """
+
+    def __init__(self):
+        self._threads: Dict[str, List[TemporalThread]] = {}
+        self._events: Dict[str, List[TemporalEvent]] = {}
+        self._snapshots: Dict[str, List[TemporalSnapshot]] = {}
+        self._lock = asyncio.Lock()
+
+    async def save_thread(self, thread: TemporalThread) -> TemporalThread:
+        async with self._lock:
+            user_list = self._threads.setdefault(thread.user_id, [])
+            for idx, item in enumerate(user_list):
+                if item.id == thread.id:
+                    user_list[idx] = thread
+                    return thread
+            user_list.append(thread)
+            return thread
+
+    async def get_thread(self, thread_id: str, user_id: str) -> Optional[TemporalThread]:
+        async with self._lock:
+            for thread in self._threads.get(user_id, []):
+                if thread.id == thread_id:
+                    return thread
+            return None
+
+    async def get_threads_by_user(self, user_id: str) -> List[TemporalThread]:
+        async with self._lock:
+            threads = self._threads.get(user_id, [])
+            return sorted(threads, key=lambda t: t.created_at, reverse=True)
+
+    async def save_event(self, event: TemporalEvent) -> TemporalEvent:
+        async with self._lock:
+            user_list = self._events.setdefault(event.thread_id, [])
+            for idx, item in enumerate(user_list):
+                if item.id == event.id:
+                    user_list[idx] = event
+                    return event
+            user_list.append(event)
+            return event
+
+    async def get_events_by_thread(self, thread_id: str, user_id: str) -> List[TemporalEvent]:
+        async with self._lock:
+            events = self._events.get(thread_id, [])
+            return sorted(events, key=lambda e: e.occurred_at)
+
+    async def save_snapshot(self, snapshot: TemporalSnapshot) -> TemporalSnapshot:
+        async with self._lock:
+            user_list = self._snapshots.setdefault(snapshot.user_id, [])
+            for idx, item in enumerate(user_list):
+                if item.id == snapshot.id:
+                    user_list[idx] = snapshot
+                    return snapshot
+            user_list.append(snapshot)
+            return snapshot
+
+    async def get_snapshots_by_user(self, user_id: str) -> List[TemporalSnapshot]:
+        async with self._lock:
+            snapshots = self._snapshots.get(user_id, [])
+            return sorted(snapshots, key=lambda s: s.timestamp)
