@@ -213,6 +213,72 @@ class TemporalLifecycleResult(BaseModel):
     skipped: bool = False
 
 
+class TemporalComparisonRelation(str, Enum):
+    """Deterministic verdict of a Past-vs-Present thread comparison (Phase 3E).
+
+    Describes how the newest moment in a ``TemporalThread`` relates to where
+    that story began. The vocabulary is intentionally small and honest:
+
+    - UNRESOLVED              the story is still open; nothing conclusive
+    - CONFIRMED               present restates/reaffirms the past position
+    - CHANGED                 present moved away from the past direction
+    - RESOLVED                the story reached an explicit outcome
+    - EVOLVED                 present shows ongoing development without closure
+    - CONTRADICTED            present actively conflicts with the past stance
+    - INSUFFICIENT_EVIDENCE   not enough distinct grounded moments to compare
+
+    These are explainable rule outcomes over stored evidence, never claims of
+    psychological truth about the user.
+    """
+
+    UNRESOLVED = "UNRESOLVED"
+    CONFIRMED = "CONFIRMED"
+    CHANGED = "CHANGED"
+    RESOLVED = "RESOLVED"
+    EVOLVED = "EVOLVED"
+    CONTRADICTED = "CONTRADICTED"
+    INSUFFICIENT_EVIDENCE = "INSUFFICIENT_EVIDENCE"
+
+
+class TemporalComparisonResult(BaseModel):
+    """Structured, read-only output of a Past-vs-Present comparison (Phase 3E).
+
+    Answers one question per interaction: for the temporal thread this input
+    touched, how does the present moment compare to where the story began?
+    The comparison is strictly observational — it never mutates threads or
+    events and never persists anything.
+
+    Honesty contract:
+
+    - no thread touched this turn -> ``attempted=False``
+    - fewer than two distinct grounded moments
+      -> ``comparable=False``, relation ``INSUFFICIENT_EVIDENCE``
+    - a relation is only claimed when deterministic evidence supports it;
+      otherwise ``UNRESOLVED`` / ``INSUFFICIENT_EVIDENCE`` is returned
+
+    ``past_summary`` / ``present_summary`` are conservative templates quoting
+    the stored evidence (by ``TemporalType``); they never invent content.
+    ``evidence_event_ids`` / ``evidence_memory_ids`` expose exactly which
+    stored artifacts back the verdict (deduplicated). ``confidence`` is an
+    explainable evidence-weighted score capped below ``1.0`` — not a
+    calibrated probability.
+    """
+
+    attempted: bool = False
+    comparable: bool = False
+    relation: TemporalComparisonRelation = TemporalComparisonRelation.INSUFFICIENT_EVIDENCE
+    confidence: float = 0.0
+    thread_id: Optional[str] = None
+    past_event_id: Optional[str] = None
+    present_event_id: Optional[str] = None
+    past_summary: str = ""
+    present_summary: str = ""
+    evidence_memory_ids: List[str] = Field(default_factory=list)
+    evidence_event_ids: List[str] = Field(default_factory=list)
+    signals: List[str] = Field(default_factory=list)
+    reason: str = ""
+
+
 class TemporalSnapshot(BaseModel):
     """The user's situation as it stood at one point in time.
 

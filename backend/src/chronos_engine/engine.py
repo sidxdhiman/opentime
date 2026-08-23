@@ -25,6 +25,7 @@ from chronos_engine.core.interfaces import (
     BaseTemporalStore,
     BaseTemporalThreadMatcher,
     BaseTemporalThreadLifecycleManager,
+    BaseTemporalComparisonEngine,
 )
 from chronos_engine.core.models import (
     EngineResponse,
@@ -70,9 +71,12 @@ from chronos_engine.ai.models import AIExecutionResult
 from chronos_engine.ai.policy import InferencePolicy, capabilities_from_config
 from chronos_engine.ai.reasoning.planner import ReasoningPlanner
 from chronos_engine.temporal.detector import TemporalEventDetector
+from chronos_engine.temporal.comparison import TemporalComparisonEngine
 from chronos_engine.temporal.lifecycle import TemporalThreadLifecycleManager
 from chronos_engine.temporal.matcher import TemporalThreadMatcher
 from chronos_engine.temporal.models import (
+    TemporalComparisonResult,
+    TemporalEvent,
     TemporalLifecycleResult,
     TemporalThreadMatchResult,
 )
@@ -127,6 +131,7 @@ class ChronosEngine:
         temporal_store: Optional[BaseTemporalStore] = None,
         temporal_thread_matcher: Optional[BaseTemporalThreadMatcher] = None,
         temporal_lifecycle: Optional[BaseTemporalThreadLifecycleManager] = None,
+        temporal_comparison: Optional[BaseTemporalComparisonEngine] = None,
     ):
         self.storage = storage or InMemoryStorageAdapter()
         self.embedding_provider = embedding_provider or DefaultEmbeddingProvider()
@@ -170,6 +175,10 @@ class ChronosEngine:
         self.temporal_lifecycle = temporal_lifecycle or TemporalThreadLifecycleManager(
             self.temporal_store
         )
+        # Phase 3E: the comparison engine is strictly read-only — it observes
+        # the thread the lifecycle just touched and never mutates or persists
+        # anything itself.
+        self.temporal_comparison = temporal_comparison or TemporalComparisonEngine()
 
     async def process_user_input(
         self,
@@ -289,10 +298,38 @@ class ChronosEngine:
             )
         )
 
+        # Step 4d5: Past-vs-Present comparison (Phase 3E). Strictly
+        # read-only: for the temporal thread this interaction touched (if
+        # any), the newest persisted moment is compared against where the
+        # story began. The comparison never mutates threads or events and
+        # never persists anything; when no thread is available it says so
+        # honestly.
+        comparison_thread = None
+        if temporal_lifecycle_result.thread_id:
+            comparison_thread = await self.temporal_store.get_thread(
+                temporal_lifecycle_result.thread_id, user_input.user_id
+            )
+        comparison_events: List[TemporalEvent] = []
+        if comparison_thread is not None:
+            comparison_events = await self.temporal_store.get_events_by_thread(
+                comparison_thread.id, user_input.user_id
+            )
+        temporal_comparison_result: TemporalComparisonResult = (
+            await self.temporal_comparison.compare(
+                user_id=user_input.user_id,
+                thread=comparison_thread,
+                events=comparison_events,
+                lifecycle_result=temporal_lifecycle_result,
+                consistency_result=consistency_result,
+                goal_analysis=goal_analysis_result,
+            )
+        )
+
         # Step 4e: Build structured ChronOS state from the retrieved context.
         # The intent, user-state, goal, consistency detectors, the temporal
-        # event detector, the temporal thread matcher and the temporal
-        # lifecycle manager populate their sections.
+        # event detector, the temporal thread matcher, the temporal
+        # lifecycle manager and the temporal comparison engine populate
+        # their sections.
         chronos_state: ChronosState = await self.state_builder.build(
             user_input,
             retrieved_context,
@@ -303,6 +340,7 @@ class ChronosEngine:
             temporal_event_detection=temporal_detection,
             temporal_thread_match=temporal_thread_match,
             temporal_lifecycle=temporal_lifecycle_result,
+            temporal_comparison=temporal_comparison_result,
         )
 
         # Step 4f: Deterministic response generation. Pure template/rule logic
@@ -497,6 +535,17 @@ class ChronosEngine:
                 f"Temporal lifecycle performed no mutation "
                 f"({temporal_lifecycle_result.reason or 'no action required'})."
             )
+
+        # Phase 3E: honest comparison trace entry.
+        if not temporal_comparison_result.attempted:
+            comparison_step = (
+                "Temporal comparison skipped: no temporal thread available."
+            )
+        else:
+            comparison_step = (
+                f"Temporal comparison -> {temporal_comparison_result.relation.value} "
+                f"(confidence {temporal_comparison_result.confidence})."
+            )
         if ai_routing.use_ai:
             latency_text = (
                 f"{ai_execution.latency_ms}ms"
@@ -590,6 +639,7 @@ class ChronosEngine:
                 temporal_step,
                 thread_step,
                 lifecycle_step,
+                comparison_step,
                 f"Constructed structured ChronosState (life phase '{chronos_state.context.life_phase if chronos_state.context else 'n/a'}', {len(chronos_state.context.relevant_memories) if chronos_state.context else 0} memories, {len(chronos_state.patterns)} patterns).",
                 prompt_step,
                 execution_step,
@@ -612,6 +662,7 @@ class ChronosEngine:
                 "Consistency Engine",
                 "Temporal Event Detector",
                 "Temporal Lifecycle Manager",
+                "Temporal Comparison Engine",
                 "Response Generator",
                 "AI Router",
                 "AI Executor",

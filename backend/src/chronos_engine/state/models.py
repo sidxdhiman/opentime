@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from chronos_engine.core.models import IntentType, PatternItem, RetrievedContext, UserInput
 from chronos_engine.temporal.models import (
+    TemporalComparisonResult,
     TemporalEventDetectionResult,
     TemporalLifecycleResult,
     TemporalThreadMatchResult,
@@ -242,6 +243,11 @@ class ChronosState(BaseModel):
     # manager did (thread created / event attached / nothing attempted).
     # ``None`` only for states built before lifecycle handling ran.
     temporal_lifecycle: Optional[TemporalLifecycleResult] = None
+
+    # Phase 3E: honest, additive, read-only Past-vs-Present verdict for the
+    # thread this interaction touched. ``None`` only for states built before
+    # comparison ran; the result itself reports skipped/insufficient honestly.
+    temporal_comparison: Optional[TemporalComparisonResult] = None
 
     engine_state: Optional[EngineStateResult] = None
     confidence: Optional[float] = None

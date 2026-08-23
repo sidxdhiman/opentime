@@ -17,6 +17,8 @@ state.models). Import implementations explicitly::
 """
 
 from chronos_engine.temporal.models import (
+    TemporalComparisonRelation,
+    TemporalComparisonResult,
     TemporalEvent,
     TemporalEventDetectionResult,
     TemporalLifecycleResult,
@@ -28,6 +30,8 @@ from chronos_engine.temporal.models import (
 )
 
 __all__ = [
+    "TemporalComparisonRelation",
+    "TemporalComparisonResult",
     "TemporalEvent",
     "TemporalEventDetectionResult",
     "TemporalLifecycleResult",

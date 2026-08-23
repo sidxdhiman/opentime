@@ -21,6 +21,7 @@ from chronos_engine.state.models import (
 )
 from chronos_engine.response.models import DeterministicResponse
 from chronos_engine.temporal.models import (
+    TemporalComparisonResult,
     TemporalEvent,
     TemporalEventDetectionResult,
     TemporalLifecycleResult,
@@ -173,6 +174,32 @@ class BaseTemporalThreadLifecycleManager(ABC):
         goal_analysis: "Optional[GoalAnalysisResult]" = None,
         consistency_result: "Optional[ConsistencyResult]" = None,
     ) -> TemporalLifecycleResult:
+        pass
+
+
+class BaseTemporalComparisonEngine(ABC):
+    """Deterministic Past-vs-Present comparison for temporal threads (Phase 3E).
+
+    Answers one question per interaction: for the thread this input touched,
+    how does the present moment relate to where that story began? Strictly
+    read-only — the comparison never mutates threads or events, never
+    persists anything, never crosses thread boundaries and never invents a
+    new matching algorithm. Threads and their events are handed in by the
+    caller (loaded through a ``BaseTemporalStore``); when evidence is
+    insufficient the result says so honestly instead of fabricating a
+    verdict.
+    """
+
+    @abstractmethod
+    async def compare(
+        self,
+        user_id: str,
+        thread: Optional["TemporalThread"],
+        events: "List[TemporalEvent]",
+        lifecycle_result: "Optional[TemporalLifecycleResult]" = None,
+        consistency_result: "Optional[ConsistencyResult]" = None,
+        goal_analysis: "Optional[GoalAnalysisResult]" = None,
+    ) -> TemporalComparisonResult:
         pass
 
 
