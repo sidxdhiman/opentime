@@ -107,16 +107,22 @@ class InMemoryTemporalStore(BaseTemporalStore):
     """In-memory temporal store for the temporal domain.
 
     Follows the same shape as ``InMemoryStorageAdapter`` so a MongoDB
-    implementation (preferred collection: ``engine_temporal_threads``) can
-    be dropped in later without changing callers. Wired into the engine in
-    Phase 3C for read-only candidate retrieval during thread matching —
-    no automatic writes happen yet (thread lifecycle belongs to later
-    temporal phases).
+    implementation (collections: ``engine_temporal_threads`` /
+    ``engine_temporal_events``) can be dropped in without changing callers.
+    Wired into the engine in Phase 3C for read-only candidate retrieval
+    during thread matching; since Phase 3D it also persists lifecycle
+    writes (thread creation, event attachment, status updates).
+
+    Like the rest of this repository, stored objects are returned as-is —
+    callers must not rely on defensive copies. Event reads are user-scoped:
+    each event records its owner at save time and is only returned to that
+    user.
     """
 
     def __init__(self):
         self._threads: Dict[str, List[TemporalThread]] = {}
         self._events: Dict[str, List[TemporalEvent]] = {}
+        self._event_owner: Dict[str, str] = {}
         self._snapshots: Dict[str, List[TemporalSnapshot]] = {}
         self._lock = asyncio.Lock()
 
@@ -158,8 +164,24 @@ class InMemoryTemporalStore(BaseTemporalStore):
             threads = [t for t in self._threads.get(user_id, []) if t.status in live]
             return sorted(threads, key=lambda t: t.created_at, reverse=True)[:limit]
 
+    async def find_thread_by_origin_memory(
+        self, user_id: str, memory_id: str
+    ) -> Optional[TemporalThread]:
+        """Targeted duplicate guard for lifecycle idempotency (Phase 3D).
+
+        Bounded by the requesting user's own thread list — never a global
+        scan.
+        """
+        async with self._lock:
+            for thread in self._threads.get(user_id, []):
+                if thread.origin_memory_id == memory_id:
+                    return thread
+            return None
+
     async def save_event(self, event: TemporalEvent) -> TemporalEvent:
         async with self._lock:
+            if event.user_id:
+                self._event_owner[event.id] = event.user_id
             user_list = self._events.setdefault(event.thread_id, [])
             for idx, item in enumerate(user_list):
                 if item.id == event.id:
@@ -170,7 +192,13 @@ class InMemoryTemporalStore(BaseTemporalStore):
 
     async def get_events_by_thread(self, thread_id: str, user_id: str) -> List[TemporalEvent]:
         async with self._lock:
-            events = self._events.get(thread_id, [])
+            events = [
+                e
+                for e in self._events.get(thread_id, [])
+                # User isolation: an event recorded by another user is
+                # invisible here even if its thread id were somehow known.
+                if self._event_owner.get(e.id, user_id) == user_id
+            ]
             return sorted(events, key=lambda e: e.occurred_at)
 
     async def save_snapshot(self, snapshot: TemporalSnapshot) -> TemporalSnapshot:

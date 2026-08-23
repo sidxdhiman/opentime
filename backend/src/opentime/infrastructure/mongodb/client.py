@@ -90,4 +90,21 @@ async def ensure_indexes() -> None:
     await db["engine_reflections"].create_index("user_id")
     await db["engine_patterns"].create_index("user_id")
 
+    # ChronOS Engine temporal domain (Phase 3D lifecycle persistence)
+    await db["engine_temporal_threads"].create_index("user_id")
+    await db["engine_temporal_threads"].create_index(
+        [("user_id", 1), ("status", 1)]
+    )
+    await db["engine_temporal_threads"].create_index(
+        [("user_id", 1), ("created_at", -1)]
+    )
+    await db["engine_temporal_threads"].create_index(
+        [("user_id", 1), ("origin_memory_id", 1)]
+    )
+    await db["engine_temporal_events"].create_index("user_id")
+    await db["engine_temporal_events"].create_index(
+        [("user_id", 1), ("thread_id", 1), ("occurred_at", 1)]
+    )
+    await db["engine_temporal_snapshots"].create_index("user_id")
+
     log.info("mongodb_indexes_ensured")

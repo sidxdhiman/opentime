@@ -7,13 +7,18 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel
 
 from chronos_engine.engine import ChronosEngine
-from chronos_engine.storage.mongo_repository import MongoStorageAdapter
+from chronos_engine.storage.mongo_repository import MongoStorageAdapter, MongoTemporalStore
 from opentime.infrastructure.config import get_settings
 
 router = APIRouter(prefix="/chronos/engine", tags=["ChronOS Engine"])
 
-# Global engine instance backed by persistent MongoDB storage.
-engine_instance = ChronosEngine(storage=MongoStorageAdapter())
+# Global engine instance backed by persistent MongoDB storage (memories via
+# the storage adapter, temporal threads/events via the Phase 3D temporal
+# store).
+engine_instance = ChronosEngine(
+    storage=MongoStorageAdapter(),
+    temporal_store=MongoTemporalStore(),
+)
 
 _SAFE_NAME = re.compile(r"[^a-zA-Z0-9._-]")
 

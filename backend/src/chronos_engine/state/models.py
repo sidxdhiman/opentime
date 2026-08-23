@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from chronos_engine.core.models import IntentType, PatternItem, RetrievedContext, UserInput
 from chronos_engine.temporal.models import (
     TemporalEventDetectionResult,
+    TemporalLifecycleResult,
     TemporalThreadMatchResult,
 )
 
@@ -236,6 +237,11 @@ class ChronosState(BaseModel):
     temporal_event_detection: Optional[TemporalEventDetectionResult] = None
 
     temporal_thread_match: Optional[TemporalThreadMatchResult] = None
+
+    # Phase 3D: honest, additive record of what the temporal lifecycle
+    # manager did (thread created / event attached / nothing attempted).
+    # ``None`` only for states built before lifecycle handling ran.
+    temporal_lifecycle: Optional[TemporalLifecycleResult] = None
 
     engine_state: Optional[EngineStateResult] = None
     confidence: Optional[float] = None

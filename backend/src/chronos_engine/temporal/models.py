@@ -107,10 +107,15 @@ class TemporalEvent(BaseModel):
     ``thread_id`` is ``None`` until thread matching assigns the event to a
     thread (a later temporal phase). Detected-but-unmatched events keep it
     empty rather than fabricating a thread reference.
+
+    ``user_id`` is optional with a safe default so older documents and
+    detector-produced events remain valid; the lifecycle manager sets it
+    when an event is persisted so stores can enforce user isolation.
     """
 
     id: str = Field(default_factory=lambda: f"tevent_{_short_uuid()}")
     thread_id: Optional[str] = None
+    user_id: Optional[str] = None
     temporal_type: Optional[TemporalType] = None
     description: str = ""
     memory_id: Optional[str] = None
@@ -169,6 +174,43 @@ class TemporalThreadMatchResult(BaseModel):
     ambiguous: bool = False
     candidate_count: int = 0
     matched_thread: Optional[TemporalThread] = None
+
+
+class TemporalLifecycleResult(BaseModel):
+    """Structured, honest output of the temporal lifecycle manager (Phase 3D).
+
+    Answers one question per interaction: did a detected ``TemporalEvent``
+    create a new thread, continue an existing one, or leave everything
+    untouched — and was it actually persisted? The result never overstates
+    success:
+
+    - no temporal event        -> ``attempted=False``, ``skipped=True``
+    - ambiguous match          -> ``attempted=True`` with no mutation made
+    - new thread               -> ``created=True`` (plus event persisted)
+    - confident continuation   -> ``updated=True``
+    - storage failure          -> ``persisted=False`` with the failure reason
+
+    ``previous_status`` / ``current_status`` / ``transitioned`` describe any
+    lifecycle status change applied to the thread. ``confidence`` is an
+    explainable evidence-weighted score in ``[0, 1]``, not a calibrated
+    probability.
+    """
+
+    attempted: bool = False
+    created: bool = False
+    updated: bool = False
+    persisted: bool = False
+    thread_id: Optional[str] = None
+    event_id: Optional[str] = None
+    thread_subject: Optional[str] = None
+    previous_status: Optional[TemporalThreadStatus] = None
+    current_status: Optional[TemporalThreadStatus] = None
+    transitioned: bool = False
+    reason: str = ""
+    confidence: float = 0.0
+    signals: List[str] = Field(default_factory=list)
+    ambiguous: bool = False
+    skipped: bool = False
 
 
 class TemporalSnapshot(BaseModel):

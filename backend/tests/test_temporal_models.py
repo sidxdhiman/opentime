@@ -243,7 +243,8 @@ async def test_inmemory_temporal_store_round_trip_without_db():
 async def test_temporal_models_are_isolated_from_storage_and_engine():
     """Phase 3A adds nothing to engine behavior: the classic storage adapter
     still exposes only its original concerns, and temporal types are usable
-    without importing the engine at all."""
+    without importing the engine at all. (Phase 3D additively extends
+    BaseTemporalStore with the lifecycle idempotency lookup.)"""
     adapter = InMemoryStorageAdapter()
     assert not hasattr(adapter, "save_thread")
 
@@ -256,6 +257,7 @@ async def test_temporal_models_are_isolated_from_storage_and_engine():
         "get_thread",
         "get_threads_by_user",
         "get_candidate_threads",
+        "find_thread_by_origin_memory",
         "save_event",
         "get_events_by_thread",
         "save_snapshot",

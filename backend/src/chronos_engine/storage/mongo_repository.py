@@ -4,19 +4,31 @@ Replaces the in-memory adapter so that every memory the engine stores survives
 restarts and is scoped per user.  Uses the same Motor client as the rest of
 OpenTime, but keeps its own collections because the engine uses its own
 document models (engine memories carry embeddings + linked memories).
+
+Since Phase 3D this module also hosts ``MongoTemporalStore``, the persistent
+implementation of the temporal domain (threads / events / snapshots) used by
+the temporal lifecycle manager. Collections follow the established
+``engine_*`` naming: ``engine_temporal_threads``, ``engine_temporal_events``,
+``engine_temporal_snapshots``.
 """
 
 from typing import List, Optional
 
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from chronos_engine.core.interfaces import BaseStorageAdapter
+from chronos_engine.core.interfaces import BaseStorageAdapter, BaseTemporalStore
 from chronos_engine.core.models import (
     IdentityProfile,
     MemoryItem,
     PatternItem,
     ReflectionInsight,
     TimelineEvent,
+)
+from chronos_engine.temporal.models import (
+    TemporalEvent,
+    TemporalSnapshot,
+    TemporalThread,
+    TemporalThreadStatus,
 )
 from opentime.infrastructure.mongodb.client import get_mongo_db
 
@@ -123,3 +135,127 @@ class MongoStorageAdapter(BaseStorageAdapter):
             .sort("confidence_score", -1)
         )
         return [PatternItem(**d) async for d in cursor]
+
+
+class MongoTemporalStore(BaseTemporalStore):
+    """Persistent MongoDB store for the temporal domain (Phase 3D).
+
+    Follows the exact conventions of :class:`MongoStorageAdapter`:
+    ``model_dump(mode="json")`` serialization, ``replace_one`` upserts keyed
+    by ``{"id", "user_id"}``, and user-scoped queries on every read. The
+    database handle is resolved lazily through ``get_mongo_db()`` like the
+    adapter above, but may also be injected (the ``chronos_repos`` pattern)
+    so tests can run against ``mongomock-motor``.
+
+    Older documents remain readable: every ``TemporalThread`` /
+    ``TemporalEvent`` field has a safe default, so documents written before a
+    new optional field existed deserialize cleanly.
+    """
+
+    _LIVE_STATUSES = {
+        TemporalThreadStatus.OPEN.value,
+        TemporalThreadStatus.ACTIVE.value,
+        TemporalThreadStatus.CHANGED.value,
+    }
+
+    def __init__(self, db: Optional[AsyncIOMotorDatabase] = None) -> None:
+        self._db_override: Optional[AsyncIOMotorDatabase] = db
+
+    async def _db(self) -> AsyncIOMotorDatabase:
+        if self._db_override is not None:
+            return self._db_override
+        return await get_mongo_db()
+
+    # ── Threads ────────────────────────────────────────────────────────────
+
+    async def save_thread(self, thread: TemporalThread) -> TemporalThread:
+        db = await self._db()
+        doc = thread.model_dump(mode="json")
+        await db["engine_temporal_threads"].replace_one(
+            {"id": thread.id, "user_id": thread.user_id}, doc, upsert=True
+        )
+        return thread
+
+    async def get_thread(self, thread_id: str, user_id: str) -> Optional[TemporalThread]:
+        db = await self._db()
+        doc = await db["engine_temporal_threads"].find_one(
+            {"id": thread_id, "user_id": user_id}
+        )
+        return TemporalThread(**doc) if doc else None
+
+    async def get_threads_by_user(self, user_id: str) -> List[TemporalThread]:
+        db = await self._db()
+        cursor = (
+            db["engine_temporal_threads"]
+            .find({"user_id": user_id})
+            .sort("created_at", -1)
+        )
+        return [TemporalThread(**d) async for d in cursor]
+
+    async def get_candidate_threads(
+        self, user_id: str, limit: int = 25
+    ) -> List[TemporalThread]:
+        """Bounded candidate retrieval for matching — live threads only.
+
+        Targeted indexed read over ``engine_temporal_threads`` only; never a
+        scan of memories or events.
+        """
+        db = await self._db()
+        cursor = (
+            db["engine_temporal_threads"]
+            .find({"user_id": user_id, "status": {"$in": list(self._LIVE_STATUSES)}})
+            .sort("created_at", -1)
+            .limit(limit)
+        )
+        return [TemporalThread(**d) async for d in cursor]
+
+    async def find_thread_by_origin_memory(
+        self, user_id: str, memory_id: str
+    ) -> Optional[TemporalThread]:
+        """Indexed duplicate guard for lifecycle idempotency."""
+        db = await self._db()
+        doc = await db["engine_temporal_threads"].find_one(
+            {"user_id": user_id, "origin_memory_id": memory_id}
+        )
+        return TemporalThread(**doc) if doc else None
+
+    # ── Events ─────────────────────────────────────────────────────────────
+
+    async def save_event(self, event: TemporalEvent) -> TemporalEvent:
+        db = await self._db()
+        doc = event.model_dump(mode="json")
+        query: dict = {"id": event.id}
+        if event.user_id:
+            query["user_id"] = event.user_id
+        await db["engine_temporal_events"].replace_one(query, doc, upsert=True)
+        return event
+
+    async def get_events_by_thread(
+        self, thread_id: str, user_id: str
+    ) -> List[TemporalEvent]:
+        db = await self._db()
+        cursor = (
+            db["engine_temporal_events"]
+            .find({"thread_id": thread_id, "user_id": user_id})
+            .sort("occurred_at", 1)
+        )
+        return [TemporalEvent(**d) async for d in cursor]
+
+    # ── Snapshots ──────────────────────────────────────────────────────────
+
+    async def save_snapshot(self, snapshot: TemporalSnapshot) -> TemporalSnapshot:
+        db = await self._db()
+        doc = snapshot.model_dump(mode="json")
+        await db["engine_temporal_snapshots"].replace_one(
+            {"id": snapshot.id, "user_id": snapshot.user_id}, doc, upsert=True
+        )
+        return snapshot
+
+    async def get_snapshots_by_user(self, user_id: str) -> List[TemporalSnapshot]:
+        db = await self._db()
+        cursor = (
+            db["engine_temporal_snapshots"]
+            .find({"user_id": user_id})
+            .sort("timestamp", 1)
+        )
+        return [TemporalSnapshot(**d) async for d in cursor]

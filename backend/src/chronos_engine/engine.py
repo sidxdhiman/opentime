@@ -24,6 +24,7 @@ from chronos_engine.core.interfaces import (
     BaseTemporalEventDetector,
     BaseTemporalStore,
     BaseTemporalThreadMatcher,
+    BaseTemporalThreadLifecycleManager,
 )
 from chronos_engine.core.models import (
     EngineResponse,
@@ -69,8 +70,12 @@ from chronos_engine.ai.models import AIExecutionResult
 from chronos_engine.ai.policy import InferencePolicy, capabilities_from_config
 from chronos_engine.ai.reasoning.planner import ReasoningPlanner
 from chronos_engine.temporal.detector import TemporalEventDetector
+from chronos_engine.temporal.lifecycle import TemporalThreadLifecycleManager
 from chronos_engine.temporal.matcher import TemporalThreadMatcher
-from chronos_engine.temporal.models import TemporalThreadMatchResult
+from chronos_engine.temporal.models import (
+    TemporalLifecycleResult,
+    TemporalThreadMatchResult,
+)
 
 
 class ChronosEngine:
@@ -121,6 +126,7 @@ class ChronosEngine:
         temporal_event_detector: Optional[BaseTemporalEventDetector] = None,
         temporal_store: Optional[BaseTemporalStore] = None,
         temporal_thread_matcher: Optional[BaseTemporalThreadMatcher] = None,
+        temporal_lifecycle: Optional[BaseTemporalThreadLifecycleManager] = None,
     ):
         self.storage = storage or InMemoryStorageAdapter()
         self.embedding_provider = embedding_provider or DefaultEmbeddingProvider()
@@ -158,6 +164,12 @@ class ChronosEngine:
         self.temporal_event_detector = temporal_event_detector or TemporalEventDetector()
         self.temporal_store = temporal_store or InMemoryTemporalStore()
         self.temporal_thread_matcher = temporal_thread_matcher or TemporalThreadMatcher()
+        # Phase 3D: the lifecycle manager owns thread creation, event
+        # attachment, status transitions and persistence. It is the only
+        # component that writes to the temporal store during processing.
+        self.temporal_lifecycle = temporal_lifecycle or TemporalThreadLifecycleManager(
+            self.temporal_store
+        )
 
     async def process_user_input(
         self,
@@ -241,9 +253,8 @@ class ChronosEngine:
         # existing live threads (bounded read from the temporal store) and
         # decides whether this moment belongs to an ongoing story.
         # Deterministic and conservative — a false connection is worse than
-        # no connection. On a confident match the event's ``thread_id`` is
-        # populated *in memory* only; nothing is persisted and no threads
-        # are created here.
+        # no connection. Matching only answers the question; linking and
+        # persistence belong to Step 4d4.
         if temporal_detection.detected and temporal_detection.event is not None:
             candidate_threads = await self.temporal_store.get_candidate_threads(
                 user_input.user_id
@@ -254,8 +265,6 @@ class ChronosEngine:
                 goal_analysis=goal_analysis_result,
                 consistency_result=consistency_result,
             )
-            if temporal_thread_match.matched and temporal_thread_match.thread_id:
-                temporal_detection.event.thread_id = temporal_thread_match.thread_id
         else:
             temporal_thread_match = TemporalThreadMatchResult(
                 attempted=False,
@@ -263,10 +272,27 @@ class ChronosEngine:
                 reason="No temporal event detected; thread matching skipped.",
             )
 
+        # Step 4d4: Temporal lifecycle handling (Phase 3D). Deterministic
+        # and offline: turns a confidently unmatched event into a new
+        # persistent thread, attaches a confidently matched event to its
+        # thread (with evidence-based status transitions), or — on ambiguity
+        # or absence of an event — performs no mutation at all. The honest
+        # result is carried additively in ChronosState.temporal_lifecycle.
+        temporal_lifecycle_result: TemporalLifecycleResult = (
+            await self.temporal_lifecycle.handle(
+                user_id=user_input.user_id,
+                detection=temporal_detection,
+                match_result=temporal_thread_match,
+                input_content=user_input.content,
+                goal_analysis=goal_analysis_result,
+                consistency_result=consistency_result,
+            )
+        )
+
         # Step 4e: Build structured ChronOS state from the retrieved context.
         # The intent, user-state, goal, consistency detectors, the temporal
-        # event detector and the temporal thread matcher populate their
-        # sections.
+        # event detector, the temporal thread matcher and the temporal
+        # lifecycle manager populate their sections.
         chronos_state: ChronosState = await self.state_builder.build(
             user_input,
             retrieved_context,
@@ -276,6 +302,7 @@ class ChronosEngine:
             consistency_result=consistency_result,
             temporal_event_detection=temporal_detection,
             temporal_thread_match=temporal_thread_match,
+            temporal_lifecycle=temporal_lifecycle_result,
         )
 
         # Step 4f: Deterministic response generation. Pure template/rule logic
@@ -426,6 +453,50 @@ class ChronosEngine:
             thread_step = "No temporal event detected; thread matching skipped."
         else:
             thread_step = "No sufficiently reliable temporal thread match found."
+
+        # Phase 3D: honest lifecycle trace entry. Thread subjects are used
+        # instead of internal ids so the trace stays human-readable.
+        lifecycle_label = (
+            temporal_lifecycle_result.thread_subject
+            or temporal_lifecycle_result.thread_id
+            or "thread"
+        )
+        if not temporal_lifecycle_result.attempted:
+            lifecycle_step = "No temporal event detected; lifecycle handling skipped."
+        elif temporal_lifecycle_result.ambiguous:
+            lifecycle_step = (
+                "Temporal thread relationship was ambiguous; no thread was modified."
+            )
+        elif temporal_lifecycle_result.created and temporal_lifecycle_result.persisted:
+            lifecycle_step = (
+                f"Created new temporal thread '{lifecycle_label}' from detected "
+                f"{temporal_detection.event.temporal_type.value} event."
+                if temporal_detection.event is not None
+                and temporal_detection.event.temporal_type is not None
+                else f"Created new temporal thread '{lifecycle_label}'."
+            )
+        elif temporal_lifecycle_result.updated:
+            if temporal_lifecycle_result.transitioned:
+                lifecycle_step = (
+                    f"Attached temporal event to existing thread '{lifecycle_label}'; "
+                    f"status {temporal_lifecycle_result.previous_status.value} -> "
+                    f"{temporal_lifecycle_result.current_status.value}."
+                )
+            else:
+                status_value = (
+                    temporal_lifecycle_result.current_status.value
+                    if temporal_lifecycle_result.current_status is not None
+                    else "UNCHANGED"
+                )
+                lifecycle_step = (
+                    f"Attached temporal event to existing thread '{lifecycle_label}'; "
+                    f"status remains {status_value}."
+                )
+        else:
+            lifecycle_step = (
+                f"Temporal lifecycle performed no mutation "
+                f"({temporal_lifecycle_result.reason or 'no action required'})."
+            )
         if ai_routing.use_ai:
             latency_text = (
                 f"{ai_execution.latency_ms}ms"
@@ -518,6 +589,7 @@ class ChronosEngine:
                 consistency_step,
                 temporal_step,
                 thread_step,
+                lifecycle_step,
                 f"Constructed structured ChronosState (life phase '{chronos_state.context.life_phase if chronos_state.context else 'n/a'}', {len(chronos_state.context.relevant_memories) if chronos_state.context else 0} memories, {len(chronos_state.patterns)} patterns).",
                 prompt_step,
                 execution_step,
@@ -539,6 +611,7 @@ class ChronosEngine:
                 "Goal Detector",
                 "Consistency Engine",
                 "Temporal Event Detector",
+                "Temporal Lifecycle Manager",
                 "Response Generator",
                 "AI Router",
                 "AI Executor",

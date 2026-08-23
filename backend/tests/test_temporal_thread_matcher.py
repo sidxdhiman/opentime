@@ -493,7 +493,11 @@ async def test_engine_matches_event_to_seeded_thread_and_links_in_memory():
 
 
 @pytest.mark.asyncio
-async def test_engine_matching_has_no_persistence_side_effects():
+async def test_engine_matching_persists_event_and_updates_thread():
+    """Phase 3D supersedes the temporary 3C 'no persistence' contract: a
+    confident match now attaches and persists the event, links the memory,
+    refreshes ``updated_at``, and applies evidence-based transitions ("left
+    my job" resolves a DECISION thread) — never creating duplicate threads."""
     engine = _engine()
     thread = mk_thread("Decision about leaving current job", TemporalType.DECISION)
     await engine.temporal_store.save_thread(thread)
@@ -506,16 +510,25 @@ async def test_engine_matching_has_no_persistence_side_effects():
         provider_key="chronos",
     )
 
-    # Match happened purely in memory.
-    assert response.chronos_state.temporal_thread_match.matched
+    state = response.chronos_state
+    assert state.temporal_thread_match.matched
 
-    # No new threads appeared, the seeded thread was not mutated, and no
-    # events were persisted anywhere in the temporal store.
-    candidates = await engine.temporal_store.get_candidate_threads(USER)
-    assert len(candidates) == 1
-    stored_after = (await engine.temporal_store.get_thread(thread.id, USER)).model_dump()
-    assert stored_after == stored_before
-    assert await engine.temporal_store.get_events_by_thread(thread.id, USER) == []
+    # Exactly one thread exists (no duplicate creation), updated in place.
+    stored_after = await engine.temporal_store.get_thread(thread.id, USER)
+    assert stored_after.id == stored_before["id"]
+    assert stored_after.origin_memory_id == stored_before["origin_memory_id"]
+    assert stored_after.created_at == stored_before["created_at"]
+    assert stored_after.updated_at > stored_before["updated_at"]
+
+    # Strong explicit outcome evidence moved OPEN -> RESOLVED, so the thread
+    # no longer appears among live matching candidates.
+    assert stored_before["status"] == TemporalThreadStatus.OPEN.value
+    assert stored_after.status is TemporalThreadStatus.RESOLVED
+
+    events = await engine.temporal_store.get_events_by_thread(thread.id, USER)
+    assert len(events) == 1
+    assert events[0].memory_id == state.temporal_event_detection.event.memory_id
+    assert events[0].thread_id == thread.id
 
 
 @pytest.mark.asyncio

@@ -23,6 +23,7 @@ from chronos_engine.response.models import DeterministicResponse
 from chronos_engine.temporal.models import (
     TemporalEvent,
     TemporalEventDetectionResult,
+    TemporalLifecycleResult,
     TemporalSnapshot,
     TemporalThread,
     TemporalThreadMatchResult,
@@ -59,6 +60,20 @@ class BaseTemporalStore(ABC):
         (not archived/resolved/abandoned), most recent first, capped by
         ``limit``. This is a targeted read over the temporal store only —
         never a scan of user memories and never a vector/embedding query.
+        """
+        pass
+
+    @abstractmethod
+    async def find_thread_by_origin_memory(
+        self, user_id: str, memory_id: str
+    ) -> Optional["TemporalThread"]:
+        """Find a thread whose ``origin_memory_id`` equals ``memory_id``.
+
+        Required for lifecycle idempotency (Phase 3D): before creating a new
+        thread from an event, the lifecycle manager checks whether a thread
+        was already created from the same memory so accidental reprocessing
+        never produces duplicate threads. Targeted indexed lookup — never a
+        full collection scan.
         """
         pass
 
@@ -126,6 +141,38 @@ class BaseTemporalThreadMatcher(ABC):
         goal_analysis: "Optional[GoalAnalysisResult]" = None,
         consistency_result: "Optional[ConsistencyResult]" = None,
     ) -> TemporalThreadMatchResult:
+        pass
+
+
+class BaseTemporalThreadLifecycleManager(ABC):
+    """Deterministic lifecycle handling for temporal threads (Phase 3D).
+
+    Turns detected ``TemporalEvent``s into persistent life-thread history:
+
+    - confident NO_MATCH      -> create a new conservative, evidence-grounded
+      ``TemporalThread`` and persist event + thread
+    - confident MATCH         -> attach the event to the existing thread,
+      update its memory links / ``updated_at``, and apply evidence-based
+      status transitions through one explicit transition policy
+    - AMBIGUOUS match         -> perform NO mutation at all
+    - no detected event       -> perform nothing
+
+    All decisions are deterministic and offline: no AI, no embeddings, no
+    fabricated subjects. The manager is the only engine component allowed to
+    mutate or persist threads/events; persistence goes exclusively through a
+    ``BaseTemporalStore``.
+    """
+
+    @abstractmethod
+    async def handle(
+        self,
+        user_id: str,
+        detection: TemporalEventDetectionResult,
+        match_result: Optional["TemporalThreadMatchResult"] = None,
+        input_content: Optional[str] = None,
+        goal_analysis: "Optional[GoalAnalysisResult]" = None,
+        consistency_result: "Optional[ConsistencyResult]" = None,
+    ) -> TemporalLifecycleResult:
         pass
 
 

@@ -14,6 +14,7 @@ from chronos_engine.state.models import (
 )
 from chronos_engine.temporal.models import (
     TemporalEventDetectionResult,
+    TemporalLifecycleResult,
     TemporalThreadMatchResult,
 )
 
@@ -23,10 +24,10 @@ class StateBuilder:
 
     No detection logic is performed here — this only groups the results the
     pipeline already produced (current input, retrieved context, intent, user
-    state, goal analysis, temporal event detection) into one object. The
-    dedicated detectors and the ``ConsistencyEngine`` run before ``build``;
-    the builder just wires their results in. Engine-state sections stay empty
-    until their detectors exist.
+    state, goal analysis, temporal event detection, temporal thread matching,
+    temporal lifecycle) into one object. The dedicated detectors and the
+    ``ConsistencyEngine`` run before ``build``; the builder just wires their
+    results in. Engine-state sections stay empty until their detectors exist.
     """
 
     async def build(
@@ -39,6 +40,7 @@ class StateBuilder:
         consistency_result: Optional[ConsistencyResult] = None,
         temporal_event_detection: Optional[TemporalEventDetectionResult] = None,
         temporal_thread_match: Optional[TemporalThreadMatchResult] = None,
+        temporal_lifecycle: Optional[TemporalLifecycleResult] = None,
     ) -> ChronosState:
         contradictions = []
         if consistency_result is not None:
@@ -60,6 +62,7 @@ class StateBuilder:
             contradictions=contradictions,
             temporal_event_detection=temporal_event_detection,
             temporal_thread_match=temporal_thread_match,
+            temporal_lifecycle=temporal_lifecycle,
             engine_state=None,
             confidence=None,
         )
