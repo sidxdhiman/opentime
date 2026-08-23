@@ -21,6 +21,7 @@ from chronos_engine.state.models import (
 )
 from chronos_engine.response.models import DeterministicResponse
 from chronos_engine.temporal.models import (
+    PastSelfQuestionResult,
     TemporalComparisonResult,
     TemporalEvent,
     TemporalEventDetectionResult,
@@ -200,6 +201,35 @@ class BaseTemporalComparisonEngine(ABC):
         consistency_result: "Optional[ConsistencyResult]" = None,
         goal_analysis: "Optional[GoalAnalysisResult]" = None,
     ) -> TemporalComparisonResult:
+        pass
+
+
+class BasePastSelfQuestionPlanner(ABC):
+    """Deterministic past-self question planning for temporal threads
+    (Phase 3F).
+
+    Consumes the already-computed thread, comparison and lifecycle evidence
+    and produces ONE structured decision: whether ChronOS should ask the
+    present user something on behalf of their past self, what KIND of
+    interaction is appropriate, WHAT it should be about (grounded focus +
+    canonical template), and WHICH stored evidence supports it.
+
+    Pure computation over handed-in objects — no LLM, no persistence, no
+    mutation, no scheduling. Conservative by design: a comparison existing
+    never automatically justifies a question; insufficient evidence yields
+    an honest ``should_ask=False`` instead of a fabricated one. AI wording
+    and personalization belong to a later phase.
+    """
+
+    @abstractmethod
+    def plan(
+        self,
+        user_id: str,
+        thread: Optional["TemporalThread"],
+        comparison: Optional["TemporalComparisonResult"],
+        lifecycle_result: "Optional[TemporalLifecycleResult]" = None,
+        events: "Optional[List[TemporalEvent]]" = None,
+    ) -> PastSelfQuestionResult:
         pass
 
 

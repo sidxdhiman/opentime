@@ -279,6 +279,93 @@ class TemporalComparisonResult(BaseModel):
     reason: str = ""
 
 
+class PastSelfPerspective(str, Enum):
+    """Structured interaction perspective for past-self questions (Phase 3F).
+
+    Marks whose voice a planned question conceptually reconnects. The only
+    producer in this phase is ``PAST_TO_PRESENT``: the question is framed as
+    the user's earlier self reaching their present self. This is a structured
+    label for the future rendering layer — Phase 3F never simulates a
+    personality and never pretends to literally BE the past user.
+    """
+
+    PAST_TO_PRESENT = "PAST_TO_PRESENT"
+
+
+class PastSelfQuestionType(str, Enum):
+    """The kind of past-self interaction the planner decided is appropriate.
+
+    Deterministic rule outcomes over stored temporal evidence, not claims
+    about what the user feels:
+
+    - CHECK_IN         ongoing story; ask how it is going now
+    - OUTCOME_REVEAL   an outcome arrived; invite the present self to react
+    - REFLECTION       something shifted; invite looking back on it
+    - REVISIT          still open with real continuity; worth revisiting
+    - REASSURANCE      a stance held; acknowledge it endured
+    - SURPRISE         reserved: no deterministic producer exists yet in
+                       Phase 3F (documented, tested absence)
+    """
+
+    CHECK_IN = "CHECK_IN"
+    OUTCOME_REVEAL = "OUTCOME_REVEAL"
+    REFLECTION = "REFLECTION"
+    REVISIT = "REVISIT"
+    REASSURANCE = "REASSURANCE"
+    SURPRISE = "SURPRISE"
+
+
+class PastSelfQuestionIntent(BaseModel):
+    """WHAT ChronOS wants to ask, separated from HOW it may be phrased.
+
+    ``focus`` is the grounded topic of the question (abstract description).
+    ``canonical_template`` is a deterministic skeleton containing a literal
+    ``{subject}`` placeholder filled by the future rendering layer from the
+    evidence-grounded thread subject — never invented content. Neither field
+    is a conversational AI sentence; wording/personalization is deferred.
+    """
+
+    focus: str = ""
+    canonical_template: str = ""
+    perspective: PastSelfPerspective = PastSelfPerspective.PAST_TO_PRESENT
+
+
+class PastSelfQuestionResult(BaseModel):
+    """Structured decision of the Past-Self Question Planner (Phase 3F).
+
+    Answers one question per interaction: should ChronOS ask the present
+    user something on behalf of their past self about this temporal thread?
+    The planner is deterministic, read-only and conservative — a comparison
+    existing does NOT automatically justify a question.
+
+    Honesty contract:
+
+    - no temporal thread touched     -> ``attempted=False``
+    - comparison insufficient/weak,
+      single-moment history,
+      ambiguous relationship         -> ``should_ask=False``, no fabricated
+                                        question type or intent
+
+    Evidence fields reference ONLY artifacts already stored by earlier
+    phases (mirroring the comparison's deduplicated ids). ``confidence`` is
+    an explainable evidence-weighted score capped below ``1.0``.
+    """
+
+    attempted: bool = False
+    should_ask: bool = False
+    question_type: Optional[PastSelfQuestionType] = None
+    reason: str = ""
+    confidence: float = 0.0
+    thread_id: Optional[str] = None
+    comparison_relation: Optional[TemporalComparisonRelation] = None
+    past_event_id: Optional[str] = None
+    present_event_id: Optional[str] = None
+    supporting_memory_ids: List[str] = Field(default_factory=list)
+    supporting_event_ids: List[str] = Field(default_factory=list)
+    intent: Optional[PastSelfQuestionIntent] = None
+    signals: List[str] = Field(default_factory=list)
+
+
 class TemporalSnapshot(BaseModel):
     """The user's situation as it stood at one point in time.
 

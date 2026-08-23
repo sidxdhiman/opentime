@@ -5,6 +5,10 @@ Phase 3B: deterministic TemporalEvent detection (``temporal.detector``).
 Phase 3C: deterministic TemporalThread matching (``temporal.matcher``).
 Phase 3D: deterministic thread lifecycle + persistence
 (``temporal.lifecycle``).
+Phase 3E: deterministic Past-vs-Present comparison
+(``temporal.comparison``).
+Phase 3F: deterministic past-self question planning
+(``temporal.questions``).
 
 This package ``__init__`` intentionally exposes only the leaf ``models``
 module: importing implementations here would create an import cycle
@@ -17,6 +21,10 @@ state.models). Import implementations explicitly::
 """
 
 from chronos_engine.temporal.models import (
+    PastSelfPerspective,
+    PastSelfQuestionIntent,
+    PastSelfQuestionResult,
+    PastSelfQuestionType,
     TemporalComparisonRelation,
     TemporalComparisonResult,
     TemporalEvent,
@@ -30,6 +38,10 @@ from chronos_engine.temporal.models import (
 )
 
 __all__ = [
+    "PastSelfPerspective",
+    "PastSelfQuestionIntent",
+    "PastSelfQuestionResult",
+    "PastSelfQuestionType",
     "TemporalComparisonRelation",
     "TemporalComparisonResult",
     "TemporalEvent",

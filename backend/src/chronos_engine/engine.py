@@ -26,6 +26,7 @@ from chronos_engine.core.interfaces import (
     BaseTemporalThreadMatcher,
     BaseTemporalThreadLifecycleManager,
     BaseTemporalComparisonEngine,
+    BasePastSelfQuestionPlanner,
 )
 from chronos_engine.core.models import (
     EngineResponse,
@@ -74,7 +75,9 @@ from chronos_engine.temporal.detector import TemporalEventDetector
 from chronos_engine.temporal.comparison import TemporalComparisonEngine
 from chronos_engine.temporal.lifecycle import TemporalThreadLifecycleManager
 from chronos_engine.temporal.matcher import TemporalThreadMatcher
+from chronos_engine.temporal.questions import PastSelfQuestionPlanner
 from chronos_engine.temporal.models import (
+    PastSelfQuestionResult,
     TemporalComparisonResult,
     TemporalEvent,
     TemporalLifecycleResult,
@@ -132,6 +135,7 @@ class ChronosEngine:
         temporal_thread_matcher: Optional[BaseTemporalThreadMatcher] = None,
         temporal_lifecycle: Optional[BaseTemporalThreadLifecycleManager] = None,
         temporal_comparison: Optional[BaseTemporalComparisonEngine] = None,
+        past_self_question_planner: Optional[BasePastSelfQuestionPlanner] = None,
     ):
         self.storage = storage or InMemoryStorageAdapter()
         self.embedding_provider = embedding_provider or DefaultEmbeddingProvider()
@@ -179,6 +183,12 @@ class ChronosEngine:
         # the thread the lifecycle just touched and never mutates or persists
         # anything itself.
         self.temporal_comparison = temporal_comparison or TemporalComparisonEngine()
+        # Phase 3F: the past-self question planner is strictly read-only pure
+        # computation over the already-computed temporal evidence. It never
+        # invokes AI, never persists and never schedules anything.
+        self.past_self_question_planner = (
+            past_self_question_planner or PastSelfQuestionPlanner()
+        )
 
     async def process_user_input(
         self,
@@ -325,11 +335,28 @@ class ChronosEngine:
             )
         )
 
+        # Step 4d6: Past-self question planning (Phase 3F). Deterministic
+        # and offline pure computation over the temporal evidence above:
+        # decides whether a past-self interaction is appropriate, what kind,
+        # what it should be about (grounded focus + canonical template) and
+        # which stored evidence supports it. Read-only: no mutation, no
+        # persistence, no scheduling; AI wording is deferred to a later
+        # phase.
+        past_self_question_result: PastSelfQuestionResult = (
+            self.past_self_question_planner.plan(
+                user_id=user_input.user_id,
+                thread=comparison_thread,
+                comparison=temporal_comparison_result,
+                lifecycle_result=temporal_lifecycle_result,
+                events=comparison_events,
+            )
+        )
+
         # Step 4e: Build structured ChronOS state from the retrieved context.
         # The intent, user-state, goal, consistency detectors, the temporal
         # event detector, the temporal thread matcher, the temporal
-        # lifecycle manager and the temporal comparison engine populate
-        # their sections.
+        # lifecycle manager, the temporal comparison engine and the
+        # past-self question planner populate their sections.
         chronos_state: ChronosState = await self.state_builder.build(
             user_input,
             retrieved_context,
@@ -341,6 +368,7 @@ class ChronosEngine:
             temporal_thread_match=temporal_thread_match,
             temporal_lifecycle=temporal_lifecycle_result,
             temporal_comparison=temporal_comparison_result,
+            past_self_question=past_self_question_result,
         )
 
         # Step 4f: Deterministic response generation. Pure template/rule logic
@@ -546,6 +574,20 @@ class ChronosEngine:
                 f"Temporal comparison -> {temporal_comparison_result.relation.value} "
                 f"(confidence {temporal_comparison_result.confidence})."
             )
+
+        # Phase 3F: honest past-self question trace entry.
+        if not past_self_question_result.attempted:
+            question_step = (
+                "Past-self question skipped: no temporal thread available."
+            )
+        elif not past_self_question_result.should_ask:
+            question_step = f"Past-self question skipped: {past_self_question_result.reason}"
+        else:
+            question_step = (
+                f"Past-self question planned -> "
+                f"{past_self_question_result.question_type.value} "
+                f"(confidence {past_self_question_result.confidence})."
+            )
         if ai_routing.use_ai:
             latency_text = (
                 f"{ai_execution.latency_ms}ms"
@@ -640,6 +682,7 @@ class ChronosEngine:
                 thread_step,
                 lifecycle_step,
                 comparison_step,
+                question_step,
                 f"Constructed structured ChronosState (life phase '{chronos_state.context.life_phase if chronos_state.context else 'n/a'}', {len(chronos_state.context.relevant_memories) if chronos_state.context else 0} memories, {len(chronos_state.patterns)} patterns).",
                 prompt_step,
                 execution_step,
@@ -663,6 +706,7 @@ class ChronosEngine:
                 "Temporal Event Detector",
                 "Temporal Lifecycle Manager",
                 "Temporal Comparison Engine",
+                "Past-Self Question Planner",
                 "Response Generator",
                 "AI Router",
                 "AI Executor",

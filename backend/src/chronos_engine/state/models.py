@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from chronos_engine.core.models import IntentType, PatternItem, RetrievedContext, UserInput
 from chronos_engine.temporal.models import (
+    PastSelfQuestionResult,
     TemporalComparisonResult,
     TemporalEventDetectionResult,
     TemporalLifecycleResult,
@@ -248,6 +249,11 @@ class ChronosState(BaseModel):
     # thread this interaction touched. ``None`` only for states built before
     # comparison ran; the result itself reports skipped/insufficient honestly.
     temporal_comparison: Optional[TemporalComparisonResult] = None
+
+    # Phase 3F: honest, additive, read-only decision about whether a
+    # past-self question is appropriate for this thread (and WHAT it should
+    # be about — never the final conversational wording).
+    past_self_question: Optional[PastSelfQuestionResult] = None
 
     engine_state: Optional[EngineStateResult] = None
     confidence: Optional[float] = None
