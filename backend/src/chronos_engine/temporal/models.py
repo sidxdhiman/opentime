@@ -430,6 +430,48 @@ class TemporalRelevanceResult(BaseModel):
     supporting_event_ids: list[str] = Field(default_factory=list)
 
 
+class PastSelfConversationMoment(BaseModel):
+    """A composed, user-facing past-self conversation moment (Phase 3H).
+
+    Turns a valid Phase 3G ``SURFACE_NOW`` permission into deterministic,
+    evidence-grounded conversational content: a subtle connection between
+    the user's present self and an earlier version of themselves — never a
+    simulated persona and never roleplay dialogue.
+
+    Honesty contract:
+
+    - ``should_surface=False`` whenever any hard gate fails (relevance not
+      ``SURFACE_NOW``, Phase 3F refusal, missing/ambiguous evidence) and the
+      text fields stay empty — an honest empty result instead of fabricated
+      content.
+    - every rendered line quotes or paraphrases ONLY handed-in evidence
+      (thread subject/description, anchored event descriptions, comparison
+      summaries); no emotions, motivations, outcomes, durations or history
+      are ever invented.
+    - internal IDs never appear in user-facing fields; they live only in
+      ``evidence_memory_ids`` / ``evidence_event_ids``.
+
+    ``confidence`` is the weaker link of the Phase 3F question and Phase 3G
+    relevance confidences (capped below ``1.0``): the surfaced moment can
+    never be more confident than its weakest permission.
+    """  # noqa: E501
+
+    attempted: bool = False
+    should_surface: bool = False
+    thread_id: str | None = None
+    perspective: PastSelfPerspective = PastSelfPerspective.PAST_TO_PRESENT
+    question_type: PastSelfQuestionType | None = None
+    relation: TemporalComparisonRelation | None = None
+    opening: str = ""
+    context: str = ""
+    bridge: str = ""
+    question: str = ""
+    confidence: float = 0.0
+    evidence_memory_ids: list[str] = Field(default_factory=list)
+    evidence_event_ids: list[str] = Field(default_factory=list)
+    reason: str = ""
+
+
 class TemporalSnapshot(BaseModel):
     """The user's situation as it stood at one point in time.
 

@@ -11,6 +11,8 @@ Phase 3F: deterministic past-self question planning
 (``temporal.questions``).
 Phase 3G: deterministic temporal relevance & timing
 (``temporal.relevance``).
+Phase 3H: deterministic past-self conversation composition
+(``temporal.conversation``).
 
 This package ``__init__`` intentionally exposes only the leaf ``models``
 module: importing implementations here would create an import cycle
@@ -21,9 +23,11 @@ state.models). Import implementations explicitly::
     from chronos_engine.temporal.matcher import TemporalThreadMatcher
     from chronos_engine.temporal.lifecycle import TemporalThreadLifecycleManager
     from chronos_engine.temporal.relevance import TemporalRelevanceEngine
+    from chronos_engine.temporal.conversation import PastSelfConversationComposer
     """
 
 from chronos_engine.temporal.models import (
+    PastSelfConversationMoment,
     PastSelfPerspective,
     PastSelfQuestionIntent,
     PastSelfQuestionResult,
@@ -43,6 +47,7 @@ from chronos_engine.temporal.models import (
 )
 
 __all__ = [
+    "PastSelfConversationMoment",
     "PastSelfPerspective",
     "PastSelfQuestionIntent",
     "PastSelfQuestionResult",

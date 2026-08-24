@@ -27,6 +27,7 @@ from chronos_engine.core.interfaces import (
     BaseTemporalThreadLifecycleManager,
     BaseTemporalComparisonEngine,
     BasePastSelfQuestionPlanner,
+    BasePastSelfConversationComposer,
     BaseTemporalRelevanceEngine,
 )
 from chronos_engine.core.models import (
@@ -78,7 +79,12 @@ from chronos_engine.temporal.lifecycle import TemporalThreadLifecycleManager
 from chronos_engine.temporal.matcher import TemporalThreadMatcher
 from chronos_engine.temporal.questions import PastSelfQuestionPlanner
 from chronos_engine.temporal.relevance import TemporalRelevanceEngine
+from chronos_engine.temporal.conversation import (
+    PastSelfConversationComposer,
+    render_past_self_section,
+)
 from chronos_engine.temporal.models import (
+    PastSelfConversationMoment,
     PastSelfQuestionResult,
     TemporalComparisonResult,
     TemporalEvent,
@@ -141,6 +147,7 @@ class ChronosEngine:
         temporal_comparison: Optional[BaseTemporalComparisonEngine] = None,
         past_self_question_planner: Optional[BasePastSelfQuestionPlanner] = None,
         temporal_relevance_engine: BaseTemporalRelevanceEngine | None = None,
+        past_self_conversation_composer: BasePastSelfConversationComposer | None = None,
     ):
         self.storage = storage or InMemoryStorageAdapter()
         self.embedding_provider = embedding_provider or DefaultEmbeddingProvider()
@@ -200,6 +207,13 @@ class ChronosEngine:
         # persists, schedules or renders anything.
         self.temporal_relevance_engine = (
             temporal_relevance_engine or TemporalRelevanceEngine()
+        )
+        # Phase 3H: the conversation composer is strictly read-only pure
+        # computation over already-computed evidence. It turns a valid
+        # SURFACE_NOW permission into deterministic user-facing content —
+        # it never mutates, persists, schedules or invents anything.
+        self.past_self_conversation_composer = (
+            past_self_conversation_composer or PastSelfConversationComposer()
         )
 
     async def process_user_input(
@@ -388,12 +402,31 @@ class ChronosEngine:
             )
         )
 
+        # Step 4d8: Past-self conversation composition (Phase 3H).
+        # Deterministic and offline pure computation over the evidence
+        # above: turns a valid SURFACE_NOW permission into ONE subtle,
+        # evidence-grounded user-facing moment (opening, grounded reminder,
+        # optional bridge, question). Read-only: no mutation, no
+        # persistence, no scheduling; hard-gated so Phase 3F/3G refusals
+        # are echoed, never overridden.
+        past_self_conversation: PastSelfConversationMoment = (
+            self.past_self_conversation_composer.compose(
+                user_id=user_input.user_id,
+                past_self_question=past_self_question_result,
+                relevance_result=temporal_relevance_result,
+                thread=comparison_thread,
+                comparison=temporal_comparison_result,
+                lifecycle_result=temporal_lifecycle_result,
+                events=comparison_events,
+            )
+        )
+
         # Step 4e: Build structured ChronOS state from the retrieved context.
         # The intent, user-state, goal, consistency detectors, the temporal
         # event detector, the temporal thread matcher, the temporal
         # lifecycle manager, the temporal comparison engine, the past-self
-        # question planner and the relevance & timing engine populate their
-        # sections.
+        # question planner, the relevance & timing engine and the
+        # conversation composer populate their sections.
         chronos_state: ChronosState = await self.state_builder.build(
             user_input,
             retrieved_context,
@@ -407,6 +440,7 @@ class ChronosEngine:
             temporal_comparison=temporal_comparison_result,
             past_self_question=past_self_question_result,
             temporal_relevance=temporal_relevance_result,
+            past_self_conversation=past_self_conversation,
         )
 
         # Step 4f: Deterministic response generation. Pure template/rule logic
@@ -504,6 +538,17 @@ class ChronosEngine:
             provider_name = llm_provider.provider_name()
             plan_step = None
             plan_entry = None
+
+        # Step 4i: Past-self conversation surfacing (Phase 3H). Additive and
+        # deterministic: when (and only when) a valid moment was composed,
+        # its section is appended AFTER the existing final answer on every
+        # path (FAST deterministic, LIGHT/DEEP AI, AI failure fallback).
+        # The underlying answer text is never rewritten; nothing is appended
+        # when should_surface=False.
+        if past_self_conversation.should_surface:
+            final_response = "\n\n".join(
+                [final_response, render_past_self_section(past_self_conversation)]
+            )
 
         # Step 8: Build Explainability Trace
         state_label = user_state_result.emotional_state.value if user_state_result.emotional_state else "INSUFFICIENT_SIGNALS"
@@ -648,6 +693,19 @@ class ChronosEngine:
             )
         else:
             relevance_step = f"Past-self relevance -> SKIP ({temporal_relevance_result.reason})"
+
+        # Phase 3H: honest conversation-composition trace entry.
+        if past_self_conversation.should_surface:
+            conversation_step = (
+                f"Past-self conversation -> surfaced: "
+                f"{past_self_conversation.question_type.value} "
+                f"(confidence {past_self_conversation.confidence})."
+            )
+        else:
+            conversation_step = (
+                "Past-self conversation skipped: "
+                f"{past_self_conversation.reason}"
+            )
         if ai_routing.use_ai:
             latency_text = (
                 f"{ai_execution.latency_ms}ms"
@@ -744,6 +802,7 @@ class ChronosEngine:
                 comparison_step,
                 question_step,
                 relevance_step,
+                conversation_step,
                 f"Constructed structured ChronosState (life phase '{chronos_state.context.life_phase if chronos_state.context else 'n/a'}', {len(chronos_state.context.relevant_memories) if chronos_state.context else 0} memories, {len(chronos_state.patterns)} patterns).",
                 prompt_step,
                 execution_step,
@@ -769,6 +828,7 @@ class ChronosEngine:
                 "Temporal Comparison Engine",
                 "Past-Self Question Planner",
                 "Past-Self Relevance Engine",
+                "Past-Self Conversation Composer",
                 "Response Generator",
                 "AI Router",
                 "AI Executor",

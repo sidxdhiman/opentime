@@ -21,6 +21,7 @@ from chronos_engine.state.models import (
 )
 from chronos_engine.response.models import DeterministicResponse
 from chronos_engine.temporal.models import (
+    PastSelfConversationMoment,
     PastSelfQuestionResult,
     TemporalComparisonResult,
     TemporalEvent,
@@ -267,6 +268,40 @@ class BaseTemporalRelevanceEngine(ABC):
         goal_analysis: "GoalAnalysisResult | None" = None,
         consistency_result: "ConsistencyResult | None" = None,
     ) -> TemporalRelevanceResult:
+        pass
+
+
+class BasePastSelfConversationComposer(ABC):
+    """Deterministic past-self conversation composition (Phase 3H).
+
+    Consumes the already-computed Phase 3F question plan and Phase 3G
+    relevance decision plus the grounded temporal evidence, and composes AT
+    MOST ONE subtle user-facing conversation moment: a short opening, a
+    grounded reminder of the earlier moment, an optional bridge to the
+    present and the past-self question.
+
+    Hard gate: a moment is only composed when relevance is ``SURFACE_NOW``,
+    Phase 3F says the question should be asked, the thread exists and
+    matches, the comparison is meaningful and nothing is ambiguous. A
+    ``SURFACE_NOW`` decision is permission to surface — never permission to
+    invent content.
+
+    Pure computation over handed-in objects — strictly read-only: no LLM,
+    no embeddings, no storage access, no mutation, no persistence, no
+    scheduling, no notifications.
+    """
+
+    @abstractmethod
+    def compose(
+        self,
+        user_id: str,
+        past_self_question: "PastSelfQuestionResult",
+        relevance_result: "TemporalRelevanceResult | None",
+        thread: "TemporalThread | None" = None,
+        comparison: "TemporalComparisonResult | None" = None,
+        lifecycle_result: "TemporalLifecycleResult | None" = None,
+        events: "list[TemporalEvent] | None" = None,
+    ) -> "PastSelfConversationMoment":
         pass
 
 

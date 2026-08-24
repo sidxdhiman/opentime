@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from chronos_engine.core.models import IntentType, PatternItem, RetrievedContext, UserInput
 from chronos_engine.temporal.models import (
+    PastSelfConversationMoment,
     PastSelfQuestionResult,
     TemporalComparisonResult,
     TemporalEventDetectionResult,
@@ -261,6 +262,12 @@ class ChronosState(BaseModel):
     # only for states built before relevance evaluation ran. Deciding to
     # surface is not surfacing: nothing here renders, schedules or persists.
     temporal_relevance: TemporalRelevanceResult | None = None
+
+    # Phase 3H: honest, additive, read-only composition of the surfaced
+    # past-self conversation moment (empty result when nothing should
+    # surface). ``should_surface`` is mirrored additively into the final
+    # user-facing response; nothing here persists, schedules or resurfaces.
+    past_self_conversation: PastSelfConversationMoment | None = None
 
     engine_state: Optional[EngineStateResult] = None
     confidence: Optional[float] = None
