@@ -366,6 +366,70 @@ class PastSelfQuestionResult(BaseModel):
     signals: List[str] = Field(default_factory=list)
 
 
+class TemporalRelevanceDecision(str, Enum):
+    """Deterministic verdict of the Temporal Relevance & Timing engine
+    (Phase 3G).
+
+    Answers ONE question about an already-planned past-self question: is
+    NOW the right moment to surface it? The vocabulary is deliberately
+    small and honest:
+
+    - SURFACE_NOW    relevant to this conversation AND the moment is
+                     contextually appropriate.
+    - DEFER          the question is meaningful, but the current moment is
+                     not appropriate ("not now" — a decision only; DEFER
+                     never schedules, persists or resurfaces anything).
+    - SKIP           no valid planned question, no meaningful topical
+                     relation, or evidence too weak/ambiguous to ground a
+                     confident surface decision.
+
+    These are explainable rule outcomes over handed-in evidence, never
+    claims about what the user feels or wants.
+    """
+
+    SURFACE_NOW = "SURFACE_NOW"
+    DEFER = "DEFER"
+    SKIP = "SKIP"
+
+
+class TemporalRelevanceResult(BaseModel):
+    """Structured, read-only output of temporal relevance & timing (Phase 3G).
+
+    Consumes the already-computed Phase 3F ``PastSelfQuestionResult`` plus
+    the current interaction evidence and produces one structured decision:
+    whether the planned past-self question should be surfaced NOW, deferred,
+    or skipped. The engine never overrides Phase 3F — a planned question is
+    required input, never invented here.
+
+    Honesty contract:
+
+    - no valid planned past-self question -> ``should_surface=False``,
+      ``decision=SKIP`` (never fabricated)
+    - every score contribution appears as an explainable line in
+      ``signals`` (positive) or ``blocking_signals`` (negative); there is
+      no hidden scoring
+
+    ``relevance_score`` / ``timing_score`` are deterministic,
+    evidence-weighted values in ``[0, 0.95]``; ``confidence`` is an
+    explainable blend capped below ``1.0`` — not a calibrated probability.
+    Strictly read-only: nothing is mutated, persisted, scheduled or shown.
+    """
+
+    attempted: bool = False
+    decision: TemporalRelevanceDecision = TemporalRelevanceDecision.SKIP
+    should_surface: bool = False
+    reason: str = ""
+    confidence: float = 0.0
+    relevance_score: float = 0.0
+    timing_score: float = 0.0
+    thread_id: str | None = None
+    question_type: PastSelfQuestionType | None = None
+    signals: list[str] = Field(default_factory=list)
+    blocking_signals: list[str] = Field(default_factory=list)
+    supporting_memory_ids: list[str] = Field(default_factory=list)
+    supporting_event_ids: list[str] = Field(default_factory=list)
+
+
 class TemporalSnapshot(BaseModel):
     """The user's situation as it stood at one point in time.
 

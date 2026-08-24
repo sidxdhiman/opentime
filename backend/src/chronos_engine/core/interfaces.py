@@ -26,6 +26,7 @@ from chronos_engine.temporal.models import (
     TemporalEvent,
     TemporalEventDetectionResult,
     TemporalLifecycleResult,
+    TemporalRelevanceResult,
     TemporalSnapshot,
     TemporalThread,
     TemporalThreadMatchResult,
@@ -230,6 +231,42 @@ class BasePastSelfQuestionPlanner(ABC):
         lifecycle_result: "Optional[TemporalLifecycleResult]" = None,
         events: "Optional[List[TemporalEvent]]" = None,
     ) -> PastSelfQuestionResult:
+        pass
+
+
+class BaseTemporalRelevanceEngine(ABC):
+    """Deterministic temporal relevance & timing evaluation (Phase 3G).
+
+    Consumes the already-computed evidence of the current interaction
+    (current input, Phase 3F ``PastSelfQuestionResult``, the touched
+    ``TemporalThread``, comparison/lifecycle/match results, intent, user
+    state, goal and consistency analysis) and produces ONE structured
+    decision: should the planned past-self question be surfaced NOW,
+    deferred ("not now" — a decision only, never a scheduled job), or
+    skipped?
+
+    Pure computation over handed-in objects — strictly read-only: no LLM,
+    no embeddings, no storage access, no mutation, no persistence, no
+    scheduling, no notifications. It never invents a past-self question
+    and never overrides a Phase 3F ``should_ask=False`` decision.
+    """
+
+    @abstractmethod
+    def evaluate(
+        self,
+        user_id: str,
+        user_input: "UserInput",
+        past_self_question: "PastSelfQuestionResult | None",
+        thread: "TemporalThread | None" = None,
+        events: "list[TemporalEvent] | None" = None,
+        thread_match: "TemporalThreadMatchResult | None" = None,
+        lifecycle_result: "TemporalLifecycleResult | None" = None,
+        comparison: "TemporalComparisonResult | None" = None,
+        intent: "IntentResult | None" = None,
+        user_state: "UserStateResult | None" = None,
+        goal_analysis: "GoalAnalysisResult | None" = None,
+        consistency_result: "ConsistencyResult | None" = None,
+    ) -> TemporalRelevanceResult:
         pass
 
 

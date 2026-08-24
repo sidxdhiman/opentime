@@ -22,6 +22,7 @@ from chronos_engine.temporal.models import (
     TemporalComparisonResult,
     TemporalEventDetectionResult,
     TemporalLifecycleResult,
+    TemporalRelevanceResult,
     TemporalThreadMatchResult,
 )
 
@@ -254,6 +255,12 @@ class ChronosState(BaseModel):
     # past-self question is appropriate for this thread (and WHAT it should
     # be about — never the final conversational wording).
     past_self_question: Optional[PastSelfQuestionResult] = None
+
+    # Phase 3G: honest, additive, read-only relevance & timing verdict for
+    # the planned past-self question (SURFACE_NOW / DEFER / SKIP). ``None``
+    # only for states built before relevance evaluation ran. Deciding to
+    # surface is not surfacing: nothing here renders, schedules or persists.
+    temporal_relevance: TemporalRelevanceResult | None = None
 
     engine_state: Optional[EngineStateResult] = None
     confidence: Optional[float] = None

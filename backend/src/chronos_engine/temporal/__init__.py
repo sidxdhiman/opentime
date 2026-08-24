@@ -9,6 +9,8 @@ Phase 3E: deterministic Past-vs-Present comparison
 (``temporal.comparison``).
 Phase 3F: deterministic past-self question planning
 (``temporal.questions``).
+Phase 3G: deterministic temporal relevance & timing
+(``temporal.relevance``).
 
 This package ``__init__`` intentionally exposes only the leaf ``models``
 module: importing implementations here would create an import cycle
@@ -18,7 +20,8 @@ state.models). Import implementations explicitly::
     from chronos_engine.temporal.detector import TemporalEventDetector
     from chronos_engine.temporal.matcher import TemporalThreadMatcher
     from chronos_engine.temporal.lifecycle import TemporalThreadLifecycleManager
-"""
+    from chronos_engine.temporal.relevance import TemporalRelevanceEngine
+    """
 
 from chronos_engine.temporal.models import (
     PastSelfPerspective,
@@ -30,6 +33,8 @@ from chronos_engine.temporal.models import (
     TemporalEvent,
     TemporalEventDetectionResult,
     TemporalLifecycleResult,
+    TemporalRelevanceDecision,
+    TemporalRelevanceResult,
     TemporalSnapshot,
     TemporalThread,
     TemporalThreadMatchResult,
@@ -47,6 +52,8 @@ __all__ = [
     "TemporalEvent",
     "TemporalEventDetectionResult",
     "TemporalLifecycleResult",
+    "TemporalRelevanceDecision",
+    "TemporalRelevanceResult",
     "TemporalSnapshot",
     "TemporalThread",
     "TemporalThreadMatchResult",

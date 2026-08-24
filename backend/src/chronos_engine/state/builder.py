@@ -17,6 +17,7 @@ from chronos_engine.temporal.models import (
     TemporalComparisonResult,
     TemporalEventDetectionResult,
     TemporalLifecycleResult,
+    TemporalRelevanceResult,
     TemporalThreadMatchResult,
 )
 
@@ -27,9 +28,10 @@ class StateBuilder:
     No detection logic is performed here — this only groups the results the
     pipeline already produced (current input, retrieved context, intent, user
     state, goal analysis, temporal event detection, temporal thread matching,
-    temporal lifecycle, temporal comparison, past-self question planning)
-    into one object. The dedicated detectors and the ``ConsistencyEngine``
-    run before ``build``; the builder just wires their results in.
+    temporal lifecycle, temporal comparison, past-self question planning,
+    past-self relevance & timing) into one object. The dedicated detectors
+    and the ``ConsistencyEngine`` run before ``build``; the builder just
+    wires their results in.
     Engine-state sections stay empty until their detectors exist.
     """
 
@@ -46,6 +48,7 @@ class StateBuilder:
         temporal_lifecycle: Optional[TemporalLifecycleResult] = None,
         temporal_comparison: Optional[TemporalComparisonResult] = None,
         past_self_question: Optional[PastSelfQuestionResult] = None,
+        temporal_relevance: TemporalRelevanceResult | None = None,
     ) -> ChronosState:
         contradictions = []
         if consistency_result is not None:
@@ -70,6 +73,7 @@ class StateBuilder:
             temporal_lifecycle=temporal_lifecycle,
             temporal_comparison=temporal_comparison,
             past_self_question=past_self_question,
+            temporal_relevance=temporal_relevance,
             engine_state=None,
             confidence=None,
         )

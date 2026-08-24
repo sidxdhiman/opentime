@@ -27,6 +27,7 @@ from chronos_engine.core.interfaces import (
     BaseTemporalThreadLifecycleManager,
     BaseTemporalComparisonEngine,
     BasePastSelfQuestionPlanner,
+    BaseTemporalRelevanceEngine,
 )
 from chronos_engine.core.models import (
     EngineResponse,
@@ -76,11 +77,14 @@ from chronos_engine.temporal.comparison import TemporalComparisonEngine
 from chronos_engine.temporal.lifecycle import TemporalThreadLifecycleManager
 from chronos_engine.temporal.matcher import TemporalThreadMatcher
 from chronos_engine.temporal.questions import PastSelfQuestionPlanner
+from chronos_engine.temporal.relevance import TemporalRelevanceEngine
 from chronos_engine.temporal.models import (
     PastSelfQuestionResult,
     TemporalComparisonResult,
     TemporalEvent,
     TemporalLifecycleResult,
+    TemporalRelevanceDecision,
+    TemporalRelevanceResult,
     TemporalThreadMatchResult,
 )
 
@@ -136,6 +140,7 @@ class ChronosEngine:
         temporal_lifecycle: Optional[BaseTemporalThreadLifecycleManager] = None,
         temporal_comparison: Optional[BaseTemporalComparisonEngine] = None,
         past_self_question_planner: Optional[BasePastSelfQuestionPlanner] = None,
+        temporal_relevance_engine: BaseTemporalRelevanceEngine | None = None,
     ):
         self.storage = storage or InMemoryStorageAdapter()
         self.embedding_provider = embedding_provider or DefaultEmbeddingProvider()
@@ -188,6 +193,13 @@ class ChronosEngine:
         # invokes AI, never persists and never schedules anything.
         self.past_self_question_planner = (
             past_self_question_planner or PastSelfQuestionPlanner()
+        )
+        # Phase 3G: the relevance & timing engine is strictly read-only pure
+        # computation over already-computed evidence. It decides whether the
+        # planned past-self question should surface now — it never mutates,
+        # persists, schedules or renders anything.
+        self.temporal_relevance_engine = (
+            temporal_relevance_engine or TemporalRelevanceEngine()
         )
 
     async def process_user_input(
@@ -352,11 +364,36 @@ class ChronosEngine:
             )
         )
 
+        # Step 4d7: Temporal relevance & timing (Phase 3G). Deterministic
+        # and offline pure computation over the evidence above: decides
+        # whether the planned past-self question is relevant to this
+        # conversation and appropriate to surface NOW — or should be
+        # deferred ("not now") or skipped. Read-only: no mutation, no
+        # persistence, no scheduling; DEFER is a decision label only.
+        # Rendering the surfaced question belongs to a later phase.
+        temporal_relevance_result: TemporalRelevanceResult = (
+            self.temporal_relevance_engine.evaluate(
+                user_id=user_input.user_id,
+                user_input=user_input,
+                past_self_question=past_self_question_result,
+                thread=comparison_thread,
+                events=comparison_events,
+                thread_match=temporal_thread_match,
+                lifecycle_result=temporal_lifecycle_result,
+                comparison=temporal_comparison_result,
+                intent=intent_result,
+                user_state=user_state_result,
+                goal_analysis=goal_analysis_result,
+                consistency_result=consistency_result,
+            )
+        )
+
         # Step 4e: Build structured ChronOS state from the retrieved context.
         # The intent, user-state, goal, consistency detectors, the temporal
         # event detector, the temporal thread matcher, the temporal
-        # lifecycle manager, the temporal comparison engine and the
-        # past-self question planner populate their sections.
+        # lifecycle manager, the temporal comparison engine, the past-self
+        # question planner and the relevance & timing engine populate their
+        # sections.
         chronos_state: ChronosState = await self.state_builder.build(
             user_input,
             retrieved_context,
@@ -369,6 +406,7 @@ class ChronosEngine:
             temporal_lifecycle=temporal_lifecycle_result,
             temporal_comparison=temporal_comparison_result,
             past_self_question=past_self_question_result,
+            temporal_relevance=temporal_relevance_result,
         )
 
         # Step 4f: Deterministic response generation. Pure template/rule logic
@@ -588,6 +626,28 @@ class ChronosEngine:
                 f"{past_self_question_result.question_type.value} "
                 f"(confidence {past_self_question_result.confidence})."
             )
+
+        # Phase 3G: honest relevance & timing trace entry.
+        if not temporal_relevance_result.attempted:
+            relevance_step = (
+                "Past-self relevance skipped: no valid past-self question."
+            )
+        elif (
+            temporal_relevance_result.decision is TemporalRelevanceDecision.SURFACE_NOW
+        ):
+            relevance_step = (
+                f"Past-self relevance -> SURFACE_NOW "
+                f"(relevance {temporal_relevance_result.relevance_score}, "
+                f"timing {temporal_relevance_result.timing_score}, "
+                f"confidence {temporal_relevance_result.confidence})."
+            )
+        elif temporal_relevance_result.decision is TemporalRelevanceDecision.DEFER:
+            relevance_step = (
+                f"Past-self relevance -> DEFER "
+                f"({temporal_relevance_result.reason})"
+            )
+        else:
+            relevance_step = f"Past-self relevance -> SKIP ({temporal_relevance_result.reason})"
         if ai_routing.use_ai:
             latency_text = (
                 f"{ai_execution.latency_ms}ms"
@@ -683,6 +743,7 @@ class ChronosEngine:
                 lifecycle_step,
                 comparison_step,
                 question_step,
+                relevance_step,
                 f"Constructed structured ChronosState (life phase '{chronos_state.context.life_phase if chronos_state.context else 'n/a'}', {len(chronos_state.context.relevant_memories) if chronos_state.context else 0} memories, {len(chronos_state.patterns)} patterns).",
                 prompt_step,
                 execution_step,
@@ -707,6 +768,7 @@ class ChronosEngine:
                 "Temporal Lifecycle Manager",
                 "Temporal Comparison Engine",
                 "Past-Self Question Planner",
+                "Past-Self Relevance Engine",
                 "Response Generator",
                 "AI Router",
                 "AI Executor",
