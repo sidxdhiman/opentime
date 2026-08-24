@@ -27,6 +27,7 @@ from chronos_engine.temporal.models import (
     TemporalEvent,
     TemporalEventDetectionResult,
     TemporalLifecycleResult,
+    TemporalReflectionResult,
     TemporalRelevanceResult,
     TemporalSnapshot,
     TemporalThread,
@@ -302,6 +303,43 @@ class BasePastSelfConversationComposer(ABC):
         lifecycle_result: "TemporalLifecycleResult | None" = None,
         events: "list[TemporalEvent] | None" = None,
     ) -> "PastSelfConversationMoment":
+        pass
+
+
+class BaseTemporalReflectionGenerator(ABC):
+    """Bounded AI enhancement of an already-valid temporal moment
+    (Phase 3I).
+
+    Consumes ONLY the deterministic Phase 3A–3H results (the composed
+    ``PastSelfConversationMoment``, the planned question, the relevance
+    decision, the comparison and the grounded evidence) and produces at
+    most ONE optional, validated reflection that re-expresses what the
+    deterministic pipeline already established.
+
+    The AI is a writer/interpreter, never a historian: it may not decide
+    temporal truth (detection, thread membership, lifecycle outcomes,
+    question planning or surfacing remain deterministic), may not invent
+    facts/emotions/durations, and every cited evidence id must come from
+    the curated allowed set. Any failure — disabled provider, connection
+    error, timeout, malformed output, hallucinated evidence, validation
+    failure — yields an honest non-used result; the deterministic moment
+    always surfaces unchanged. Never retries.
+
+    Orchestration only: the generator uses the existing inference policy,
+    LLM registry and parsing infrastructure rather than creating a second
+    AI stack.
+    """
+
+    @abstractmethod
+    async def generate(
+        self,
+        user_id: str,
+        moment: "PastSelfConversationMoment",
+        past_self_question: "PastSelfQuestionResult | None" = None,
+        relevance_result: "TemporalRelevanceResult | None" = None,
+        comparison: "TemporalComparisonResult | None" = None,
+        lifecycle_result: "TemporalLifecycleResult | None" = None,
+    ) -> "TemporalReflectionResult":
         pass
 
 

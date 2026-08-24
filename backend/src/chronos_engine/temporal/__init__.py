@@ -13,6 +13,8 @@ Phase 3G: deterministic temporal relevance & timing
 (``temporal.relevance``).
 Phase 3H: deterministic past-self conversation composition
 (``temporal.conversation``).
+Phase 3I: bounded AI reflection over an already-valid moment
+(``temporal.reflection``).
 
 This package ``__init__`` intentionally exposes only the leaf ``models``
 module: importing implementations here would create an import cycle
@@ -37,6 +39,7 @@ from chronos_engine.temporal.models import (
     TemporalEvent,
     TemporalEventDetectionResult,
     TemporalLifecycleResult,
+    TemporalReflectionResult,
     TemporalRelevanceDecision,
     TemporalRelevanceResult,
     TemporalSnapshot,
@@ -57,6 +60,7 @@ __all__ = [
     "TemporalEvent",
     "TemporalEventDetectionResult",
     "TemporalLifecycleResult",
+    "TemporalReflectionResult",
     "TemporalRelevanceDecision",
     "TemporalRelevanceResult",
     "TemporalSnapshot",

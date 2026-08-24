@@ -187,6 +187,89 @@ class InferencePolicy:
             deep_required=False,
         )
 
+    def decide_temporal_reflection(
+        self,
+        comparison=None,
+        latency_budget: float | None = None,
+    ) -> InferencePolicyDecision:
+        """Select the tier/model for one bounded temporal reflection call
+        (Phase 3I).
+
+        This is an ADDITIVE rule for the optional Phase 3I enhancement
+        layer only — it never influences the main-response decision made by
+        :meth:`decide`, and it is consumed exclusively by the temporal
+        reflection generator. Deterministic rules:
+
+        1. AI disabled -> NONE.
+        2. The deterministic comparison reports a meaningfully CHANGED,
+           EVOLVED or CONTRADICTED story -> DEEP (interpreting change,
+           evolution or contradiction is beyond a lightweight model).
+        3. Otherwise -> LIGHT when a suitable light model is configured and
+           installed; otherwise DEEP with ``light_requested=True``
+           (mirroring rule 4 of the main policy).
+        4. A latency budget below the light threshold with no light model
+           available -> NONE (mirroring rule 5).
+
+        The decision depends ONLY on already-established deterministic
+        evidence — never on emotion alone or on prompt content.
+        """
+        if not self.config.enabled:
+            return InferencePolicyDecision(
+                tier=InferenceTier.NONE,
+                reason="AI inference is disabled; no provider is available.",
+                confidence=CONFIDENCE_NONE,
+                expected_latency_class=LatencyClass.NONE,
+                latency_budget=latency_budget,
+                signals=["ai disabled"],
+            )
+
+        deep_worthy_relations = {"CHANGED", "EVOLVED", "CONTRADICTED"}
+        relation_value = getattr(comparison, "relation", None)
+        if relation_value is not None and (
+            relation_value.value in deep_worthy_relations
+        ):
+            return self._deep_decision(
+                plan=None,
+                latency_budget=latency_budget,
+                deep_required=True,
+            )
+
+        light = self._suitable_light_model()
+        if (
+            latency_budget is not None
+            and latency_budget < self.config.light_max_latency_seconds
+            and light is None
+        ):
+            return InferencePolicyDecision(
+                tier=InferenceTier.NONE,
+                reason=(
+                    "No available model can be expected to meet the requested "
+                    "latency budget."
+                ),
+                confidence=CONFIDENCE_NONE,
+                expected_latency_class=LatencyClass.NONE,
+                latency_budget=latency_budget,
+                signals=["light requested", "no light model", "budget too tight"],
+            )
+
+        if light is not None:
+            return InferencePolicyDecision(
+                tier=InferenceTier.LIGHT,
+                provider=light.provider,
+                model=light.model,
+                reason="A short bounded temporal reflection fits the light model.",
+                confidence=CONFIDENCE_LIGHT,
+                expected_latency_class=LatencyClass.LOW,
+                latency_budget=latency_budget,
+                signals=["temporal reflection", "light model available"],
+            )
+
+        return self._deep_decision(
+            plan=None,
+            latency_budget=latency_budget,
+            deep_required=False,
+        )
+
     # ------------------------------------------------------------------
     # Deterministic helpers
     # ------------------------------------------------------------------

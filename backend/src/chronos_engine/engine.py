@@ -29,6 +29,7 @@ from chronos_engine.core.interfaces import (
     BasePastSelfQuestionPlanner,
     BasePastSelfConversationComposer,
     BaseTemporalRelevanceEngine,
+    BaseTemporalReflectionGenerator,
 )
 from chronos_engine.core.models import (
     EngineResponse,
@@ -83,12 +84,17 @@ from chronos_engine.temporal.conversation import (
     PastSelfConversationComposer,
     render_past_self_section,
 )
+from chronos_engine.temporal.reflection import (
+    TemporalReflectionGenerator,
+    render_temporal_reflection_section,
+)
 from chronos_engine.temporal.models import (
     PastSelfConversationMoment,
     PastSelfQuestionResult,
     TemporalComparisonResult,
     TemporalEvent,
     TemporalLifecycleResult,
+    TemporalReflectionResult,
     TemporalRelevanceDecision,
     TemporalRelevanceResult,
     TemporalThreadMatchResult,
@@ -148,6 +154,7 @@ class ChronosEngine:
         past_self_question_planner: Optional[BasePastSelfQuestionPlanner] = None,
         temporal_relevance_engine: BaseTemporalRelevanceEngine | None = None,
         past_self_conversation_composer: BasePastSelfConversationComposer | None = None,
+        temporal_reflection_generator: BaseTemporalReflectionGenerator | None = None,
     ):
         self.storage = storage or InMemoryStorageAdapter()
         self.embedding_provider = embedding_provider or DefaultEmbeddingProvider()
@@ -214,6 +221,19 @@ class ChronosEngine:
         # it never mutates, persists, schedules or invents anything.
         self.past_self_conversation_composer = (
             past_self_conversation_composer or PastSelfConversationComposer()
+        )
+        # Phase 3I: the temporal reflection generator is an optional,
+        # strictly bounded AI enhancement layer over an already-valid
+        # moment. It orchestrates the existing LLM registry + inference
+        # policy (no second AI stack), attempts at most ONE provider call
+        # and never suppresses the deterministic moment on failure.
+        self.temporal_reflection_generator = (
+            temporal_reflection_generator
+            or TemporalReflectionGenerator(
+                llm_registry=self.llm_registry,
+                config=executor_config,
+                inference_policy=self.inference_policy,
+            )
         )
 
     async def process_user_input(
@@ -421,12 +441,30 @@ class ChronosEngine:
             )
         )
 
+        # Step 4d9: Temporal AI reflection (Phase 3I). Optional, bounded
+        # enhancement AFTER a valid deterministic moment exists: when (and
+        # only when) the moment surfaced, the generator may make AT MOST
+        # ONE provider call through the existing inference policy to
+        # re-express the grounded facts. AI never decides temporal truth;
+        # on any failure (disabled / unavailable / malformed /
+        # hallucinated) the deterministic moment below surfaces unchanged.
+        temporal_reflection_result: TemporalReflectionResult = (
+            await self.temporal_reflection_generator.generate(
+                user_id=user_input.user_id,
+                moment=past_self_conversation,
+                past_self_question=past_self_question_result,
+                relevance_result=temporal_relevance_result,
+                comparison=temporal_comparison_result,
+                lifecycle_result=temporal_lifecycle_result,
+            )
+        )
+
         # Step 4e: Build structured ChronOS state from the retrieved context.
         # The intent, user-state, goal, consistency detectors, the temporal
         # event detector, the temporal thread matcher, the temporal
         # lifecycle manager, the temporal comparison engine, the past-self
-        # question planner, the relevance & timing engine and the
-        # conversation composer populate their sections.
+        # question planner, the relevance & timing engine, the conversation
+        # composer and the reflection generator populate their sections.
         chronos_state: ChronosState = await self.state_builder.build(
             user_input,
             retrieved_context,
@@ -441,6 +479,7 @@ class ChronosEngine:
             past_self_question=past_self_question_result,
             temporal_relevance=temporal_relevance_result,
             past_self_conversation=past_self_conversation,
+            temporal_reflection=temporal_reflection_result,
         )
 
         # Step 4f: Deterministic response generation. Pure template/rule logic
@@ -539,16 +578,23 @@ class ChronosEngine:
             plan_step = None
             plan_entry = None
 
-        # Step 4i: Past-self conversation surfacing (Phase 3H). Additive and
-        # deterministic: when (and only when) a valid moment was composed,
-        # its section is appended AFTER the existing final answer on every
-        # path (FAST deterministic, LIGHT/DEEP AI, AI failure fallback).
-        # The underlying answer text is never rewritten; nothing is appended
-        # when should_surface=False.
+        # Step 4i: Past-self conversation surfacing (Phase 3H) + temporal
+        # AI reflection (Phase 3I). Additive and deterministic: when (and
+        # only when) a valid moment was composed, its section is appended
+        # AFTER the existing final answer on every path (FAST deterministic,
+        # LIGHT/DEEP AI, AI failure fallback). The underlying answer text is
+        # never rewritten; nothing is appended when should_surface=False.
+        # A validated Phase 3I reflection, if one was produced, is appended
+        # AFTER the deterministic section and never replaces it.
         if past_self_conversation.should_surface:
             final_response = "\n\n".join(
                 [final_response, render_past_self_section(past_self_conversation)]
             )
+            reflection_section = render_temporal_reflection_section(
+                temporal_reflection_result
+            )
+            if reflection_section is not None:
+                final_response = "\n\n".join([final_response, reflection_section])
 
         # Step 8: Build Explainability Trace
         state_label = user_state_result.emotional_state.value if user_state_result.emotional_state else "INSUFFICIENT_SIGNALS"
@@ -706,6 +752,32 @@ class ChronosEngine:
                 "Past-self conversation skipped: "
                 f"{past_self_conversation.reason}"
             )
+
+        # Phase 3I: honest temporal-reflection trace entry. The wording
+        # reflects what ACTUALLY happened (skipped / tier success /
+        # failure with deterministic preservation).
+        if not temporal_reflection_result.attempted:
+            reflection_step = (
+                "Temporal AI reflection skipped: "
+                f"{temporal_reflection_result.reason or 'not eligible'}"
+            )
+        elif temporal_reflection_result.used and temporal_reflection_result.success:
+            latency_text = (
+                f"{temporal_reflection_result.latency_ms}ms"
+                if temporal_reflection_result.latency_ms is not None
+                else "n/a"
+            )
+            reflection_step = (
+                f"Temporal AI reflection -> {temporal_reflection_result.tier} "
+                f"success (model: {temporal_reflection_result.model or 'n/a'}, "
+                f"latency: {latency_text})."
+            )
+        else:
+            error_type = temporal_reflection_result.error_type or "unknown"
+            reflection_step = (
+                "Temporal AI reflection failed -> deterministic moment "
+                f"preserved ({error_type})."
+            )
         if ai_routing.use_ai:
             latency_text = (
                 f"{ai_execution.latency_ms}ms"
@@ -803,6 +875,7 @@ class ChronosEngine:
                 question_step,
                 relevance_step,
                 conversation_step,
+                reflection_step,
                 f"Constructed structured ChronosState (life phase '{chronos_state.context.life_phase if chronos_state.context else 'n/a'}', {len(chronos_state.context.relevant_memories) if chronos_state.context else 0} memories, {len(chronos_state.patterns)} patterns).",
                 prompt_step,
                 execution_step,
@@ -829,6 +902,7 @@ class ChronosEngine:
                 "Past-Self Question Planner",
                 "Past-Self Relevance Engine",
                 "Past-Self Conversation Composer",
+                "Temporal Reflection Generator",
                 "Response Generator",
                 "AI Router",
                 "AI Executor",

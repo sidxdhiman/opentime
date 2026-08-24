@@ -472,6 +472,45 @@ class PastSelfConversationMoment(BaseModel):
     reason: str = ""
 
 
+class TemporalReflectionResult(BaseModel):
+    """Structured record of one bounded temporal AI reflection attempt
+    (Phase 3I).
+
+    The reflection is an optional ENHANCEMENT layer over an already-valid,
+    deterministic ``PastSelfConversationMoment``. AI never decides whether
+    the moment exists — it only rewrites expression around grounded facts.
+    This result records what actually happened, honestly:
+
+    * **Not eligible / skipped** (``attempted=False``) — no surfaced moment,
+      relevance not ``SURFACE_NOW``, ambiguous lifecycle, insufficient
+      comparison, no available inference target, etc. ``reason`` says why.
+    * **Attempted but not used** (``used=False``, ``fallback_used=True``) —
+      AI disabled, connection failure, timeout, malformed output,
+      hallucinated evidence, validation failure. The deterministic moment
+      surfaces unchanged; there is never a retry.
+    * **Used** (``used=True, success=True``) — a validated reflection that
+      is appended AFTER the deterministic past-self section.
+
+    ``tier`` / ``provider`` / ``model`` name what was actually invoked
+    (resolved only by ``InferencePolicy``), never a fabricated target.
+    """  # noqa: E501
+
+    attempted: bool = False
+    used: bool = False
+    success: bool = False
+    fallback_used: bool = False
+    error_type: str | None = None
+    reason: str = ""
+    tier: str | None = None
+    provider: str | None = None
+    model: str | None = None
+    latency_ms: float | None = None
+    reflection: str = ""
+    uncertainties: list[str] = Field(default_factory=list)
+    evidence_allowed: list[str] = Field(default_factory=list)
+    evidence_used: list[str] = Field(default_factory=list)
+
+
 class TemporalSnapshot(BaseModel):
     """The user's situation as it stood at one point in time.
 

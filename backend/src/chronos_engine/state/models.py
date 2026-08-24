@@ -23,6 +23,7 @@ from chronos_engine.temporal.models import (
     TemporalComparisonResult,
     TemporalEventDetectionResult,
     TemporalLifecycleResult,
+    TemporalReflectionResult,
     TemporalRelevanceResult,
     TemporalThreadMatchResult,
 )
@@ -268,6 +269,12 @@ class ChronosState(BaseModel):
     # surface). ``should_surface`` is mirrored additively into the final
     # user-facing response; nothing here persists, schedules or resurfaces.
     past_self_conversation: PastSelfConversationMoment | None = None
+
+    # Phase 3I: honest record of the optional bounded AI reflection over
+    # the surfaced moment. ``None``/``attempted=False`` whenever AI was not
+    # eligible or not attempted; a failure never suppresses the
+    # deterministic moment — it only means no reflection text was added.
+    temporal_reflection: TemporalReflectionResult | None = None
 
     engine_state: Optional[EngineStateResult] = None
     confidence: Optional[float] = None
