@@ -89,6 +89,7 @@ from chronos_engine.temporal.reflection import (
     render_temporal_reflection_section,
 )
 from chronos_engine.temporal.models import (
+    ActiveTemporalContext,
     PastSelfConversationMoment,
     PastSelfQuestionResult,
     TemporalComparisonResult,
@@ -247,6 +248,7 @@ class ChronosEngine:
         provider_key: Optional[str] = None,
         model_name: Optional[str] = None,
         media_url: Optional[str] = None,
+        active_temporal_context: Optional[ActiveTemporalContext] = None,
     ) -> EngineResponse:
         start_time = time.time()
 
@@ -480,6 +482,7 @@ class ChronosEngine:
             temporal_relevance=temporal_relevance_result,
             past_self_conversation=past_self_conversation,
             temporal_reflection=temporal_reflection_result,
+            active_temporal_context=active_temporal_context,
         )
 
         # Step 4f: Deterministic response generation. Pure template/rule logic
@@ -929,6 +932,7 @@ class ChronosEngine:
             ai_execution=ai_execution,
             inference_policy=inference_policy_decision,
             processing_time_ms=elapsed_ms,
+            active_thread_context=active_temporal_context,
         )
 
         return response

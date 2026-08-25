@@ -530,3 +530,31 @@ class TemporalSnapshot(BaseModel):
     relevant_goals: List[str] = Field(default_factory=list)
     relevant_beliefs: List[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=_utcnow)
+
+
+class ActiveTemporalContext(BaseModel):
+    """Grounded context for an active temporal thread selected by the user.
+
+    This is a *read-only snapshot* resolved at the API boundary from a
+    validated thread ID.  It contains only persisted, user-safe data and
+    is bounded in size.  The engine receives this as optional context;
+    it does NOT mutate the thread, force AI usage, or alter deterministic
+    temporal truth.
+    """
+
+    thread_id: str
+    subject: str = ""
+    description: Optional[str] = None
+    temporal_type: Optional[str] = None
+    status: str = "OPEN"
+    origin_description: Optional[str] = None
+    origin_occurred_at: Optional[datetime] = None
+    recent_events: List["ActiveTemporalEvent"] = Field(default_factory=list)
+
+
+class ActiveTemporalEvent(BaseModel):
+    """A single bounded event within an active temporal context."""
+
+    description: str = ""
+    temporal_type: Optional[str] = None
+    occurred_at: Optional[datetime] = None

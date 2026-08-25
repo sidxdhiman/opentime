@@ -73,6 +73,7 @@ export default function DashboardPage() {
   const [patterns, setPatterns] = useState<PatternItem[]>([]);
   const [threads, setThreads] = useState<TemporalThread[]>([]);
   const [selectedThread, setSelectedThread] = useState<TemporalThread | null>(null);
+  const [activeThread, setActiveThread] = useState<TemporalThread | null>(null);
   const [isDataLoading, setIsDataLoading] = useState(false);
   const [onboarding, setOnboarding] = useState<OnboardingStatusResponse | null>(null);
 
@@ -125,6 +126,12 @@ export default function DashboardPage() {
   const handleResponseReceived = async (response: EngineResponse) => {
     setLatestResponse(response);
     await loadEngineData();
+  };
+
+  const handleContinueStory = (thread: TemporalThread) => {
+    setActiveThread(thread);
+    setSelectedThread(null);
+    setActiveTab("overview");
   };
 
   if (isLoading || !user) {
@@ -254,7 +261,12 @@ export default function DashboardPage() {
             className="grid grid-cols-1 lg:grid-cols-12 gap-8"
           >
             <div className="lg:col-span-7 space-y-6">
-              <VoiceVideoRecorder onResponseReceived={handleResponseReceived} userId={userId} />
+              <VoiceVideoRecorder
+                onResponseReceived={handleResponseReceived}
+                userId={userId}
+                activeThread={activeThread}
+                onClearActiveThread={() => setActiveThread(null)}
+              />
               <ChronosEngineFeed interactions={interactions} latestResponse={latestResponse} />
             </div>
             <div className="lg:col-span-5 space-y-6">
@@ -277,6 +289,7 @@ export default function DashboardPage() {
                   <TemporalThreadDetailView
                     thread={selectedThread}
                     onBack={() => setSelectedThread(null)}
+                    onContinueStory={handleContinueStory}
                   />
                 ) : (
                   <JourneyView
@@ -303,6 +316,7 @@ export default function DashboardPage() {
                   <TemporalThreadDetailView
                     thread={selectedThread}
                     onBack={() => setSelectedThread(null)}
+                    onContinueStory={handleContinueStory}
                   />
                 ) : (
                   <TemporalThreadListView

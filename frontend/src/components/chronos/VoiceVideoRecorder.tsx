@@ -16,16 +16,20 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { chronosApi, EngineResponse } from "@/lib/chronosApi";
+import { chronosApi, EngineResponse, TemporalThread } from "@/lib/chronosApi";
 
 interface VoiceVideoRecorderProps {
   onResponseReceived: (response: EngineResponse) => void;
   userId?: string;
+  activeThread?: TemporalThread | null;
+  onClearActiveThread?: () => void;
 }
 
 export function VoiceVideoRecorder({
   onResponseReceived,
   userId = "user_default",
+  activeThread,
+  onClearActiveThread,
 }: VoiceVideoRecorderProps) {
   const [activeTab, setActiveTab] = useState<"text" | "audio" | "video" | "upload">("audio");
   const [textContent, setTextContent] = useState("");
@@ -188,6 +192,10 @@ export function VoiceVideoRecorder({
       formData.append("provider_key", selectedProvider);
       formData.append("model_name", selectedModel);
 
+      if (activeThread) {
+        formData.append("active_thread_id", activeThread.id);
+      }
+
       if (activeTab === "text") {
         if (!textContent.trim()) {
           throw new Error("Please write something first.");
@@ -222,6 +230,7 @@ export function VoiceVideoRecorder({
 
       const response = await chronosApi.processInput(formData);
       onResponseReceived(response);
+      onClearActiveThread?.();
 
       setTextContent("");
       setAudioBlob(null);
@@ -291,6 +300,25 @@ export function VoiceVideoRecorder({
             </select>
           </div>
         </div>
+
+        {/* Active thread context chip */}
+        {activeThread && (
+          <div className="mb-4 flex items-center gap-2 rounded-lg border border-accent/30 bg-accent/5 px-3 py-2">
+            <span className="text-xs text-muted">Talking about:</span>
+            <span className="text-xs font-medium text-foreground truncate max-w-[240px]">
+              {activeThread.subject}
+            </span>
+            {onClearActiveThread && (
+              <button
+                onClick={onClearActiveThread}
+                className="ml-auto shrink-0 rounded-full p-0.5 text-muted hover:text-foreground transition-colors"
+                aria-label="Clear active thread"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Mode tabs */}
         <div className="mb-6 grid grid-cols-4 gap-1 rounded-xl bg-secondary/50 p-1">

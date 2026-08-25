@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from chronos_engine.core.models import IntentType, PatternItem, RetrievedContext, UserInput
 from chronos_engine.temporal.models import (
+    ActiveTemporalContext,
     PastSelfConversationMoment,
     PastSelfQuestionResult,
     TemporalComparisonResult,
@@ -275,6 +276,11 @@ class ChronosState(BaseModel):
     # eligible or not attempted; a failure never suppresses the
     # deterministic moment — it only means no reflection text was added.
     temporal_reflection: TemporalReflectionResult | None = None
+
+    # Phase 4F: optional grounded context for an active temporal thread the
+    # user wants to continue. Resolved at the API boundary and threaded into
+    # the state so the AI prompt can reference it during processing.
+    active_temporal_context: Optional[ActiveTemporalContext] = None
 
     engine_state: Optional[EngineStateResult] = None
     confidence: Optional[float] = None

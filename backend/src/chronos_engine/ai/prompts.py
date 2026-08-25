@@ -192,6 +192,10 @@ class ChronosAIPromptBuilder:
         lines.append("INTENT:")
         lines.append(f"- Intent: {ctx.intent}")
 
+        if ctx.show_active_thread:
+            lines.append("ACTIVE THREAD CONTEXT:")
+            lines.extend(ctx.active_thread_lines)
+
         if ctx.show_user_state:
             lines.append("USER STATE:")
             lines.extend(ctx.user_state_lines)

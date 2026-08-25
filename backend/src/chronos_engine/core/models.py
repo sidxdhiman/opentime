@@ -3,6 +3,8 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
+from chronos_engine.temporal.models import ActiveTemporalContext
+
 
 class InputType(str, Enum):
     TEXT = "text"
@@ -230,6 +232,8 @@ class EngineResponse(BaseModel):
     inference_policy: Optional["InferencePolicyDecision"] = None
     processing_time_ms: float = 0.0
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    # Phase 4F: resolved active thread context (set by API boundary, not engine)
+    active_thread_context: Optional[ActiveTemporalContext] = None
 
 
 # Imported at the end to avoid a circular import: ChronosState lives in the

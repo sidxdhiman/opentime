@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { ArrowLeft, Calendar } from "lucide-react";
+import { ArrowLeft, Calendar, MessageSquare } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { chronosApi, TemporalThread, TemporalEvent } from "@/lib/chronosApi";
@@ -16,9 +16,10 @@ import {
 interface TemporalThreadDetailViewProps {
   thread: TemporalThread;
   onBack: () => void;
+  onContinueStory?: (thread: TemporalThread) => void;
 }
 
-export function TemporalThreadDetailView({ thread: initialThread, onBack }: TemporalThreadDetailViewProps) {
+export function TemporalThreadDetailView({ thread: initialThread, onBack, onContinueStory }: TemporalThreadDetailViewProps) {
   const [thread, setThread] = useState<TemporalThread>(initialThread);
   const [loading, setLoading] = useState(!initialThread.events || initialThread.events.length === 0);
 
@@ -70,9 +71,18 @@ export function TemporalThreadDetailView({ thread: initialThread, onBack }: Temp
             Started {formatDateLong(thread.created_at)}
           </p>
         </div>
+        {onContinueStory && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onContinueStory(thread)}
+            className="shrink-0 gap-1.5 text-xs"
+          >
+            <MessageSquare className="h-3.5 w-3.5" />
+            Continue this story
+          </Button>
+        )}
       </div>
-
-      {/* Story timeline */}
       <CardContent className="p-6">
         {loading ? (
           <div className="flex items-center justify-center py-12">

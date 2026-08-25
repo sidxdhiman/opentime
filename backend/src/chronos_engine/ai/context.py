@@ -58,12 +58,16 @@ class ReasoningContext(BaseModel):
     recent_changes: list[str] = Field(default_factory=list)
     active_goals: list[str] = Field(default_factory=list)
 
+    # Phase 4F: bounded active thread context for thread continuation
+    active_thread_lines: list[str] = Field(default_factory=list)
+
     show_user_state: bool = False
     show_goal_analysis: bool = False
     show_consistency: bool = False
     show_relevant_context: bool = False
     show_patterns: bool = False
     show_goal_changes: bool = False
+    show_active_thread: bool = False
 
     evidence_ids: set[str] = Field(default_factory=set)
 
@@ -86,6 +90,8 @@ class ReasoningContextBuilder:
         show_classify = ReasoningMode.CLASSIFY in modes
         show_reflect = ReasoningMode.REFLECT in modes
 
+        thread_lines = self._active_thread_lines(state.active_temporal_context)
+
         return ReasoningContext(
             current_input=state.current_input.content,
             intent=(
@@ -100,12 +106,14 @@ class ReasoningContextBuilder:
             pattern_excerpts=self._pattern_excerpts(state, budget.max_patterns),
             recent_changes=self._recent_changes(context, budget.max_recent_changes),
             active_goals=list(state.goals) if (show_interpret or show_reason) else [],
+            active_thread_lines=thread_lines,
             show_user_state=show_interpret or show_reason or show_classify,
             show_goal_analysis=show_interpret or show_reason,
             show_consistency=show_interpret or show_reason,
             show_relevant_context=show_interpret or show_reason or show_reflect,
             show_patterns=show_reflect,
             show_goal_changes=show_reflect,
+            show_active_thread=bool(thread_lines),
             evidence_ids=self.evidence_ids(state),
         )
 
@@ -203,3 +211,28 @@ class ReasoningContextBuilder:
     @staticmethod
     def _recent_changes(context: RetrievedContext, limit: int) -> list[str]:
         return [f"- Recent change: {change}" for change in (context.recent_changes or [])[:limit]]
+
+    @staticmethod
+    def _active_thread_lines(ctx) -> list[str]:
+        """Format bounded active thread context for the AI prompt.
+
+        Produces a read-only, user-safe section: subject, status, type,
+        origin, and up to 10 recent event descriptions.  When no context is
+        provided, returns an empty list (section is omitted entirely).
+        """
+        if ctx is None:
+            return []
+        lines: list[str] = []
+        lines.append(f"- Thread: \"{ctx.subject}\" (status: {ctx.status})")
+        if ctx.temporal_type:
+            lines.append(f"- Temporal type: {ctx.temporal_type}")
+        if ctx.description:
+            lines.append(f"- Description: {ctx.description[:200]}")
+        if ctx.origin_description:
+            lines.append(f"- Origin: {ctx.origin_description[:200]}")
+        if ctx.recent_events:
+            lines.append(f"- Recent events ({len(ctx.recent_events)}):")
+            for ev in ctx.recent_events:
+                ev_type = f" [{ev.temporal_type}]" if ev.temporal_type else ""
+                lines.append(f"  - {ev.description[:150]}{ev_type}")
+        return lines

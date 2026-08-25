@@ -13,6 +13,7 @@ from chronos_engine.state.models import (
     UserStateResult,
 )
 from chronos_engine.temporal.models import (
+    ActiveTemporalContext,
     PastSelfConversationMoment,
     PastSelfQuestionResult,
     TemporalComparisonResult,
@@ -53,6 +54,7 @@ class StateBuilder:
         temporal_relevance: TemporalRelevanceResult | None = None,
         past_self_conversation: PastSelfConversationMoment | None = None,
         temporal_reflection: TemporalReflectionResult | None = None,
+        active_temporal_context: ActiveTemporalContext | None = None,
     ) -> ChronosState:
         contradictions = []
         if consistency_result is not None:
@@ -80,6 +82,7 @@ class StateBuilder:
             temporal_relevance=temporal_relevance,
             past_self_conversation=past_self_conversation,
             temporal_reflection=temporal_reflection,
+            active_temporal_context=active_temporal_context,
             engine_state=None,
             confidence=None,
         )

@@ -10,9 +10,14 @@ from pydantic import BaseModel
 from chronos_engine.core.models import EngineResponse, InteractionRecord
 from chronos_engine.engine import ChronosEngine
 from chronos_engine.storage.mongo_repository import MongoStorageAdapter, MongoTemporalStore
+from chronos_engine.temporal.models import ActiveTemporalContext, ActiveTemporalEvent
 from opentime.infrastructure.config import get_settings
 
 logger = logging.getLogger(__name__)
+
+# Maximum number of recent events included in the grounded thread context
+# passed to the engine.  Keeps the context bounded and predictable.
+_ACTIVE_THREAD_MAX_EVENTS = 10
 
 # Temporal thread/event response models (subset of the full domain models,
 # safe for API exposure — internal IDs like user_id are omitted).
@@ -132,6 +137,64 @@ async def _persist_interaction(
         )
 
 
+# ── Phase 4F: Active thread context resolution ───────────────────────────
+
+
+async def _resolve_active_thread(
+    active_thread_id: Optional[str],
+    user_id: str,
+) -> Optional[ActiveTemporalContext]:
+    """Resolve an active thread ID into a grounded, bounded context.
+
+    Called at the API boundary *before* the engine runs.  Loads the thread
+    through the temporal store (which enforces user ownership), fetches
+    recent events in chronological order, and returns a minimal snapshot.
+    Returns ``None`` when no thread ID is provided.
+    """
+    if not active_thread_id:
+        return None
+
+    thread = await engine_instance.temporal_store.get_thread(
+        active_thread_id, user_id
+    )
+    if thread is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Temporal thread not found or does not belong to this user",
+        )
+
+    events = await engine_instance.temporal_store.get_events_by_thread(
+        active_thread_id, user_id
+    )
+    # Chronological order (earliest first), bounded
+    events.sort(key=lambda e: e.occurred_at)
+    bounded_events = events[:_ACTIVE_THREAD_MAX_EVENTS]
+
+    origin_event = bounded_events[0] if bounded_events else None
+
+    return ActiveTemporalContext(
+        thread_id=thread.id,
+        subject=thread.subject,
+        description=thread.description,
+        temporal_type=(
+            thread.temporal_type.value if thread.temporal_type else None
+        ),
+        status=thread.status.value,
+        origin_description=origin_event.description if origin_event else None,
+        origin_occurred_at=origin_event.occurred_at if origin_event else None,
+        recent_events=[
+            ActiveTemporalEvent(
+                description=e.description,
+                temporal_type=(
+                    e.temporal_type.value if e.temporal_type else None
+                ),
+                occurred_at=e.occurred_at,
+            )
+            for e in bounded_events
+        ],
+    )
+
+
 class ProcessInputRequest(BaseModel):
     user_id: str = "user_default"
     content: Optional[str] = None
@@ -140,6 +203,7 @@ class ProcessInputRequest(BaseModel):
     file_name: Optional[str] = None
     provider_key: str = "chronos"
     model_name: Optional[str] = None
+    active_thread_id: Optional[str] = None
 
 
 @router.post("/process", status_code=status.HTTP_200_OK)
@@ -150,6 +214,7 @@ async def process_input(
     provider_key: str = Form("chronos"),
     model_name: Optional[str] = Form(None),
     base64_data: Optional[str] = Form(None),
+    active_thread_id: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
 ) -> Dict[str, Any]:
     """
@@ -170,6 +235,8 @@ async def process_input(
             elif file.content_type and "video" in file.content_type:
                 input_type = "video"
 
+    active_context = await _resolve_active_thread(active_thread_id, user_id)
+
     try:
         response = await engine_instance.process_user_input(
             user_id=user_id,
@@ -181,9 +248,12 @@ async def process_input(
             base64_data=base64_data,
             provider_key=provider_key,
             model_name=model_name,
+            active_temporal_context=active_context,
         )
         await _persist_interaction(response)
         return response.model_dump()
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"ChronOS Engine Error: {str(e)}")
 
@@ -191,6 +261,9 @@ async def process_input(
 @router.post("/process-json", status_code=status.HTTP_200_OK)
 async def process_input_json(payload: ProcessInputRequest) -> Dict[str, Any]:
     """JSON variant of input processing endpoint."""
+    active_context = await _resolve_active_thread(
+        payload.active_thread_id, payload.user_id
+    )
     try:
         response = await engine_instance.process_user_input(
             user_id=payload.user_id,
@@ -200,9 +273,12 @@ async def process_input_json(payload: ProcessInputRequest) -> Dict[str, Any]:
             file_name=payload.file_name,
             provider_key=payload.provider_key,
             model_name=payload.model_name,
+            active_temporal_context=active_context,
         )
         await _persist_interaction(response)
         return response.model_dump()
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"ChronOS Engine Error: {str(e)}")
 

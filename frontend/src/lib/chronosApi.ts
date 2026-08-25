@@ -150,6 +150,23 @@ export interface ChronosState {
   temporal_reflection?: TemporalReflection;
 }
 
+export interface ActiveTemporalEvent {
+  description: string;
+  temporal_type?: string;
+  occurred_at?: string;
+}
+
+export interface ActiveTemporalContext {
+  thread_id: string;
+  subject: string;
+  description?: string;
+  temporal_type?: string;
+  status: string;
+  origin_description?: string;
+  origin_occurred_at?: string;
+  recent_events: ActiveTemporalEvent[];
+}
+
 export interface InteractionRecord {
   id: string;
   user_content: string;
@@ -182,6 +199,7 @@ export interface EngineResponse {
   reasoning_trace: ReasoningTrace;
   validation_result: ValidationResult;
   chronos_state?: ChronosState;
+  active_thread_context?: ActiveTemporalContext;
   processing_time_ms: number;
   timestamp: string;
 }
@@ -214,6 +232,7 @@ export const chronosApi = {
     file_name?: string;
     provider_key?: string;
     model_name?: string;
+    active_thread_id?: string;
   }): Promise<EngineResponse> {
     const res = await fetch(`${ENGINE_BASE}/process-json`, {
       method: "POST",
