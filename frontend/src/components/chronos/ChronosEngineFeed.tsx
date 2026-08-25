@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EngineResponse } from "@/lib/chronosApi";
+import { PastSelfMomentCard } from "./PastSelfMomentCard";
 
 interface ChronosEngineFeedProps {
   response: EngineResponse | null;
@@ -50,7 +51,18 @@ export function ChronosEngineFeed({ response }: ChronosEngineFeedProps) {
     validation_result,
     processing_time_ms,
     prompt_context,
+    chronos_state,
   } = response;
+
+  const pastSelf = chronos_state?.past_self_conversation;
+  const reflection = chronos_state?.temporal_reflection;
+  const hasMoment = pastSelf?.should_surface === true;
+
+  // When a structured past-self moment is available, strip the flat-text
+  // section that the backend appended to final_response to avoid duplication.
+  const displayResponse = hasMoment
+    ? final_response.split("\n\nSOMETHING FROM YOUR PAST\n")[0].trimEnd()
+    : final_response;
 
   const getInputIcon = (type: string) => {
     if (type === "audio") return <Mic className="h-4 w-4" />;
@@ -127,9 +139,14 @@ export function ChronosEngineFeed({ response }: ChronosEngineFeedProps) {
               <h4 className="text-sm font-semibold">Response</h4>
             </div>
             <div className="whitespace-pre-line text-sm leading-relaxed text-foreground">
-              {final_response}
+              {displayResponse}
             </div>
           </div>
+
+          {/* Past-Self Moment — structured, emotionally distinct */}
+          {hasMoment && (
+            <PastSelfMomentCard moment={pastSelf!} reflection={reflection} />
+          )}
         </CardContent>
       </Card>
 

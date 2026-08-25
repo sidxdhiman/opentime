@@ -128,6 +128,28 @@ export interface ValidationResult {
   personalization_score: number;
 }
 
+export interface PastSelfMoment {
+  should_surface: boolean;
+  opening: string;
+  context: string;
+  bridge: string;
+  question: string;
+  question_type?: string;
+  relation?: string;
+  confidence: number;
+}
+
+export interface TemporalReflection {
+  used: boolean;
+  success: boolean;
+  reflection: string;
+}
+
+export interface ChronosState {
+  past_self_conversation?: PastSelfMoment;
+  temporal_reflection?: TemporalReflection;
+}
+
 export interface EngineResponse {
   id: string;
   user_id: string;
@@ -143,6 +165,7 @@ export interface EngineResponse {
   };
   reasoning_trace: ReasoningTrace;
   validation_result: ValidationResult;
+  chronos_state?: ChronosState;
   processing_time_ms: number;
   timestamp: string;
 }
