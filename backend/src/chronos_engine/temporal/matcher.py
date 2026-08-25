@@ -47,6 +47,7 @@ from typing import Dict, FrozenSet, List, Optional, Set, Tuple
 from chronos_engine.core.interfaces import BaseTemporalThreadMatcher
 from chronos_engine.state.models import ConsistencyResult, GoalAnalysisResult
 from chronos_engine.temporal.models import (
+    ActiveTemporalContext,
     TemporalEvent,
     TemporalThread,
     TemporalThreadMatchResult,
@@ -74,6 +75,13 @@ _GOAL_ASSOCIATION_BONUS = 0.15
 _CONSISTENCY_BONUS = 0.15
 _ORIGIN_CONTINUITY_BONUS = 0.35
 _RELATED_MEMORY_BONUS = 0.20
+
+# Phase 4G: bonus when the user explicitly selected a thread and the
+# candidate matches it.  GATED: only applies when the candidate already
+# has at least one grounded evidence signal (topic overlap, type compat,
+# goal association, consistency, or memory continuity).  Alone, this
+# bonus can never push a zero-evidence candidate past MATCH_THRESHOLD.
+_ACTIVE_THREAD_CONTINUITY_BONUS = 0.30
 
 _STOPWORDS = frozenset(
     {
@@ -175,7 +183,8 @@ def _split_meaningful(tokens: Set[str]) -> Tuple[Set[str], Set[str]]:
 class _CandidateScore:
     """Per-candidate deterministic score with explainable signal lines."""
 
-    __slots__ = ("thread", "score", "signals", "topic_overlap", "continuity")
+    __slots__ = ("thread", "score", "signals", "topic_overlap", "continuity",
+                  "active_thread_applied")
 
     def __init__(
         self,
@@ -184,12 +193,14 @@ class _CandidateScore:
         signals: List[str],
         topic_overlap: float,
         continuity: float,
+        active_thread_applied: bool = False,
     ) -> None:
         self.thread = thread
         self.score = score
         self.signals = signals
         self.topic_overlap = topic_overlap
         self.continuity = continuity
+        self.active_thread_applied = active_thread_applied
 
 
 def _thread_memory_ids(thread: TemporalThread) -> Set[str]:
@@ -208,6 +219,7 @@ class TemporalThreadMatcher(BaseTemporalThreadMatcher):
         candidate_threads: List[TemporalThread],
         goal_analysis: Optional[GoalAnalysisResult] = None,
         consistency_result: Optional[ConsistencyResult] = None,
+        active_temporal_context: Optional[ActiveTemporalContext] = None,
     ) -> TemporalThreadMatchResult:
         if not candidate_threads:
             return TemporalThreadMatchResult(
@@ -219,7 +231,10 @@ class TemporalThreadMatcher(BaseTemporalThreadMatcher):
             )
 
         scored = [
-            self._score_candidate(event, thread, goal_analysis, consistency_result)
+            self._score_candidate(
+                event, thread, goal_analysis, consistency_result,
+                active_temporal_context,
+            )
             for thread in candidate_threads
         ]
         # Deterministic order: score desc, then id asc for stable ties.
@@ -263,7 +278,11 @@ class TemporalThreadMatcher(BaseTemporalThreadMatcher):
                 candidate_count=len(scored),
             )
 
-        hard_gate_open = best.topic_overlap > 0 or best.continuity > 0
+        hard_gate_open = (
+            best.topic_overlap > 0
+            or best.continuity > 0
+            or best.active_thread_applied
+        )
         if best.score >= MATCH_THRESHOLD and hard_gate_open:
             separation = (
                 "clear of runner-up"
@@ -307,6 +326,7 @@ class TemporalThreadMatcher(BaseTemporalThreadMatcher):
         thread: TemporalThread,
         goal_analysis: Optional[GoalAnalysisResult],
         consistency_result: Optional[ConsistencyResult],
+        active_temporal_context: Optional[ActiveTemporalContext] = None,
     ) -> _CandidateScore:
         signals: List[str] = []
 
@@ -428,11 +448,38 @@ class TemporalThreadMatcher(BaseTemporalThreadMatcher):
                 signals.append(f"Consistency/change evidence relates to thread ({label}).")
                 break
 
+        # Phase 4G: Active thread continuity. When the user explicitly
+        # selected a thread and this candidate IS that thread, a moderate
+        # bonus is applied — but ONLY when the candidate already has a
+        # topical or memory connection (topic_overlap > 0 or continuity > 0).
+        # Alone, the selection can never push a zero-evidence candidate
+        # past the match threshold.
+        active_thread_bonus = 0.0
+        _active_thread_applied = False
+        if (
+            active_temporal_context is not None
+            and active_temporal_context.thread_id == thread.id
+        ):
+            has_grounded_evidence = (
+                topic_overlap > 0
+                or continuity > 0
+            )
+            if has_grounded_evidence:
+                active_thread_bonus = _ACTIVE_THREAD_CONTINUITY_BONUS
+                _active_thread_applied = True
+                signals.append(
+                    "Active thread selection: user explicitly continuing this story."
+                )
+
         total = round(
-            min(1.0, topic_overlap + type_bonus + goal_bonus + consistency_bonus + continuity),
+            min(1.0, topic_overlap + type_bonus + goal_bonus + consistency_bonus
+                + continuity + active_thread_bonus),
             4,
         )
-        return _CandidateScore(thread, total, signals, topic_overlap, continuity)
+        return _CandidateScore(
+            thread, total, signals, topic_overlap, continuity,
+            active_thread_applied=_active_thread_applied,
+        )
 
 
 __all__ = ["TemporalThreadMatcher"]

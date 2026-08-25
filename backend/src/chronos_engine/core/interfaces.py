@@ -22,6 +22,7 @@ from chronos_engine.state.models import (
 )
 from chronos_engine.response.models import DeterministicResponse
 from chronos_engine.temporal.models import (
+    ActiveTemporalContext,
     PastSelfConversationMoment,
     PastSelfQuestionResult,
     TemporalComparisonResult,
@@ -146,6 +147,7 @@ class BaseTemporalThreadMatcher(ABC):
         candidate_threads: "List[TemporalThread]",
         goal_analysis: "Optional[GoalAnalysisResult]" = None,
         consistency_result: "Optional[ConsistencyResult]" = None,
+        active_temporal_context: "Optional[ActiveTemporalContext]" = None,
     ) -> TemporalThreadMatchResult:
         pass
 

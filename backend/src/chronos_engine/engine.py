@@ -331,6 +331,7 @@ class ChronosEngine:
                 candidate_threads,
                 goal_analysis=goal_analysis_result,
                 consistency_result=consistency_result,
+                active_temporal_context=active_temporal_context,
             )
         else:
             temporal_thread_match = TemporalThreadMatchResult(
