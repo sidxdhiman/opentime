@@ -16,6 +16,7 @@ import {
   User,
   Mic,
   GitBranch,
+  Compass,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
@@ -42,11 +43,13 @@ import { PatternDetectionView } from "@/components/chronos/PatternDetectionView"
 import { MemoryGraphView } from "@/components/chronos/MemoryGraphView";
 import { TemporalThreadListView } from "@/components/chronos/TemporalThreadListView";
 import { TemporalThreadDetailView } from "@/components/chronos/TemporalThreadDetailView";
+import { JourneyView } from "@/components/chronos/JourneyView";
 
-type Tab = "overview" | "identity" | "timeline" | "threads" | "reflections" | "patterns" | "memories";
+type Tab = "overview" | "journey" | "identity" | "timeline" | "threads" | "reflections" | "patterns" | "memories";
 
 const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
   { key: "overview", label: "Overview", icon: Sparkles },
+  { key: "journey", label: "Journey", icon: Compass },
   { key: "identity", label: "Identity Model", icon: UserCheck },
   { key: "timeline", label: "Timeline", icon: Clock },
   { key: "threads", label: "Threads", icon: GitBranch },
@@ -268,6 +271,22 @@ export default function DashboardPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, ease: "easeOut" }}
           >
+            {activeTab === "journey" && (
+              <div className="max-w-4xl mx-auto">
+                {selectedThread ? (
+                  <TemporalThreadDetailView
+                    thread={selectedThread}
+                    onBack={() => setSelectedThread(null)}
+                  />
+                ) : (
+                  <JourneyView
+                    threads={threads}
+                    userId={userId}
+                    onSelectThread={setSelectedThread}
+                  />
+                )}
+              </div>
+            )}
             {activeTab === "identity" && (
               <div className="max-w-4xl mx-auto">
                 <IdentityModelCard identity={identity} onRefresh={loadEngineData} />

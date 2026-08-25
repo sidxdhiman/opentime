@@ -282,8 +282,10 @@ async def get_interactions(
 async def get_threads(user_id: str = "user_default") -> List[Dict[str, Any]]:
     """List all temporal threads for a user, newest first."""
     threads = await engine_instance.temporal_store.get_threads_by_user(user_id)
-    return [
-        {
+    result = []
+    for t in threads:
+        events = await engine_instance.temporal_store.get_events_by_thread(t.id, user_id)
+        result.append({
             "id": t.id,
             "temporal_type": t.temporal_type.value if t.temporal_type else None,
             "subject": t.subject,
@@ -295,10 +297,9 @@ async def get_threads(user_id: str = "user_default") -> List[Dict[str, Any]]:
             "confidence": t.confidence,
             "created_at": t.created_at.isoformat(),
             "updated_at": t.updated_at.isoformat(),
-            "event_count": len(t.related_memory_ids),
-        }
-        for t in threads
-    ]
+            "event_count": len(events),
+        })
+    return result
 
 
 @router.get("/threads/{thread_id}")

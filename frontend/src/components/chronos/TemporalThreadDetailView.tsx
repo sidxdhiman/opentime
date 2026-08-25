@@ -1,37 +1,22 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { ArrowLeft, Circle, Calendar, Zap } from "lucide-react";
+import { ArrowLeft, Calendar } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { chronosApi, TemporalThread, TemporalEvent } from "@/lib/chronosApi";
+import {
+  STATUS_STYLES,
+  STATUS_NARRATIVE,
+  TYPE_LABELS,
+  formatDate,
+  formatDateLong,
+} from "@/lib/chronosConstants";
 
 interface TemporalThreadDetailViewProps {
   thread: TemporalThread;
   onBack: () => void;
 }
-
-const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
-  OPEN: { bg: "bg-sky-500/10", text: "text-sky-400", label: "Open" },
-  ACTIVE: { bg: "bg-emerald-500/10", text: "text-emerald-400", label: "Active" },
-  RESOLVED: { bg: "bg-purple-500/10", text: "text-purple-400", label: "Resolved" },
-  CHANGED: { bg: "bg-amber-500/10", text: "text-amber-400", label: "Changed" },
-  ABANDONED: { bg: "bg-zinc-500/10", text: "text-zinc-400", label: "Abandoned" },
-  ARCHIVED: { bg: "bg-zinc-500/10", text: "text-zinc-500", label: "Archived" },
-};
-
-const TYPE_LABELS: Record<string, string> = {
-  DECISION: "Decision",
-  GOAL: "Goal",
-  FEAR: "Fear",
-  LIFE_EVENT: "Life Event",
-  BELIEF: "Belief",
-  MILESTONE: "Milestone",
-  PREDICTION: "Prediction",
-  PROMISE: "Promise",
-  FUTURE_EXPECTATION: "Expectation",
-  QUESTION: "Question",
-};
 
 export function TemporalThreadDetailView({ thread: initialThread, onBack }: TemporalThreadDetailViewProps) {
   const [thread, setThread] = useState<TemporalThread>(initialThread);
@@ -48,10 +33,15 @@ export function TemporalThreadDetailView({ thread: initialThread, onBack }: Temp
   }, [initialThread]);
 
   const status = STATUS_STYLES[thread.status] || STATUS_STYLES.OPEN;
-  const events = thread.events || [];
+  const narrative = STATUS_NARRATIVE[thread.status] || "";
+  const events = (thread.events || []).slice().sort(
+    (a, b) => new Date(a.occurred_at).getTime() - new Date(b.occurred_at).getTime()
+  );
+  const typeLabel = thread.temporal_type ? TYPE_LABELS[thread.temporal_type] : null;
 
   return (
     <Card className="overflow-hidden">
+      {/* Header */}
       <div className="flex items-center gap-3 border-b border-border/60 px-6 py-4">
         <Button
           variant="ghost"
@@ -67,73 +57,97 @@ export function TemporalThreadDetailView({ thread: initialThread, onBack }: Temp
             <span className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-medium ${status.bg} ${status.text}`}>
               {status.label}
             </span>
+            {typeLabel && (
+              <span className="shrink-0 rounded-md border border-border bg-secondary/40 px-2 py-0.5 text-[10px] text-muted">
+                {typeLabel}
+              </span>
+            )}
           </div>
           <p className="text-xs text-muted">
+            {narrative && <>{narrative} {" \u00b7 "}</>}
             {events.length} {events.length === 1 ? "event" : "events"}
             {" \u00b7 "}
-            Started{" "}
-            {new Date(thread.created_at).toLocaleDateString(undefined, {
-              month: "long",
-              day: "numeric",
-              year: "numeric",
-            })}
+            Started {formatDateLong(thread.created_at)}
           </p>
         </div>
       </div>
 
+      {/* Story timeline */}
       <CardContent className="p-6">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           </div>
         ) : events.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted">No events recorded for this thread yet.</p>
+          <div className="py-12 text-center">
+            <p className="text-sm text-muted">No events recorded for this thread yet.</p>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Events will appear here as ChronOS detects meaningful moments connected to this story.
+            </p>
+          </div>
         ) : (
-          <div className="relative space-y-6 pl-5 before:absolute before:bottom-2 before:left-[5px] before:top-2 before:w-px before:bg-border">
-            {events.map((event, i) => (
-              <div key={event.id} className="relative">
-                <span className="absolute -left-5 top-1.5 h-2.5 w-2.5 rounded-full border-2 border-background bg-foreground/30" />
+          <div className="relative space-y-0">
+            {events.map((event, i) => {
+              const isOrigin = i === 0;
+              const isLatest = i === events.length - 1;
+              const isSingle = events.length === 1;
 
-                <div className="rounded-xl border border-border bg-secondary/20 p-4 transition-all duration-200 hover:bg-secondary/40">
-                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex flex-wrap items-center gap-2">
+              return (
+                <div key={event.id} className="relative flex gap-4 pb-6 last:pb-0">
+                  {/* Vertical timeline line */}
+                  {i < events.length - 1 && (
+                    <div className="absolute left-[11px] top-6 bottom-0 w-px bg-border" />
+                  )}
+
+                  {/* Timeline dot */}
+                  <div className="relative z-10 mt-1.5 flex h-6 w-6 shrink-0 items-center justify-center">
+                    <span
+                      className={`h-2.5 w-2.5 rounded-full ${
+                        isOrigin
+                          ? "bg-accent-foreground"
+                          : isLatest
+                            ? "bg-emerald-400"
+                            : "bg-muted/50"
+                      }`}
+                    />
+                  </div>
+
+                  {/* Event content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1.5">
+                      {isOrigin && !isSingle && (
+                        <span className="rounded-md bg-accent/60 px-2 py-0.5 text-[10px] font-medium text-accent-foreground">
+                          Where it started
+                        </span>
+                      )}
+                      {isOrigin && isSingle && (
+                        <span className="rounded-md bg-accent/60 px-2 py-0.5 text-[10px] font-medium text-accent-foreground">
+                          The moment
+                        </span>
+                      )}
+                      {isLatest && !isOrigin && (
+                        <span className="rounded-md bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
+                          Current
+                        </span>
+                      )}
                       {event.temporal_type && (
                         <span className="rounded-md border border-border bg-secondary/40 px-2 py-0.5 text-[11px] text-muted">
                           {TYPE_LABELS[event.temporal_type] || event.temporal_type}
                         </span>
                       )}
-                      {i === 0 && (
-                        <span className="rounded-md bg-sky-500/10 px-2 py-0.5 text-[10px] font-medium text-sky-400">
-                          Origin
-                        </span>
-                      )}
-                      {i === events.length - 1 && events.length > 1 && (
-                        <span className="rounded-md bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
-                          Latest
-                        </span>
-                      )}
                     </div>
-                    <div className="flex items-center gap-2 text-[11px] tabular-nums text-muted">
-                      <Calendar className="h-3 w-3" />
-                      {new Date(event.occurred_at).toLocaleDateString(undefined, {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      })}
+
+                    <div className="rounded-xl border border-border bg-secondary/20 p-4 transition-all duration-200 hover:bg-secondary/30">
+                      <p className="text-sm leading-relaxed text-foreground">{event.description}</p>
+                      <div className="mt-2.5 flex items-center gap-1.5 text-[11px] text-muted">
+                        <Calendar className="h-3 w-3" />
+                        {formatDate(event.occurred_at)}
+                      </div>
                     </div>
                   </div>
-
-                  <p className="text-sm leading-relaxed text-foreground">{event.description}</p>
-
-                  {event.confidence > 0 && (
-                    <div className="mt-2 flex items-center gap-1.5 text-[10px] text-muted">
-                      <Zap className="h-3 w-3" />
-                      Confidence: {Math.round(event.confidence * 100)}%
-                    </div>
-                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </CardContent>

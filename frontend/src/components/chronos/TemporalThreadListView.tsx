@@ -4,39 +4,18 @@ import React from "react";
 import { GitBranch, ChevronRight, Circle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { TemporalThread } from "@/lib/chronosApi";
+import { STATUS_STYLES, TYPE_LABELS, formatDate } from "@/lib/chronosConstants";
 
 interface TemporalThreadListViewProps {
   threads: TemporalThread[];
   onSelectThread: (thread: TemporalThread) => void;
 }
 
-const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
-  OPEN: { bg: "bg-sky-500/10", text: "text-sky-400", label: "Open" },
-  ACTIVE: { bg: "bg-emerald-500/10", text: "text-emerald-400", label: "Active" },
-  RESOLVED: { bg: "bg-purple-500/10", text: "text-purple-400", label: "Resolved" },
-  CHANGED: { bg: "bg-amber-500/10", text: "text-amber-400", label: "Changed" },
-  ABANDONED: { bg: "bg-zinc-500/10", text: "text-zinc-400", label: "Abandoned" },
-  ARCHIVED: { bg: "bg-zinc-500/10", text: "text-zinc-500", label: "Archived" },
-};
-
-const TYPE_LABELS: Record<string, string> = {
-  DECISION: "Decision",
-  GOAL: "Goal",
-  FEAR: "Fear",
-  LIFE_EVENT: "Life Event",
-  BELIEF: "Belief",
-  MILESTONE: "Milestone",
-  PREDICTION: "Prediction",
-  PROMISE: "Promise",
-  FUTURE_EXPECTATION: "Expectation",
-  QUESTION: "Question",
-};
-
 export function TemporalThreadListView({ threads, onSelectThread }: TemporalThreadListViewProps) {
   if (!threads || threads.length === 0) {
     return (
       <Card className="p-8 text-center text-sm text-muted">
-        No threads yet. ChronOS will start tracking stories as you share moments.
+        No threads yet. ChronOS will start tracking stories as you share meaningful moments over time.
       </Card>
     );
   }
@@ -84,13 +63,7 @@ export function TemporalThreadListView({ threads, onSelectThread }: TemporalThre
                 <div className="flex items-center gap-3 text-[11px] text-muted">
                   <span>{thread.event_count} {thread.event_count === 1 ? "event" : "events"}</span>
                   <span className="text-border" aria-hidden>|</span>
-                  <span>
-                    {new Date(thread.created_at).toLocaleDateString(undefined, {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
-                  </span>
+                  <span>{formatDate(thread.created_at)}</span>
                 </div>
               </div>
 
