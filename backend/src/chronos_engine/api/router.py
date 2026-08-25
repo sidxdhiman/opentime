@@ -10,6 +10,37 @@ from chronos_engine.engine import ChronosEngine
 from chronos_engine.storage.mongo_repository import MongoStorageAdapter, MongoTemporalStore
 from opentime.infrastructure.config import get_settings
 
+# Temporal thread/event response models (subset of the full domain models,
+# safe for API exposure — internal IDs like user_id are omitted).
+
+
+class TemporalEventResponse(BaseModel):
+    id: str
+    thread_id: Optional[str] = None
+    temporal_type: Optional[str] = None
+    description: str = ""
+    memory_id: Optional[str] = None
+    occurred_at: str
+    recorded_at: str
+    importance: float = 0.5
+    confidence: float = 0.5
+
+
+class TemporalThreadResponse(BaseModel):
+    id: str
+    temporal_type: Optional[str] = None
+    subject: str = ""
+    description: Optional[str] = None
+    status: str = "OPEN"
+    origin_memory_id: Optional[str] = None
+    related_memory_ids: List[str] = []
+    importance: float = 0.5
+    confidence: float = 0.5
+    created_at: str
+    updated_at: str
+    event_count: int = 0
+    events: List[TemporalEventResponse] = []
+
 router = APIRouter(prefix="/chronos/engine", tags=["ChronOS Engine"])
 
 # Global engine instance backed by persistent MongoDB storage (memories via
@@ -162,6 +193,69 @@ async def get_providers() -> Dict[str, Any]:
     return {
         "active": engine_instance.llm_registry._active_provider_key,
         "available": engine_instance.llm_registry.list_providers(),
+    }
+
+
+@router.get("/threads")
+async def get_threads(user_id: str = "user_default") -> List[Dict[str, Any]]:
+    """List all temporal threads for a user, newest first."""
+    threads = await engine_instance.temporal_store.get_threads_by_user(user_id)
+    return [
+        {
+            "id": t.id,
+            "temporal_type": t.temporal_type.value if t.temporal_type else None,
+            "subject": t.subject,
+            "description": t.description,
+            "status": t.status.value,
+            "origin_memory_id": t.origin_memory_id,
+            "related_memory_ids": t.related_memory_ids,
+            "importance": t.importance,
+            "confidence": t.confidence,
+            "created_at": t.created_at.isoformat(),
+            "updated_at": t.updated_at.isoformat(),
+            "event_count": len(t.related_memory_ids),
+        }
+        for t in threads
+    ]
+
+
+@router.get("/threads/{thread_id}")
+async def get_thread(
+    thread_id: str,
+    user_id: str = "user_default",
+) -> Dict[str, Any]:
+    """Get a specific temporal thread with all its events."""
+    thread = await engine_instance.temporal_store.get_thread(thread_id, user_id)
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    events = await engine_instance.temporal_store.get_events_by_thread(thread_id, user_id)
+    return {
+        "id": thread.id,
+        "temporal_type": thread.temporal_type.value if thread.temporal_type else None,
+        "subject": thread.subject,
+        "description": thread.description,
+        "status": thread.status.value,
+        "origin_memory_id": thread.origin_memory_id,
+        "related_memory_ids": thread.related_memory_ids,
+        "importance": thread.importance,
+        "confidence": thread.confidence,
+        "created_at": thread.created_at.isoformat(),
+        "updated_at": thread.updated_at.isoformat(),
+        "event_count": len(events),
+        "events": [
+            {
+                "id": e.id,
+                "thread_id": e.thread_id,
+                "temporal_type": e.temporal_type.value if e.temporal_type else None,
+                "description": e.description,
+                "memory_id": e.memory_id,
+                "occurred_at": e.occurred_at.isoformat(),
+                "recorded_at": e.recorded_at.isoformat(),
+                "importance": e.importance,
+                "confidence": e.confidence,
+            }
+            for e in events
+        ],
     }
 
 

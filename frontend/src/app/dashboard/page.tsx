@@ -15,6 +15,7 @@ import {
   Sparkles,
   User,
   Mic,
+  GitBranch,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
@@ -26,6 +27,7 @@ import {
   PatternItem,
   ReflectionInsight,
   TimelineEvent,
+  TemporalThread,
 } from "@/lib/chronosApi";
 import { onboardingApi, type OnboardingStatusResponse } from "@/lib/onboardingApi";
 
@@ -37,13 +39,16 @@ import { TimelineEngineView } from "@/components/chronos/TimelineEngineView";
 import { ReflectionEngineView } from "@/components/chronos/ReflectionEngineView";
 import { PatternDetectionView } from "@/components/chronos/PatternDetectionView";
 import { MemoryGraphView } from "@/components/chronos/MemoryGraphView";
+import { TemporalThreadListView } from "@/components/chronos/TemporalThreadListView";
+import { TemporalThreadDetailView } from "@/components/chronos/TemporalThreadDetailView";
 
-type Tab = "overview" | "identity" | "timeline" | "reflections" | "patterns" | "memories";
+type Tab = "overview" | "identity" | "timeline" | "threads" | "reflections" | "patterns" | "memories";
 
 const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
   { key: "overview", label: "Overview", icon: Sparkles },
   { key: "identity", label: "Identity Model", icon: UserCheck },
   { key: "timeline", label: "Timeline", icon: Clock },
+  { key: "threads", label: "Threads", icon: GitBranch },
   { key: "reflections", label: "Reflections", icon: ArrowRightLeft },
   { key: "patterns", label: "Patterns", icon: Activity },
   { key: "memories", label: "Memories", icon: Database },
@@ -61,6 +66,8 @@ export default function DashboardPage() {
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
   const [reflections, setReflections] = useState<ReflectionInsight[]>([]);
   const [patterns, setPatterns] = useState<PatternItem[]>([]);
+  const [threads, setThreads] = useState<TemporalThread[]>([]);
+  const [selectedThread, setSelectedThread] = useState<TemporalThread | null>(null);
   const [isDataLoading, setIsDataLoading] = useState(false);
   const [onboarding, setOnboarding] = useState<OnboardingStatusResponse | null>(null);
 
@@ -69,12 +76,13 @@ export default function DashboardPage() {
   const loadEngineData = useCallback(async () => {
     setIsDataLoading(true);
     try {
-      const [id, mems, time, refs, pats] = await Promise.all([
+      const [id, mems, time, refs, pats, thrs] = await Promise.all([
         chronosApi.getIdentity(userId).catch(() => null),
         chronosApi.getMemories(userId),
         chronosApi.getTimeline(userId),
         chronosApi.getReflections(userId),
         chronosApi.getPatterns(userId),
+        chronosApi.getThreads(userId),
       ]);
 
       setIdentity(id);
@@ -82,6 +90,7 @@ export default function DashboardPage() {
       setTimeline(time);
       setReflections(refs);
       setPatterns(pats);
+      setThreads(thrs);
     } catch (e) {
       console.error("Error loading ChronOS Engine data:", e);
     } finally {
@@ -263,6 +272,21 @@ export default function DashboardPage() {
             {activeTab === "timeline" && (
               <div className="max-w-4xl mx-auto">
                 <TimelineEngineView events={timeline} />
+              </div>
+            )}
+            {activeTab === "threads" && (
+              <div className="max-w-4xl mx-auto">
+                {selectedThread ? (
+                  <TemporalThreadDetailView
+                    thread={selectedThread}
+                    onBack={() => setSelectedThread(null)}
+                  />
+                ) : (
+                  <TemporalThreadListView
+                    threads={threads}
+                    onSelectThread={setSelectedThread}
+                  />
+                )}
               </div>
             )}
             {activeTab === "reflections" && (

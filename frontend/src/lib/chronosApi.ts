@@ -84,6 +84,34 @@ export interface PatternItem {
   supporting_memory_ids: string[];
 }
 
+export interface TemporalEvent {
+  id: string;
+  thread_id?: string;
+  temporal_type?: string;
+  description: string;
+  memory_id?: string;
+  occurred_at: string;
+  recorded_at: string;
+  importance: number;
+  confidence: number;
+}
+
+export interface TemporalThread {
+  id: string;
+  temporal_type?: string;
+  subject: string;
+  description?: string;
+  status: string;
+  origin_memory_id?: string;
+  related_memory_ids: string[];
+  importance: number;
+  confidence: number;
+  created_at: string;
+  updated_at: string;
+  event_count: number;
+  events?: TemporalEvent[];
+}
+
 export interface ReasoningTrace {
   confidence_score: number;
   supporting_memory_ids: string[];
@@ -187,6 +215,18 @@ export const chronosApi = {
   async getPatterns(userId = "user_default"): Promise<PatternItem[]> {
     const res = await fetch(`${ENGINE_BASE}/patterns?user_id=${userId}`);
     if (!res.ok) return [];
+    return res.json();
+  },
+
+  async getThreads(userId = "user_default"): Promise<TemporalThread[]> {
+    const res = await fetch(`${ENGINE_BASE}/threads?user_id=${userId}`);
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async getThread(threadId: string, userId = "user_default"): Promise<TemporalThread> {
+    const res = await fetch(`${ENGINE_BASE}/threads/${threadId}?user_id=${userId}`);
+    if (!res.ok) throw new Error("Thread not found");
     return res.json();
   },
 
