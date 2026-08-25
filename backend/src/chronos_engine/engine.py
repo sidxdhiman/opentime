@@ -912,7 +912,7 @@ class ChronosEngine:
         elapsed_ms = round((time.time() - start_time) * 1000, 2)
         response_id = f"resp_{uuid.uuid4().hex[:12]}"
 
-        return EngineResponse(
+        response = EngineResponse(
             id=response_id,
             user_id=user_id,
             original_input=user_input,
@@ -930,6 +930,8 @@ class ChronosEngine:
             inference_policy=inference_policy_decision,
             processing_time_ms=elapsed_ms,
         )
+
+        return response
 
     # Direct query methods for ChronOS UI Dashboard
     async def get_memories(self, user_id: str, limit: int = 100) -> List[MemoryItem]:

@@ -186,6 +186,32 @@ class ValidationResult(BaseModel):
     personalization_score: float = 0.95
 
 
+class InteractionRecord(BaseModel):
+    """Lightweight persistence of one user→ChronOS interaction.
+
+    Stores only what is needed to reconstruct the conversation display on
+    reload. Internal reasoning, prompts, provider metadata, and full
+    ChronosState are intentionally excluded. Safe display fields from the
+    Past-Self moment are included so structured moments survive page refresh.
+    """
+
+    id: str
+    user_id: str
+    user_content: str = ""
+    input_type: str = "text"
+    final_response: str = ""
+    provider_name: str = ""
+    model_name: str = ""
+    processing_time_ms: float = 0.0
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    # Safe display fields from Past-Self moment (empty when no moment surfaced)
+    past_self_opening: str = ""
+    past_self_context: str = ""
+    past_self_bridge: str = ""
+    past_self_question: str = ""
+    past_self_reflection: str = ""
+
+
 class EngineResponse(BaseModel):
     id: str
     user_id: str

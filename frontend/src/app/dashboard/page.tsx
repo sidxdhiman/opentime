@@ -23,6 +23,7 @@ import {
   chronosApi,
   EngineResponse,
   IdentityProfile,
+  InteractionRecord,
   MemoryItem,
   PatternItem,
   ReflectionInsight,
@@ -61,6 +62,7 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
 
   const [latestResponse, setLatestResponse] = useState<EngineResponse | null>(null);
+  const [interactions, setInteractions] = useState<InteractionRecord[]>([]);
   const [identity, setIdentity] = useState<IdentityProfile | null>(null);
   const [memories, setMemories] = useState<MemoryItem[]>([]);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
@@ -76,13 +78,14 @@ export default function DashboardPage() {
   const loadEngineData = useCallback(async () => {
     setIsDataLoading(true);
     try {
-      const [id, mems, time, refs, pats, thrs] = await Promise.all([
+      const [id, mems, time, refs, pats, thrs, ints] = await Promise.all([
         chronosApi.getIdentity(userId).catch(() => null),
         chronosApi.getMemories(userId),
         chronosApi.getTimeline(userId),
         chronosApi.getReflections(userId),
         chronosApi.getPatterns(userId),
         chronosApi.getThreads(userId),
+        chronosApi.getInteractions(userId),
       ]);
 
       setIdentity(id);
@@ -91,6 +94,7 @@ export default function DashboardPage() {
       setReflections(refs);
       setPatterns(pats);
       setThreads(thrs);
+      setInteractions(ints);
     } catch (e) {
       console.error("Error loading ChronOS Engine data:", e);
     } finally {
@@ -248,7 +252,7 @@ export default function DashboardPage() {
           >
             <div className="lg:col-span-7 space-y-6">
               <VoiceVideoRecorder onResponseReceived={handleResponseReceived} userId={userId} />
-              <ChronosEngineFeed response={latestResponse} />
+              <ChronosEngineFeed interactions={interactions} latestResponse={latestResponse} />
             </div>
             <div className="lg:col-span-5 space-y-6">
               <IdentityModelCard identity={identity} onRefresh={loadEngineData} />

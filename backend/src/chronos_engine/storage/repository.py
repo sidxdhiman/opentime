@@ -3,6 +3,7 @@ from typing import Dict, List, Optional
 from chronos_engine.core.interfaces import BaseStorageAdapter, BaseTemporalStore
 from chronos_engine.core.models import (
     IdentityProfile,
+    InteractionRecord,
     MemoryItem,
     PatternItem,
     ReflectionInsight,
@@ -28,6 +29,7 @@ class InMemoryStorageAdapter(BaseStorageAdapter):
         self._identity: Dict[str, IdentityProfile] = {}
         self._reflections: Dict[str, List[ReflectionInsight]] = {}
         self._patterns: Dict[str, List[PatternItem]] = {}
+        self._interactions: Dict[str, List[InteractionRecord]] = {}
         self._lock = asyncio.Lock()
 
     async def save_memory(self, memory: MemoryItem) -> MemoryItem:
@@ -101,6 +103,24 @@ class InMemoryStorageAdapter(BaseStorageAdapter):
         async with self._lock:
             patterns = self._patterns.get(user_id, [])
             return sorted(patterns, key=lambda p: p.confidence_score, reverse=True)
+
+    async def save_interaction(self, record: InteractionRecord) -> InteractionRecord:
+        async with self._lock:
+            user_list = self._interactions.setdefault(record.user_id, [])
+            for idx, item in enumerate(user_list):
+                if item.id == record.id:
+                    user_list[idx] = record
+                    return record
+            user_list.append(record)
+            return record
+
+    async def get_interactions_by_user(
+        self, user_id: str, limit: int = 50
+    ) -> List[InteractionRecord]:
+        async with self._lock:
+            items = self._interactions.get(user_id, [])
+            sorted_items = sorted(items, key=lambda r: r.created_at, reverse=True)
+            return sorted_items[:limit]
 
 
 class InMemoryTemporalStore(BaseTemporalStore):

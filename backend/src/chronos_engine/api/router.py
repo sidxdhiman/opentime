@@ -1,3 +1,4 @@
+import logging
 import re
 import uuid
 from pathlib import Path
@@ -6,9 +7,12 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel
 
+from chronos_engine.core.models import EngineResponse, InteractionRecord
 from chronos_engine.engine import ChronosEngine
 from chronos_engine.storage.mongo_repository import MongoStorageAdapter, MongoTemporalStore
 from opentime.infrastructure.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 # Temporal thread/event response models (subset of the full domain models,
 # safe for API exposure — internal IDs like user_id are omitted).
@@ -80,6 +84,54 @@ async def _persist_media(user_id: str, file_name: str, media_bytes: bytes) -> Op
     return f"/uploads/{user_id}/{safe_name}"
 
 
+async def _persist_interaction(
+    response: EngineResponse,
+    storage=None,
+) -> None:
+    """Persist a lightweight InteractionRecord for conversation history.
+
+    This lives at the API/application boundary — the ChronOS engine itself
+    has no knowledge of conversation-history persistence.  A failure here
+    must never break a successful engine response.
+    """
+    try:
+        chronos = response.chronos_state
+        psc = chronos.past_self_conversation if chronos else None
+        refl_text = ""
+        if chronos and chronos.temporal_reflection:
+            tr = chronos.temporal_reflection
+            if tr.used and tr.success and tr.reflection.strip():
+                refl_text = tr.reflection.strip()
+        record = InteractionRecord(
+            id=response.id,
+            user_id=response.user_id,
+            user_content=response.original_input.content or "",
+            input_type=(
+                response.original_input.input_type.value
+                if hasattr(response.original_input.input_type, "value")
+                else str(response.original_input.input_type)
+            ),
+            final_response=response.final_response,
+            provider_name=response.provider_name,
+            model_name=response.model_name,
+            processing_time_ms=response.processing_time_ms,
+            past_self_opening=psc.opening if psc and psc.should_surface else "",
+            past_self_context=psc.context if psc and psc.should_surface else "",
+            past_self_bridge=psc.bridge if psc and psc.should_surface else "",
+            past_self_question=psc.question if psc and psc.should_surface else "",
+            past_self_reflection=refl_text,
+        )
+        target_storage = storage or engine_instance.storage
+        await target_storage.save_interaction(record)
+    except Exception:
+        logger.warning(
+            "Failed to persist interaction for user=%s response=%s",
+            response.user_id,
+            response.id,
+            exc_info=True,
+        )
+
+
 class ProcessInputRequest(BaseModel):
     user_id: str = "user_default"
     content: Optional[str] = None
@@ -130,6 +182,7 @@ async def process_input(
             provider_key=provider_key,
             model_name=model_name,
         )
+        await _persist_interaction(response)
         return response.model_dump()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"ChronOS Engine Error: {str(e)}")
@@ -148,6 +201,7 @@ async def process_input_json(payload: ProcessInputRequest) -> Dict[str, Any]:
             provider_key=payload.provider_key,
             model_name=payload.model_name,
         )
+        await _persist_interaction(response)
         return response.model_dump()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"ChronOS Engine Error: {str(e)}")
@@ -194,6 +248,34 @@ async def get_providers() -> Dict[str, Any]:
         "active": engine_instance.llm_registry._active_provider_key,
         "available": engine_instance.llm_registry.list_providers(),
     }
+
+
+@router.get("/interactions")
+async def get_interactions(
+    user_id: str = "user_default", limit: int = 20
+) -> List[Dict[str, Any]]:
+    """Recent ChronOS interactions for conversation history."""
+    records = await engine_instance.storage.get_interactions_by_user(
+        user_id, limit=limit
+    )
+    return [
+        {
+            "id": r.id,
+            "user_content": r.user_content,
+            "input_type": r.input_type,
+            "final_response": r.final_response,
+            "provider_name": r.provider_name,
+            "model_name": r.model_name,
+            "processing_time_ms": r.processing_time_ms,
+            "created_at": r.created_at.isoformat(),
+            "past_self_opening": r.past_self_opening,
+            "past_self_context": r.past_self_context,
+            "past_self_bridge": r.past_self_bridge,
+            "past_self_question": r.past_self_question,
+            "past_self_reflection": r.past_self_reflection,
+        }
+        for r in records
+    ]
 
 
 @router.get("/threads")

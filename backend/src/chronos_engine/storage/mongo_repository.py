@@ -19,6 +19,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from chronos_engine.core.interfaces import BaseStorageAdapter, BaseTemporalStore
 from chronos_engine.core.models import (
     IdentityProfile,
+    InteractionRecord,
     MemoryItem,
     PatternItem,
     ReflectionInsight,
@@ -135,6 +136,28 @@ class MongoStorageAdapter(BaseStorageAdapter):
             .sort("confidence_score", -1)
         )
         return [PatternItem(**d) async for d in cursor]
+
+    # ── Interactions ─────────────────────────────────────────────────────
+
+    async def save_interaction(self, record: InteractionRecord) -> InteractionRecord:
+        db = await self._db()
+        doc = record.model_dump(mode="json")
+        await db["engine_interactions"].replace_one(
+            {"id": record.id, "user_id": record.user_id}, doc, upsert=True
+        )
+        return record
+
+    async def get_interactions_by_user(
+        self, user_id: str, limit: int = 50
+    ) -> List[InteractionRecord]:
+        db = await self._db()
+        cursor = (
+            db["engine_interactions"]
+            .find({"user_id": user_id})
+            .sort("created_at", -1)
+            .limit(limit)
+        )
+        return [InteractionRecord(**d) async for d in cursor]
 
 
 class MongoTemporalStore(BaseTemporalStore):

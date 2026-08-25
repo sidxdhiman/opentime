@@ -150,6 +150,22 @@ export interface ChronosState {
   temporal_reflection?: TemporalReflection;
 }
 
+export interface InteractionRecord {
+  id: string;
+  user_content: string;
+  input_type: string;
+  final_response: string;
+  provider_name: string;
+  model_name: string;
+  processing_time_ms: number;
+  created_at: string;
+  past_self_opening?: string;
+  past_self_context?: string;
+  past_self_bridge?: string;
+  past_self_question?: string;
+  past_self_reflection?: string;
+}
+
 export interface EngineResponse {
   id: string;
   user_id: string;
@@ -237,6 +253,12 @@ export const chronosApi = {
 
   async getPatterns(userId = "user_default"): Promise<PatternItem[]> {
     const res = await fetch(`${ENGINE_BASE}/patterns?user_id=${userId}`);
+    if (!res.ok) return [];
+    return res.json();
+  },
+
+  async getInteractions(userId = "user_default", limit = 20): Promise<InteractionRecord[]> {
+    const res = await fetch(`${ENGINE_BASE}/interactions?user_id=${userId}&limit=${limit}`);
     if (!res.ok) return [];
     return res.json();
   },

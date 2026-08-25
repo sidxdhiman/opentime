@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Optional
 from chronos_engine.core.models import (
     EngineResponse,
     IdentityProfile,
+    InteractionRecord,
     MemoryItem,
     PatternItem,
     PromptContext,
@@ -394,6 +395,16 @@ class BaseStorageAdapter(ABC):
 
     @abstractmethod
     async def get_patterns_by_user(self, user_id: str) -> List[PatternItem]:
+        pass
+
+    @abstractmethod
+    async def save_interaction(self, record: "InteractionRecord") -> "InteractionRecord":
+        pass
+
+    @abstractmethod
+    async def get_interactions_by_user(
+        self, user_id: str, limit: int = 50
+    ) -> List["InteractionRecord"]:
         pass
 
 
