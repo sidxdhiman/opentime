@@ -65,14 +65,17 @@ export default function DashboardPage() {
   const [threads, setThreads] = useState<TemporalThread[]>([]);
   const [selectedThread, setSelectedThread] = useState<TemporalThread | null>(null);
   const [activeThread, setActiveThread] = useState<TemporalThread | null>(null);
-  const [isDataLoading, setIsDataLoading] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [isThinking, setIsThinking] = useState(false);
   const [onboarding, setOnboarding] = useState<OnboardingStatusResponse | null>(null);
+
+  // Track which tabs have been loaded for lazy loading
+  const [loadedTabs, setLoadedTabs] = useState<Set<Tab>>(new Set(["overview"]));
 
   const userId = user?.id || "user_default";
 
-  const loadEngineData = useCallback(async () => {
-    setIsDataLoading(true);
+  // ── Full data load (initial page load only) ────────────────────────────
+  const loadAllData = useCallback(async () => {
     try {
       const [id, mems, time, refs, pats, thrs, ints] = await Promise.all([
         chronosApi.getIdentity(userId).catch(() => null),
@@ -94,8 +97,67 @@ export default function DashboardPage() {
     } catch (e) {
       console.error("Error loading ChronOS Engine data:", e);
     } finally {
-      setIsDataLoading(false);
       setIsInitialLoad(false);
+    }
+  }, [userId]);
+
+  // ── Targeted refresh functions (post-message, per-collection) ──────────
+  const refreshInteractions = useCallback(async () => {
+    try {
+      const ints = await chronosApi.getInteractions(userId);
+      setInteractions(ints);
+    } catch (e) {
+      console.error("Error refreshing interactions:", e);
+    }
+  }, [userId]);
+
+  const refreshThreads = useCallback(async () => {
+    try {
+      const thrs = await chronosApi.getThreads(userId);
+      setThreads(thrs);
+    } catch (e) {
+      console.error("Error refreshing threads:", e);
+    }
+  }, [userId]);
+
+  const refreshIdentity = useCallback(async () => {
+    try {
+      const id = await chronosApi.getIdentity(userId);
+      setIdentity(id);
+    } catch (e) {
+      console.error("Error refreshing identity:", e);
+    }
+  }, [userId]);
+
+  const refreshMemories = useCallback(async () => {
+    try {
+      setMemories(await chronosApi.getMemories(userId));
+    } catch (e) {
+      console.error("Error refreshing memories:", e);
+    }
+  }, [userId]);
+
+  const refreshTimeline = useCallback(async () => {
+    try {
+      setTimeline(await chronosApi.getTimeline(userId));
+    } catch (e) {
+      console.error("Error refreshing timeline:", e);
+    }
+  }, [userId]);
+
+  const refreshReflections = useCallback(async () => {
+    try {
+      setReflections(await chronosApi.getReflections(userId));
+    } catch (e) {
+      console.error("Error refreshing reflections:", e);
+    }
+  }, [userId]);
+
+  const refreshPatterns = useCallback(async () => {
+    try {
+      setPatterns(await chronosApi.getPatterns(userId));
+    } catch (e) {
+      console.error("Error refreshing patterns:", e);
     }
   }, [userId]);
 
@@ -107,18 +169,69 @@ export default function DashboardPage() {
     }
   }, []);
 
+  // ── Initial load ───────────────────────────────────────────────────────
   useEffect(() => {
     if (!isLoading && !user) {
       router.push("/login");
     } else if (user) {
-      loadEngineData();
+      loadAllData();
       checkOnboarding();
     }
-  }, [user, isLoading, router, loadEngineData, checkOnboarding]);
+  }, [user, isLoading, router, loadAllData, checkOnboarding]);
 
+  // ── Tab switch: lazy-load data for newly opened tabs ───────────────────
+  useEffect(() => {
+    if (isInitialLoad) return;
+
+    // Each tab has data that may not have been fetched yet.
+    // Only fetch when the tab is first opened.
+    const tabDataLoaders: Partial<Record<Tab, () => Promise<void>>> = {
+      timeline: refreshTimeline,
+      insights: async () => {
+        await Promise.all([refreshReflections(), refreshPatterns()]);
+      },
+      memories: refreshMemories,
+    };
+
+    if (!loadedTabs.has(activeTab) && tabDataLoaders[activeTab]) {
+      setLoadedTabs((prev) => new Set(prev).add(activeTab));
+      tabDataLoaders[activeTab]();
+    }
+  }, [activeTab, isInitialLoad, loadedTabs, refreshTimeline, refreshReflections, refreshPatterns, refreshMemories]);
+
+  // ── Message submission: targeted state update instead of full reload ────
   const handleResponseReceived = async (response: EngineResponse) => {
     setLatestResponse(response);
-    await loadEngineData();
+    setIsThinking(false);
+
+    // Update stats: conversations always increments
+    // Stories: conditionally refresh if temporal lifecycle indicates activity
+    const hasTemporalActivity =
+      response.chronos_state?.temporal_lifecycle &&
+      (response.chronos_state.temporal_lifecycle.created ||
+        response.chronos_state.temporal_lifecycle.updated);
+
+    // Targeted refresh: only what may have changed
+    const refreshes: Promise<void>[] = [];
+
+    // Identity always changes (evolves every message)
+    refreshes.push(refreshIdentity());
+
+    // Threads: refresh if temporal activity was detected
+    if (hasTemporalActivity) {
+      refreshes.push(refreshThreads());
+    }
+
+    // Interactions: not needed immediately — the response is already displayed
+    // via latestResponse, and the full list will be used when the feed re-renders.
+    // However, for stats accuracy (conversation count), refresh in background.
+    refreshes.push(refreshInteractions().catch(() => {}));
+
+    // Do NOT refresh: memories, timeline, reflections, patterns
+    // These are either deferred to their tab or not per-message mutations.
+
+    // Run targeted refreshes in parallel; conversation is already visible
+    await Promise.allSettled(refreshes);
   };
 
   const handleContinueStory = (thread: TemporalThread) => {
@@ -141,7 +254,7 @@ export default function DashboardPage() {
   const firstName = user.full_name?.split(" ")[0] ?? user.email;
   const engineStats = [
     { value: threads.length, label: "Stories" },
-    { value: interactions.length, label: "Conversations" },
+    { value: interactions.length + (latestResponse ? 1 : 0), label: "Conversations" },
     { value: memories.length, label: "Memories" },
   ];
 
@@ -266,13 +379,15 @@ export default function DashboardPage() {
               )}
               <VoiceVideoRecorder
                 onResponseReceived={handleResponseReceived}
+                onThinkingStart={() => setIsThinking(true)}
+                onThinkingEnd={() => setIsThinking(false)}
                 userId={userId}
                 activeThread={activeThread}
               />
-              <ChronosEngineFeed interactions={interactions} latestResponse={latestResponse} />
+              <ChronosEngineFeed interactions={interactions} latestResponse={latestResponse} isThinking={isThinking} />
             </div>
             <div className="lg:col-span-5 space-y-6">
-              <IdentityModelCard identity={identity} onRefresh={loadEngineData} />
+              <IdentityModelCard identity={identity} onRefresh={refreshIdentity} />
               <ReflectionEngineView reflections={reflections.slice(0, 2)} />
             </div>
               </div>

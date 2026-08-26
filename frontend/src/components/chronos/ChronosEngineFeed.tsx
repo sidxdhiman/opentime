@@ -18,9 +18,10 @@ import { PastSelfMomentCard } from "./PastSelfMomentCard";
 interface ChronosEngineFeedProps {
   interactions: InteractionRecord[];
   latestResponse: EngineResponse | null;
+  isThinking?: boolean;
 }
 
-export function ChronosEngineFeed({ interactions, latestResponse }: ChronosEngineFeedProps) {
+export function ChronosEngineFeed({ interactions, latestResponse, isThinking }: ChronosEngineFeedProps) {
   const [showExplainabilityModal, setShowExplainabilityModal] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -61,6 +62,9 @@ export function ChronosEngineFeed({ interactions, latestResponse }: ChronosEngin
 
       {/* Current session response — full experience with explainability */}
       {hasLatest && <LatestResponseBlock response={latestResponse!} onExplain={() => setShowExplainabilityModal(true)} />}
+
+      {/* Thinking bubble — shown while ChronOS is processing a new message */}
+      {isThinking && <ThinkingBubble />}
 
       <div ref={bottomRef} />
 
@@ -317,6 +321,26 @@ function ExplainabilityModal({
           <Button variant="outline" onClick={onClose}>
             Close
           </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Thinking bubble ───────────────────────────────────────────────────── */
+
+function ThinkingBubble() {
+  return (
+    <div className="flex justify-start">
+      <div className="max-w-[85%] rounded-2xl rounded-bl-md border border-border bg-card px-4 py-3">
+        <div className="mb-1.5 flex items-center gap-1.5">
+          <Brain className="h-3 w-3 text-muted" />
+          <span className="text-[10px] font-medium text-muted">ChronOS</span>
+        </div>
+        <div className="flex items-center gap-1.5 py-1">
+          <span className="h-2 w-2 animate-bounce rounded-full bg-muted/60 [animation-delay:0ms]" />
+          <span className="h-2 w-2 animate-bounce rounded-full bg-muted/60 [animation-delay:150ms]" />
+          <span className="h-2 w-2 animate-bounce rounded-full bg-muted/60 [animation-delay:300ms]" />
         </div>
       </div>
     </div>

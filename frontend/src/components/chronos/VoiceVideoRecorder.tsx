@@ -19,12 +19,16 @@ import { chronosApi, EngineResponse, TemporalThread } from "@/lib/chronosApi";
 
 interface VoiceVideoRecorderProps {
   onResponseReceived: (response: EngineResponse) => void;
+  onThinkingStart?: () => void;
+  onThinkingEnd?: () => void;
   userId?: string;
   activeThread?: TemporalThread | null;
 }
 
 export function VoiceVideoRecorder({
   onResponseReceived,
+  onThinkingStart,
+  onThinkingEnd,
   userId = "user_default",
   activeThread,
 }: VoiceVideoRecorderProps) {
@@ -172,6 +176,7 @@ export function VoiceVideoRecorder({
   const handleSubmit = async () => {
     setIsProcessing(true);
     setError(null);
+    onThinkingStart?.();
 
     try {
       const formData = new FormData();
@@ -228,6 +233,7 @@ export function VoiceVideoRecorder({
       setUploadedFile(null);
     } catch (err: any) {
       setError(err.message || "Failed to process input through ChronOS Engine");
+      onThinkingEnd?.();
     } finally {
       setIsProcessing(false);
     }

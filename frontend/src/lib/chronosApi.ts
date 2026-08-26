@@ -145,9 +145,23 @@ export interface TemporalReflection {
   reflection: string;
 }
 
+export interface TemporalLifecycleResult {
+  attempted: boolean;
+  created: boolean;
+  updated: boolean;
+  persisted: boolean;
+  thread_id?: string;
+  event_id?: string;
+  thread_subject?: string;
+  previous_status?: string;
+  current_status?: string;
+  transitioned: boolean;
+}
+
 export interface ChronosState {
   past_self_conversation?: PastSelfMoment;
   temporal_reflection?: TemporalReflection;
+  temporal_lifecycle?: TemporalLifecycleResult;
 }
 
 export interface ActiveTemporalEvent {
