@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { ReflectionInsight } from "@/lib/chronosApi";
+import { EmptyState } from "./EmptyState";
 
 interface ReflectionEngineViewProps {
   reflections: ReflectionInsight[];
@@ -22,9 +23,11 @@ export function ReflectionEngineView({ reflections }: ReflectionEngineViewProps)
 
   if (!reflections || reflections.length === 0) {
     return (
-      <Card className="p-8 text-center text-sm text-muted">
-        No reflections yet. Keep sharing and ChronOS will quietly notice how you change.
-      </Card>
+      <EmptyState
+        icon={ArrowRightLeft}
+        title="No reflections yet"
+        description="Keep sharing and ChronOS will quietly notice how you change."
+      />
     );
   }
 

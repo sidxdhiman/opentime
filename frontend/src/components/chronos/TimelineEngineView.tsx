@@ -4,6 +4,8 @@ import React from "react";
 import { Clock, Repeat, Smile, Meh, Frown, Sparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { TimelineEvent } from "@/lib/chronosApi";
+import { formatDate } from "@/lib/chronosConstants";
+import { EmptyState } from "./EmptyState";
 
 interface TimelineEngineViewProps {
   events: TimelineEvent[];
@@ -12,9 +14,11 @@ interface TimelineEngineViewProps {
 export function TimelineEngineView({ events }: TimelineEngineViewProps) {
   if (!events || events.length === 0) {
     return (
-      <Card className="p-8 text-center text-sm text-muted">
-        Your timeline is quiet for now. Share a memory and it will appear here.
-      </Card>
+      <EmptyState
+        icon={Clock}
+        title="Your timeline is quiet"
+        description="Share a memory and it will appear here as part of your life story."
+      />
     );
   }
 
@@ -62,11 +66,7 @@ export function TimelineEngineView({ events }: TimelineEngineViewProps) {
                   </div>
                   <div className="flex items-center gap-2 text-[11px] tabular-nums text-muted">
                     {getSentimentIcon(event.sentiment)}
-                    {new Date(event.timestamp).toLocaleDateString(undefined, {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                    })}
+                    {formatDate(event.timestamp)}
                   </div>
                 </div>
 

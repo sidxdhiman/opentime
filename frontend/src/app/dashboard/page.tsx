@@ -6,19 +6,13 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   Cpu,
-  UserCheck,
   Clock,
-  ArrowRightLeft,
   Activity,
   Database,
-  RefreshCw,
   Sparkles,
-  User,
-  Mic,
   GitBranch,
-  Compass,
+  X,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import {
   chronosApi,
@@ -41,25 +35,22 @@ import { TimelineEngineView } from "@/components/chronos/TimelineEngineView";
 import { ReflectionEngineView } from "@/components/chronos/ReflectionEngineView";
 import { PatternDetectionView } from "@/components/chronos/PatternDetectionView";
 import { MemoryGraphView } from "@/components/chronos/MemoryGraphView";
-import { TemporalThreadListView } from "@/components/chronos/TemporalThreadListView";
 import { TemporalThreadDetailView } from "@/components/chronos/TemporalThreadDetailView";
 import { JourneyView } from "@/components/chronos/JourneyView";
+import { OverviewSkeleton } from "@/components/chronos/OverviewSkeleton";
 
-type Tab = "overview" | "journey" | "identity" | "timeline" | "threads" | "reflections" | "patterns" | "memories";
+type Tab = "overview" | "stories" | "timeline" | "insights" | "memories";
 
 const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
-  { key: "overview", label: "Overview", icon: Sparkles },
-  { key: "journey", label: "Journey", icon: Compass },
-  { key: "identity", label: "Identity Model", icon: UserCheck },
+  { key: "overview", label: "Home", icon: Sparkles },
+  { key: "stories", label: "Stories", icon: GitBranch },
   { key: "timeline", label: "Timeline", icon: Clock },
-  { key: "threads", label: "Threads", icon: GitBranch },
-  { key: "reflections", label: "Reflections", icon: ArrowRightLeft },
-  { key: "patterns", label: "Patterns", icon: Activity },
+  { key: "insights", label: "Insights", icon: Activity },
   { key: "memories", label: "Memories", icon: Database },
 ];
 
 export default function DashboardPage() {
-  const { user, isLoading, logout } = useAuth();
+  const { user, isLoading } = useAuth();
   const router = useRouter();
 
   const [activeTab, setActiveTab] = useState<Tab>("overview");
@@ -75,6 +66,7 @@ export default function DashboardPage() {
   const [selectedThread, setSelectedThread] = useState<TemporalThread | null>(null);
   const [activeThread, setActiveThread] = useState<TemporalThread | null>(null);
   const [isDataLoading, setIsDataLoading] = useState(false);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [onboarding, setOnboarding] = useState<OnboardingStatusResponse | null>(null);
 
   const userId = user?.id || "user_default";
@@ -103,6 +95,7 @@ export default function DashboardPage() {
       console.error("Error loading ChronOS Engine data:", e);
     } finally {
       setIsDataLoading(false);
+      setIsInitialLoad(false);
     }
   }, [userId]);
 
@@ -147,9 +140,9 @@ export default function DashboardPage() {
 
   const firstName = user.full_name?.split(" ")[0] ?? user.email;
   const engineStats = [
+    { value: threads.length, label: "Stories" },
+    { value: interactions.length, label: "Conversations" },
     { value: memories.length, label: "Memories" },
-    { value: timeline.length, label: "Events" },
-    { value: reflections.length, label: "Reflections" },
   ];
 
   return (
@@ -173,22 +166,13 @@ export default function DashboardPage() {
 
           <div className="flex items-center gap-1.5">
             <Link href="/me">
-              <Button variant="ghost" size="sm" className="h-8 text-xs text-muted hover:text-foreground gap-1.5">
-                <User className="h-3.5 w-3.5" /> Me
-              </Button>
+              <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-muted transition-colors hover:text-foreground hover:bg-secondary/60">
+                <div className="h-7 w-7 rounded-full bg-accent flex items-center justify-center text-xs font-medium text-accent-foreground">
+                  {firstName[0]?.toUpperCase() || "U"}
+                </div>
+                <span className="text-xs font-medium hidden sm:inline">{firstName}</span>
+              </button>
             </Link>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={loadEngineData}
-              disabled={isDataLoading}
-              className="h-8 text-xs text-muted hover:text-foreground gap-1.5"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${isDataLoading ? "animate-spin" : ""}`} /> Refresh
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => logout()} className="h-8 text-xs text-muted hover:text-destructive hover:bg-destructive/10">
-              Sign out
-            </Button>
           </div>
         </div>
       </header>
@@ -218,7 +202,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex items-center gap-6 rounded-2xl border border-border bg-card px-5 py-4 shadow-card">
-            <Mic className="h-5 w-5 text-accent-foreground" />
+            <GitBranch className="h-5 w-5 text-accent-foreground" />
             {engineStats.map((s, i) => (
               <React.Fragment key={s.label}>
                 {i > 0 && <span className="h-8 w-px bg-border" aria-hidden />}
@@ -251,21 +235,39 @@ export default function DashboardPage() {
           ))}
         </nav>
 
-        {/* TAB 1: OVERVIEW */}
+        {/* TAB: HOME (Overview + Conversation) */}
         {activeTab === "overview" && (
           <motion.div
             key="overview"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, ease: "easeOut" }}
-            className="grid grid-cols-1 lg:grid-cols-12 gap-8"
           >
+            {isInitialLoad ? (
+              <OverviewSkeleton />
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             <div className="lg:col-span-7 space-y-6">
+              {activeThread && (
+                <div className="flex items-center gap-3 rounded-xl border border-accent/30 bg-accent/5 px-4 py-3">
+                  <GitBranch className="h-4 w-4 shrink-0 text-accent-foreground" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] font-medium uppercase tracking-wider text-muted">Continuing story</p>
+                    <p className="text-sm font-medium text-foreground truncate">{activeThread.subject}</p>
+                  </div>
+                  <button
+                    onClick={() => setActiveThread(null)}
+                    className="shrink-0 rounded-full p-1 text-muted transition-colors hover:text-foreground"
+                    aria-label="Clear active story"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
               <VoiceVideoRecorder
                 onResponseReceived={handleResponseReceived}
                 userId={userId}
                 activeThread={activeThread}
-                onClearActiveThread={() => setActiveThread(null)}
               />
               <ChronosEngineFeed interactions={interactions} latestResponse={latestResponse} />
             </div>
@@ -273,82 +275,81 @@ export default function DashboardPage() {
               <IdentityModelCard identity={identity} onRefresh={loadEngineData} />
               <ReflectionEngineView reflections={reflections.slice(0, 2)} />
             </div>
+              </div>
+            )}
           </motion.div>
         )}
 
-        {activeTab !== "overview" && (
+        {/* TAB: STORIES (Journey + Thread detail) */}
+        {activeTab === "stories" && (
           <motion.div
-            key={activeTab}
+            key="stories"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, ease: "easeOut" }}
+            className="max-w-4xl mx-auto"
           >
-            {activeTab === "journey" && (
-              <div className="max-w-4xl mx-auto">
-                {selectedThread ? (
-                  <TemporalThreadDetailView
-                    thread={selectedThread}
-                    onBack={() => setSelectedThread(null)}
-                    onContinueStory={handleContinueStory}
-                  />
-                ) : (
-                  <JourneyView
-                    threads={threads}
-                    userId={userId}
-                    onSelectThread={setSelectedThread}
-                  />
-                )}
-              </div>
+            {selectedThread ? (
+              <TemporalThreadDetailView
+                thread={selectedThread}
+                onBack={() => setSelectedThread(null)}
+                onContinueStory={handleContinueStory}
+              />
+            ) : (
+              <JourneyView
+                threads={threads}
+                userId={userId}
+                onSelectThread={setSelectedThread}
+              />
             )}
-            {activeTab === "identity" && (
-              <div className="max-w-4xl mx-auto">
-                <IdentityModelCard identity={identity} onRefresh={loadEngineData} />
-              </div>
-            )}
-            {activeTab === "timeline" && (
-              <div className="max-w-4xl mx-auto">
-                <TimelineEngineView events={timeline} />
-              </div>
-            )}
-            {activeTab === "threads" && (
-              <div className="max-w-4xl mx-auto">
-                {selectedThread ? (
-                  <TemporalThreadDetailView
-                    thread={selectedThread}
-                    onBack={() => setSelectedThread(null)}
-                    onContinueStory={handleContinueStory}
-                  />
-                ) : (
-                  <TemporalThreadListView
-                    threads={threads}
-                    onSelectThread={setSelectedThread}
-                  />
-                )}
-              </div>
-            )}
-            {activeTab === "reflections" && (
-              <div className="max-w-4xl mx-auto">
-                <ReflectionEngineView reflections={reflections} />
-              </div>
-            )}
-            {activeTab === "patterns" && (
-              <div className="max-w-4xl mx-auto">
-                <PatternDetectionView patterns={patterns} />
-              </div>
-            )}
-            {activeTab === "memories" && (
-              <div className="max-w-4xl mx-auto">
-                <MemoryGraphView memories={memories} />
-              </div>
-            )}
+          </motion.div>
+        )}
+
+        {/* TAB: TIMELINE */}
+        {activeTab === "timeline" && (
+          <motion.div
+            key="timeline"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            className="max-w-4xl mx-auto"
+          >
+            <TimelineEngineView events={timeline} />
+          </motion.div>
+        )}
+
+        {/* TAB: INSIGHTS (Reflections + Patterns) */}
+        {activeTab === "insights" && (
+          <motion.div
+            key="insights"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            className="max-w-4xl mx-auto space-y-6"
+          >
+            <ReflectionEngineView reflections={reflections} />
+            <PatternDetectionView patterns={patterns} />
+          </motion.div>
+        )}
+
+        {/* TAB: MEMORIES */}
+        {activeTab === "memories" && (
+          <motion.div
+            key="memories"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            className="max-w-4xl mx-auto"
+          >
+            <MemoryGraphView memories={memories} />
           </motion.div>
         )}
       </main>
 
       <footer className="border-t border-border/60 py-6 text-center text-xs text-muted">
-        OpenTime ChronOS Engine
+        OpenTime
         <span className="mx-2 text-border" aria-hidden>/</span>
-        All data belongs to user
+        All data belongs to you
       </footer>
     </div>
   );

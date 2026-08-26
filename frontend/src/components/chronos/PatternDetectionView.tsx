@@ -4,6 +4,7 @@ import React from "react";
 import { Activity, Repeat, AlertTriangle, Trophy, TrendingUp, RefreshCcw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { PatternItem } from "@/lib/chronosApi";
+import { EmptyState } from "./EmptyState";
 
 interface PatternDetectionViewProps {
   patterns: PatternItem[];
@@ -12,9 +13,11 @@ interface PatternDetectionViewProps {
 export function PatternDetectionView({ patterns }: PatternDetectionViewProps) {
   if (!patterns || patterns.length === 0) {
     return (
-      <Card className="p-8 text-center text-sm text-muted">
-        No patterns noticed yet. As you share more of your days, recurring habits will surface gently.
-      </Card>
+      <EmptyState
+        icon={Activity}
+        title="No patterns yet"
+        description="As you share more of your days, recurring habits and trends will surface gently."
+      />
     );
   }
 

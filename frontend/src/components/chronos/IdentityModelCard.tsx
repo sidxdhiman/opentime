@@ -4,6 +4,8 @@ import React from "react";
 import { UserCheck, Target, Sparkles, Award, RefreshCw, MessageSquare } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { IdentityProfile } from "@/lib/chronosApi";
+import { formatDate } from "@/lib/chronosConstants";
+import { EmptyState } from "./EmptyState";
 
 interface IdentityModelCardProps {
   identity: IdentityProfile | null;
@@ -13,9 +15,11 @@ interface IdentityModelCardProps {
 export function IdentityModelCard({ identity, onRefresh }: IdentityModelCardProps) {
   if (!identity) {
     return (
-      <Card className="p-6 text-center text-sm text-muted">
-        Building your identity model...
-      </Card>
+      <EmptyState
+        icon={UserCheck}
+        title="Building your identity model"
+        description="Share a few thoughts and ChronOS will build a portrait of who you are."
+      />
     );
   }
 
@@ -41,7 +45,7 @@ export function IdentityModelCard({ identity, onRefresh }: IdentityModelCardProp
           <div>
             <h3 className="text-[15px] font-semibold">Identity model</h3>
             <p className="text-xs text-muted">
-              Version {version}, updated {new Date(last_updated).toLocaleDateString()}
+              Version {version}, updated {formatDate(last_updated)}
             </p>
           </div>
         </div>

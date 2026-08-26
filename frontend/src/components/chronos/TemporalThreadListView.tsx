@@ -5,6 +5,7 @@ import { GitBranch, ChevronRight, Circle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { TemporalThread } from "@/lib/chronosApi";
 import { STATUS_STYLES, TYPE_LABELS, formatDate } from "@/lib/chronosConstants";
+import { EmptyState } from "./EmptyState";
 
 interface TemporalThreadListViewProps {
   threads: TemporalThread[];
@@ -14,9 +15,11 @@ interface TemporalThreadListViewProps {
 export function TemporalThreadListView({ threads, onSelectThread }: TemporalThreadListViewProps) {
   if (!threads || threads.length === 0) {
     return (
-      <Card className="p-8 text-center text-sm text-muted">
-        No threads yet. ChronOS will start tracking stories as you share meaningful moments over time.
-      </Card>
+      <EmptyState
+        icon={GitBranch}
+        title="No stories yet"
+        description="ChronOS will start tracking stories as you share meaningful moments over time."
+      />
     );
   }
 

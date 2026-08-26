@@ -4,6 +4,8 @@ import React, { useState } from "react";
 import { Database, Search, Link2, FileText, Mic, Video } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { chronosApi, MemoryItem } from "@/lib/chronosApi";
+import { formatDate } from "@/lib/chronosConstants";
+import { EmptyState } from "./EmptyState";
 
 interface MemoryGraphViewProps {
   memories: MemoryItem[];
@@ -76,8 +78,14 @@ export function MemoryGraphView({ memories }: MemoryGraphViewProps) {
       </div>
 
       <CardContent className="p-6">
-        {filteredMemories.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted">Nothing here yet.</p>
+        {filteredMemories.length === 0 && searchQuery ? (
+          <p className="py-6 text-center text-sm text-muted">No memories match your search.</p>
+        ) : filteredMemories.length === 0 ? (
+          <EmptyState
+            icon={Database}
+            title="No memories yet"
+            description="Everything you share will appear here, in your own words."
+          />
         ) : (
           <div className="max-h-[420px] space-y-3 overflow-y-auto pr-1">
             {filteredMemories.map((mem) => (
@@ -93,11 +101,7 @@ export function MemoryGraphView({ memories }: MemoryGraphViewProps) {
                     <span>Importance {(mem.importance_score * 100).toFixed(0)}%</span>
                   </div>
                   <span className="text-[11px] tabular-nums text-muted">
-                    {new Date(mem.timestamp).toLocaleDateString(undefined, {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                    })}
+                    {formatDate(mem.timestamp)}
                   </span>
                 </div>
 

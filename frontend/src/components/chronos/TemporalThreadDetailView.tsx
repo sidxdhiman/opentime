@@ -73,7 +73,7 @@ export function TemporalThreadDetailView({ thread: initialThread, onBack, onCont
         </div>
         {onContinueStory && (
           <Button
-            variant="outline"
+            variant="default"
             size="sm"
             onClick={() => onContinueStory(thread)}
             className="shrink-0 gap-1.5 text-xs"

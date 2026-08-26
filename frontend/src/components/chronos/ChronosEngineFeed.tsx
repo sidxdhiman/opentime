@@ -3,16 +3,12 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
   Brain,
-  Layers,
-  Zap,
   Eye,
   FileCode,
-  Sparkles,
   X,
   FileText,
   Mic,
   Video,
-  CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -164,11 +160,7 @@ function LatestResponseBlock({
   const {
     original_input,
     final_response,
-    provider_name,
-    model_name,
     reasoning_trace,
-    validation_result,
-    processing_time_ms,
     chronos_state,
   } = response;
 
@@ -208,40 +200,17 @@ function LatestResponseBlock({
             <div className="mb-1.5 flex items-center gap-1.5">
               <Brain className="h-3 w-3 text-muted" />
               <span className="text-[10px] font-medium text-muted">ChronOS</span>
-              <span className="ml-auto flex items-center gap-2">
-                <span className="text-[10px] tabular-nums text-muted">{processing_time_ms}ms</span>
-                <button
-                  onClick={onExplain}
-                  className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-muted transition-colors hover:bg-secondary hover:text-foreground"
-                >
-                  <Eye className="h-3 w-3" /> Explain
-                </button>
-              </span>
+              <button
+                onClick={onExplain}
+                className="ml-auto flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-muted transition-colors hover:bg-secondary hover:text-foreground"
+                title="View reasoning trace"
+              >
+                <Eye className="h-3 w-3" />
+              </button>
             </div>
             <div className="whitespace-pre-line text-sm leading-relaxed text-foreground">
               {displayResponse}
             </div>
-          </div>
-
-          {/* Processing stages — compact */}
-          <div className="flex flex-wrap gap-1.5">
-            {[
-              { icon: CheckCircle2, label: "Ingested" },
-              { icon: Layers, label: `${reasoning_trace.supporting_memory_ids?.length || 0} memories` },
-              { icon: Zap, label: "Composed" },
-              {
-                icon: Sparkles,
-                label: `${(validation_result.personalization_score * 100).toFixed(0)}% personal`,
-              },
-            ].map(({ icon: Icon, label }) => (
-              <span
-                key={label}
-                className="flex items-center gap-1 rounded-md border border-border bg-secondary/20 px-2 py-0.5 text-[10px] text-muted"
-              >
-                <Icon className="h-2.5 w-2.5" />
-                {label}
-              </span>
-            ))}
           </div>
 
           {/* Past-Self Moment */}

@@ -7,7 +7,6 @@ import {
   FileText,
   Upload,
   Square,
-  Sparkles,
   Send,
   Cpu,
   CheckCircle2,
@@ -22,19 +21,15 @@ interface VoiceVideoRecorderProps {
   onResponseReceived: (response: EngineResponse) => void;
   userId?: string;
   activeThread?: TemporalThread | null;
-  onClearActiveThread?: () => void;
 }
 
 export function VoiceVideoRecorder({
   onResponseReceived,
   userId = "user_default",
   activeThread,
-  onClearActiveThread,
 }: VoiceVideoRecorderProps) {
   const [activeTab, setActiveTab] = useState<"text" | "audio" | "video" | "upload">("audio");
   const [textContent, setTextContent] = useState("");
-  const [selectedProvider, setSelectedProvider] = useState("chronos");
-  const [selectedModel, setSelectedModel] = useState("chronos-v1-core");
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,14 +55,6 @@ export function VoiceVideoRecorder({
 
   // File upload state
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-
-  const providersList = [
-    { key: "chronos", name: "ChronOS Core", model: "chronos-v1-core", badge: "Engine" },
-    { key: "openai", name: "OpenAI GPT-4o", model: "gpt-4o", badge: "Cloud" },
-    { key: "anthropic", name: "Claude Sonnet", model: "claude-3-5-sonnet", badge: "Cloud" },
-    { key: "gemini", name: "Google Gemini", model: "gemini-1.5-pro", badge: "Cloud" },
-    { key: "ollama", name: "Ollama Local", model: "llama3:latest", badge: "Local" },
-  ];
 
   useEffect(() => {
     return () => {
@@ -189,8 +176,8 @@ export function VoiceVideoRecorder({
     try {
       const formData = new FormData();
       formData.append("user_id", userId);
-      formData.append("provider_key", selectedProvider);
-      formData.append("model_name", selectedModel);
+      formData.append("provider_key", "chronos");
+      formData.append("model_name", "chronos-v1-core");
 
       if (activeThread) {
         formData.append("active_thread_id", activeThread.id);
@@ -230,7 +217,6 @@ export function VoiceVideoRecorder({
 
       const response = await chronosApi.processInput(formData);
       onResponseReceived(response);
-      onClearActiveThread?.();
 
       setTextContent("");
       setAudioBlob(null);
@@ -270,55 +256,11 @@ export function VoiceVideoRecorder({
               <Cpu className="h-5 w-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2.5">
-                <h3 className="text-[15px] font-semibold">Share a moment</h3>
-                <span className="rounded-full border border-border bg-secondary/40 px-2 py-0.5 text-[11px] font-medium text-muted">
-                  Model-agnostic
-                </span>
-              </div>
+              <h3 className="text-[15px] font-semibold">Share a moment</h3>
               <p className="text-xs text-muted">Voice, video, text, or a file — ChronOS listens</p>
             </div>
           </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted">Engine</span>
-            <select
-              value={selectedProvider}
-              onChange={(e) => {
-                const provKey = e.target.value;
-                setSelectedProvider(provKey);
-                const found = providersList.find((p) => p.key === provKey);
-                if (found) setSelectedModel(found.model);
-              }}
-              className="rounded-lg border border-border bg-secondary/40 px-3 py-1.5 text-xs font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              {providersList.map((p) => (
-                <option key={p.key} value={p.key}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
-
-        {/* Active thread context chip */}
-        {activeThread && (
-          <div className="mb-4 flex items-center gap-2 rounded-lg border border-accent/30 bg-accent/5 px-3 py-2">
-            <span className="text-xs text-muted">Talking about:</span>
-            <span className="text-xs font-medium text-foreground truncate max-w-[240px]">
-              {activeThread.subject}
-            </span>
-            {onClearActiveThread && (
-              <button
-                onClick={onClearActiveThread}
-                className="ml-auto shrink-0 rounded-full p-0.5 text-muted hover:text-foreground transition-colors"
-                aria-label="Clear active thread"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
-        )}
 
         {/* Mode tabs */}
         <div className="mb-6 grid grid-cols-4 gap-1 rounded-xl bg-secondary/50 p-1">
@@ -496,11 +438,7 @@ export function VoiceVideoRecorder({
           </div>
         )}
 
-        <div className="mt-6 flex items-center justify-between gap-3 border-t border-border/60 pt-5">
-          <span className="hidden items-center gap-1.5 text-xs text-muted sm:flex">
-            <Sparkles className="h-3.5 w-3.5 text-accent-foreground" /> Grounded in your memory and timeline
-          </span>
-
+        <div className="mt-6 flex items-center justify-end gap-3 border-t border-border/60 pt-5">
           <Button
             onClick={handleSubmit}
             disabled={isProcessing}
