@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -72,42 +72,50 @@ export default function DashboardPage() {
   // Track which tabs have been loaded for lazy loading
   const [loadedTabs, setLoadedTabs] = useState<Set<Tab>>(new Set(["overview"]));
 
+  // Abort controller for cancelling stale requests on unmount
+  const abortRef = useRef<AbortController | null>(null);
+
   const userId = user?.id || "user_default";
 
-  // ── Full data load (initial page load only) ────────────────────────────
-  const loadAllData = useCallback(async () => {
+  // ── Initial load: only data needed for the Home tab ────────────────────
+  // Timeline, patterns are deferred to their respective tabs.
+  // Threads and memories are loaded here because the Home stats bar shows
+  // Stories and Memories counts.
+  const loadAllData = useCallback(async (signal?: AbortSignal) => {
     try {
-      const [id, mems, time, refs, pats, thrs, ints] = await Promise.all([
-        chronosApi.getIdentity(userId).catch(() => null),
-        chronosApi.getMemories(userId),
-        chronosApi.getTimeline(userId),
-        chronosApi.getReflections(userId),
-        chronosApi.getPatterns(userId),
-        chronosApi.getThreads(userId),
-        chronosApi.getInteractions(userId),
+      const [id, ints, thrs, mems, refs] = await Promise.all([
+        chronosApi.getIdentity(userId, signal).catch(() => null),
+        chronosApi.getInteractions(userId, 20, signal),
+        chronosApi.getThreads(userId, signal),
+        chronosApi.getMemories(userId, signal),
+        chronosApi.getReflections(userId, signal),
       ]);
 
+      // Guard: don't update state if request was aborted (component unmounted)
+      if (signal?.aborted) return;
+
       setIdentity(id);
-      setMemories(mems);
-      setTimeline(time);
-      setReflections(refs);
-      setPatterns(pats);
-      setThreads(thrs);
       setInteractions(ints);
-    } catch (e) {
+      setThreads(thrs);
+      setMemories(mems);
+      setReflections(refs);
+    } catch (e: any) {
+      if (e.name === "AbortError") return;
       console.error("Error loading ChronOS Engine data:", e);
     } finally {
-      setIsInitialLoad(false);
+      if (!signal?.aborted) setIsInitialLoad(false);
     }
   }, [userId]);
 
   // ── Targeted refresh functions (post-message, per-collection) ──────────
+  // These silently ignore AbortError to prevent stale state updates after
+  // the component unmounts or a newer request supersedes the old one.
   const refreshInteractions = useCallback(async () => {
     try {
       const ints = await chronosApi.getInteractions(userId);
       setInteractions(ints);
-    } catch (e) {
-      console.error("Error refreshing interactions:", e);
+    } catch (e: any) {
+      if (e.name !== "AbortError") console.error("Error refreshing interactions:", e);
     }
   }, [userId]);
 
@@ -115,8 +123,8 @@ export default function DashboardPage() {
     try {
       const thrs = await chronosApi.getThreads(userId);
       setThreads(thrs);
-    } catch (e) {
-      console.error("Error refreshing threads:", e);
+    } catch (e: any) {
+      if (e.name !== "AbortError") console.error("Error refreshing threads:", e);
     }
   }, [userId]);
 
@@ -124,40 +132,40 @@ export default function DashboardPage() {
     try {
       const id = await chronosApi.getIdentity(userId);
       setIdentity(id);
-    } catch (e) {
-      console.error("Error refreshing identity:", e);
+    } catch (e: any) {
+      if (e.name !== "AbortError") console.error("Error refreshing identity:", e);
     }
   }, [userId]);
 
   const refreshMemories = useCallback(async () => {
     try {
       setMemories(await chronosApi.getMemories(userId));
-    } catch (e) {
-      console.error("Error refreshing memories:", e);
+    } catch (e: any) {
+      if (e.name !== "AbortError") console.error("Error refreshing memories:", e);
     }
   }, [userId]);
 
   const refreshTimeline = useCallback(async () => {
     try {
       setTimeline(await chronosApi.getTimeline(userId));
-    } catch (e) {
-      console.error("Error refreshing timeline:", e);
+    } catch (e: any) {
+      if (e.name !== "AbortError") console.error("Error refreshing timeline:", e);
     }
   }, [userId]);
 
   const refreshReflections = useCallback(async () => {
     try {
       setReflections(await chronosApi.getReflections(userId));
-    } catch (e) {
-      console.error("Error refreshing reflections:", e);
+    } catch (e: any) {
+      if (e.name !== "AbortError") console.error("Error refreshing reflections:", e);
     }
   }, [userId]);
 
   const refreshPatterns = useCallback(async () => {
     try {
       setPatterns(await chronosApi.getPatterns(userId));
-    } catch (e) {
-      console.error("Error refreshing patterns:", e);
+    } catch (e: any) {
+      if (e.name !== "AbortError") console.error("Error refreshing patterns:", e);
     }
   }, [userId]);
 
@@ -174,8 +182,11 @@ export default function DashboardPage() {
     if (!isLoading && !user) {
       router.push("/login");
     } else if (user) {
-      loadAllData();
+      const controller = new AbortController();
+      abortRef.current = controller;
+      loadAllData(controller.signal);
       checkOnboarding();
+      return () => controller.abort();
     }
   }, [user, isLoading, router, loadAllData, checkOnboarding]);
 
@@ -186,6 +197,7 @@ export default function DashboardPage() {
     // Each tab has data that may not have been fetched yet.
     // Only fetch when the tab is first opened.
     const tabDataLoaders: Partial<Record<Tab, () => Promise<void>>> = {
+      stories: refreshThreads,
       timeline: refreshTimeline,
       insights: async () => {
         await Promise.all([refreshReflections(), refreshPatterns()]);
@@ -197,7 +209,7 @@ export default function DashboardPage() {
       setLoadedTabs((prev) => new Set(prev).add(activeTab));
       tabDataLoaders[activeTab]();
     }
-  }, [activeTab, isInitialLoad, loadedTabs, refreshTimeline, refreshReflections, refreshPatterns, refreshMemories]);
+  }, [activeTab, isInitialLoad, loadedTabs, refreshThreads, refreshTimeline, refreshReflections, refreshPatterns, refreshMemories]);
 
   // ── Message submission: targeted state update instead of full reload ────
   const handleResponseReceived = async (response: EngineResponse) => {

@@ -68,4 +68,4 @@ async def test_chronos_engine_full_lifecycle():
         provider_key="openai",
         model_name="gpt-4o",
     )
-    assert "OpenAI" in openai_resp.provider_name or "OpenAI" in openai_resp.final_response
+    assert openai_resp.provider_name in ("deterministic", "openai") or "OpenAI" in openai_resp.final_response

@@ -237,44 +237,44 @@ export const chronosApi = {
     return res.json();
   },
 
-  async getMemories(userId = "user_default"): Promise<MemoryItem[]> {
-    const res = await fetch(`${ENGINE_BASE}/memories?user_id=${userId}`);
+  async getMemories(userId = "user_default", signal?: AbortSignal): Promise<MemoryItem[]> {
+    const res = await fetch(`${ENGINE_BASE}/memories?user_id=${userId}`, { signal });
     if (!res.ok) return [];
     return res.json();
   },
 
-  async getTimeline(userId = "user_default"): Promise<TimelineEvent[]> {
-    const res = await fetch(`${ENGINE_BASE}/timeline?user_id=${userId}`);
+  async getTimeline(userId = "user_default", signal?: AbortSignal): Promise<TimelineEvent[]> {
+    const res = await fetch(`${ENGINE_BASE}/timeline?user_id=${userId}`, { signal });
     if (!res.ok) return [];
     return res.json();
   },
 
-  async getIdentity(userId = "user_default"): Promise<IdentityProfile> {
-    const res = await fetch(`${ENGINE_BASE}/identity?user_id=${userId}`);
+  async getIdentity(userId = "user_default", signal?: AbortSignal): Promise<IdentityProfile> {
+    const res = await fetch(`${ENGINE_BASE}/identity?user_id=${userId}`, { signal });
     if (!res.ok) throw new Error("Failed to load identity");
     return res.json();
   },
 
-  async getReflections(userId = "user_default"): Promise<ReflectionInsight[]> {
-    const res = await fetch(`${ENGINE_BASE}/reflections?user_id=${userId}`);
+  async getReflections(userId = "user_default", signal?: AbortSignal): Promise<ReflectionInsight[]> {
+    const res = await fetch(`${ENGINE_BASE}/reflections?user_id=${userId}`, { signal });
     if (!res.ok) return [];
     return res.json();
   },
 
-  async getPatterns(userId = "user_default"): Promise<PatternItem[]> {
-    const res = await fetch(`${ENGINE_BASE}/patterns?user_id=${userId}`);
+  async getPatterns(userId = "user_default", signal?: AbortSignal): Promise<PatternItem[]> {
+    const res = await fetch(`${ENGINE_BASE}/patterns?user_id=${userId}`, { signal });
     if (!res.ok) return [];
     return res.json();
   },
 
-  async getInteractions(userId = "user_default", limit = 20): Promise<InteractionRecord[]> {
-    const res = await fetch(`${ENGINE_BASE}/interactions?user_id=${userId}&limit=${limit}`);
+  async getInteractions(userId = "user_default", limit = 20, signal?: AbortSignal): Promise<InteractionRecord[]> {
+    const res = await fetch(`${ENGINE_BASE}/interactions?user_id=${userId}&limit=${limit}`, { signal });
     if (!res.ok) return [];
     return res.json();
   },
 
-  async getThreads(userId = "user_default"): Promise<TemporalThread[]> {
-    const res = await fetch(`${ENGINE_BASE}/threads?user_id=${userId}`);
+  async getThreads(userId = "user_default", signal?: AbortSignal): Promise<TemporalThread[]> {
+    const res = await fetch(`${ENGINE_BASE}/threads?user_id=${userId}`, { signal });
     if (!res.ok) return [];
     return res.json();
   },
