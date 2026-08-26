@@ -202,7 +202,6 @@ export default function DashboardPage() {
   // ── Message submission: targeted state update instead of full reload ────
   const handleResponseReceived = async (response: EngineResponse) => {
     setLatestResponse(response);
-    setIsThinking(false);
 
     // Update stats: conversations always increments
     // Stories: conditionally refresh if temporal lifecycle indicates activity
@@ -232,6 +231,9 @@ export default function DashboardPage() {
 
     // Run targeted refreshes in parallel; conversation is already visible
     await Promise.allSettled(refreshes);
+
+    // Always clear thinking state — even if refreshes threw internally
+    setIsThinking(false);
   };
 
   const handleContinueStory = (thread: TemporalThread) => {
@@ -252,9 +254,17 @@ export default function DashboardPage() {
   }
 
   const firstName = user.full_name?.split(" ")[0] ?? user.email;
+
+  // Count conversations: interactions + latestResponse if it hasn't been
+  // persisted into the interactions list yet (avoids double-counting).
+  const latestIsPersisted = latestResponse
+    ? interactions.some((i) => i.id === latestResponse.id)
+    : false;
+  const conversationCount = interactions.length + (latestResponse && !latestIsPersisted ? 1 : 0);
+
   const engineStats = [
     { value: threads.length, label: "Stories" },
-    { value: interactions.length + (latestResponse ? 1 : 0), label: "Conversations" },
+    { value: conversationCount, label: "Conversations" },
     { value: memories.length, label: "Memories" },
   ];
 

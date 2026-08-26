@@ -60,11 +60,19 @@ export function VoiceVideoRecorder({
   // File upload state
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
 
+  // Unmount guard: prevent setState calls after component unmounts
+  const isMountedRef = useRef(true);
+
   useEffect(() => {
+    isMountedRef.current = true;
     return () => {
+      isMountedRef.current = false;
       if (audioTimerRef.current) clearInterval(audioTimerRef.current);
       if (videoTimerRef.current) clearInterval(videoTimerRef.current);
       stopVideoCamera();
+      // Revoke any lingering Object URLs
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
+      if (videoUrl) URL.revokeObjectURL(videoUrl);
     };
   }, []);
 
@@ -221,21 +229,25 @@ export function VoiceVideoRecorder({
       }
 
       const response = await chronosApi.processInput(formData);
+      if (!isMountedRef.current) return;
       onResponseReceived(response);
 
       setTextContent("");
       setAudioBlob(null);
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
       setAudioUrl(null);
       setAudioDuration(0);
       setVideoBlob(null);
+      if (videoUrl) URL.revokeObjectURL(videoUrl);
       setVideoUrl(null);
       setVideoDuration(0);
       setUploadedFile(null);
     } catch (err: any) {
+      if (!isMountedRef.current) return;
       setError(err.message || "Failed to process input through ChronOS Engine");
       onThinkingEnd?.();
     } finally {
-      setIsProcessing(false);
+      if (isMountedRef.current) setIsProcessing(false);
     }
   };
 
@@ -324,6 +336,7 @@ export function VoiceVideoRecorder({
                   <audio src={audioUrl} controls className="h-8 w-full" />
                   <button
                     onClick={() => {
+                      if (audioUrl) URL.revokeObjectURL(audioUrl);
                       setAudioUrl(null);
                       setAudioBlob(null);
                     }}
@@ -381,6 +394,7 @@ export function VoiceVideoRecorder({
                     variant="ghost"
                     size="sm"
                     onClick={() => {
+                      if (videoUrl) URL.revokeObjectURL(videoUrl);
                       setVideoUrl(null);
                       setVideoBlob(null);
                     }}

@@ -27,7 +27,7 @@ export function ChronosEngineFeed({ interactions, latestResponse, isThinking }: 
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [interactions.length, latestResponse]);
+  }, [interactions.length, latestResponse, isThinking]);
 
   const hasHistory = interactions.length > 0;
   const hasLatest = latestResponse !== null;
