@@ -43,6 +43,7 @@ def mk_thread(subject, ttype=None, description=None, **kwargs) -> TemporalThread
 
 
 def mk_event(description, ttype=None, **kwargs) -> TemporalEvent:
+    kwargs.setdefault("user_id", USER)
     return TemporalEvent(temporal_type=ttype, description=description, **kwargs)
 
 

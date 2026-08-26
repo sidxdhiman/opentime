@@ -222,8 +222,8 @@ async def test_inmemory_temporal_store_round_trip_without_db():
     missing = await store.get_thread("thread_nope", "user_store")
     assert missing is None
 
-    older = TemporalEvent(thread_id=thread.id, description="Earlier moment.")
-    newer = TemporalEvent(thread_id=thread.id, description="Later moment.")
+    older = TemporalEvent(thread_id=thread.id, user_id="user_store", description="Earlier moment.")
+    newer = TemporalEvent(thread_id=thread.id, user_id="user_store", description="Later moment.")
     newer.occurred_at = older.occurred_at.replace(year=older.occurred_at.year + 1)
     await store.save_event(newer)
     await store.save_event(older)

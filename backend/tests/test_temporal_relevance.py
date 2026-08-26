@@ -112,12 +112,14 @@ def mk_events() -> list:
         TemporalEvent(
             id="tevent_past",
             thread_id=None,
+            user_id=USER,
             temporal_type=TemporalType.DECISION,
             description="I don't know if I should quit my job.",
             memory_id="mem_past",
         ),
         TemporalEvent(
             id="tevent_present",
+            user_id=USER,
             temporal_type=TemporalType.LIFE_EVENT,
             description="I finally left my job.",
             memory_id="mem_present",

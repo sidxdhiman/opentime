@@ -48,7 +48,8 @@ class InMemoryStorageAdapter(BaseStorageAdapter):
             memories = self._memories.get(user_id, [])
             # Return sorted by timestamp descending
             sorted_memories = sorted(memories, key=lambda m: m.timestamp, reverse=True)
-            return sorted_memories[:limit]
+            effective_limit = max(1, limit)
+            return sorted_memories[:effective_limit]
 
     async def save_timeline_event(self, event: TimelineEvent) -> TimelineEvent:
         async with self._lock:
@@ -120,7 +121,8 @@ class InMemoryStorageAdapter(BaseStorageAdapter):
         async with self._lock:
             items = self._interactions.get(user_id, [])
             sorted_items = sorted(items, key=lambda r: r.created_at, reverse=True)
-            return sorted_items[:limit]
+            effective_limit = max(1, limit)
+            return sorted_items[:effective_limit]
 
 
 class InMemoryTemporalStore(BaseTemporalStore):
@@ -200,7 +202,8 @@ class InMemoryTemporalStore(BaseTemporalStore):
 
     async def save_event(self, event: TemporalEvent) -> TemporalEvent:
         async with self._lock:
-            if event.user_id:
+            # Always record ownership — unconditionally
+            if event.user_id is not None:
                 self._event_owner[event.id] = event.user_id
             user_list = self._events.setdefault(event.thread_id, [])
             for idx, item in enumerate(user_list):
@@ -217,7 +220,8 @@ class InMemoryTemporalStore(BaseTemporalStore):
                 for e in self._events.get(thread_id, [])
                 # User isolation: an event recorded by another user is
                 # invisible here even if its thread id were somehow known.
-                if self._event_owner.get(e.id, user_id) == user_id
+                # Events with no owner record are visible to no one (safe default).
+                if self._event_owner.get(e.id) == user_id
             ]
             return sorted(events, key=lambda e: e.occurred_at)
 

@@ -55,11 +55,13 @@ class MongoStorageAdapter(BaseStorageAdapter):
         self, user_id: str, limit: int = 100
     ) -> List[MemoryItem]:
         db = await self._db()
+        # MongoDB .limit(0) means "no limit" — clamp to at least 1
+        effective_limit = max(1, limit)
         cursor = (
             db["engine_memories"]
             .find({"user_id": user_id})
             .sort("timestamp", -1)
-            .limit(limit)
+            .limit(effective_limit)
         )
         return [MemoryItem(**d) async for d in cursor]
 
@@ -151,13 +153,15 @@ class MongoStorageAdapter(BaseStorageAdapter):
         self, user_id: str, limit: int = 50
     ) -> List[InteractionRecord]:
         db = await self._db()
+        # MongoDB .limit(0) means "no limit" — clamp to at least 1
+        effective_limit = max(1, limit)
         cursor = (
             db["engine_interactions"]
             .find({"user_id": user_id})
             .sort("created_at", -1)
-            .limit(limit)
+            .limit(effective_limit)
         )
-        return [InteractionRecord(**d) async for d in cursor]
+        return [InteractionRecord(**d) for d in await cursor.to_list(length=None)]
 
 
 class MongoTemporalStore(BaseTemporalStore):
@@ -247,9 +251,8 @@ class MongoTemporalStore(BaseTemporalStore):
     async def save_event(self, event: TemporalEvent) -> TemporalEvent:
         db = await self._db()
         doc = event.model_dump(mode="json")
-        query: dict = {"id": event.id}
-        if event.user_id:
-            query["user_id"] = event.user_id
+        # Unconditionally include user_id in the write query for defense-in-depth
+        query: dict = {"id": event.id, "user_id": event.user_id}
         await db["engine_temporal_events"].replace_one(query, doc, upsert=True)
         return event
 

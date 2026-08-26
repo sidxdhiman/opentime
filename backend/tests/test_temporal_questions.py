@@ -46,6 +46,7 @@ def mk_event(
     event_id=None,
     **kwargs,
 ) -> TemporalEvent:
+    kwargs.setdefault("user_id", USER)
     event = TemporalEvent(
         temporal_type=ttype, description=description, memory_id=memory_id, **kwargs
     )

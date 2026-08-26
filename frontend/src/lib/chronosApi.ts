@@ -19,7 +19,6 @@ export interface MemoryItem {
   user_id: string;
   content: string;
   memory_type: string;
-  embedding?: number[];
   created_at: string;
   timestamp: string;
   importance_score: number;
@@ -190,11 +189,11 @@ export interface InteractionRecord {
   model_name: string;
   processing_time_ms: number;
   created_at: string;
-  past_self_opening?: string;
-  past_self_context?: string;
-  past_self_bridge?: string;
-  past_self_question?: string;
-  past_self_reflection?: string;
+  past_self_opening: string;
+  past_self_context: string;
+  past_self_bridge: string;
+  past_self_question: string;
+  past_self_reflection: string;
 }
 
 export interface EngineResponse {
@@ -230,28 +229,6 @@ export const chronosApi = {
     const res = await fetch(`${ENGINE_BASE}/process`, {
       method: "POST",
       body: formData,
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Engine execution failed" }));
-      throw new Error(err.detail || "ChronOS Engine execution failed");
-    }
-    return res.json();
-  },
-
-  async processInputJson(data: {
-    user_id?: string;
-    content?: string;
-    input_type?: string;
-    base64_data?: string;
-    file_name?: string;
-    provider_key?: string;
-    model_name?: string;
-    active_thread_id?: string;
-  }): Promise<EngineResponse> {
-    const res = await fetch(`${ENGINE_BASE}/process-json`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: "user_default", ...data }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: "Engine execution failed" }));
@@ -306,15 +283,5 @@ export const chronosApi = {
     const res = await fetch(`${ENGINE_BASE}/threads/${threadId}?user_id=${userId}`);
     if (!res.ok) throw new Error("Thread not found");
     return res.json();
-  },
-
-  async getProviders(): Promise<{ active: string; available: Record<string, string> }> {
-    const res = await fetch(`${ENGINE_BASE}/providers`);
-    if (!res.ok) return { active: "chronos", available: { chronos: "ChronOS Native" } };
-    return res.json();
-  },
-
-  async seedState(userId = "user_default"): Promise<void> {
-    await fetch(`${ENGINE_BASE}/seed?user_id=${userId}`, { method: "POST" });
   },
 };
