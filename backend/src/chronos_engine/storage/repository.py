@@ -124,6 +124,15 @@ class InMemoryStorageAdapter(BaseStorageAdapter):
             effective_limit = max(1, limit)
             return sorted_items[:effective_limit]
 
+    async def delete_all_for_user(self, user_id: str) -> None:
+        async with self._lock:
+            self._memories.pop(user_id, None)
+            self._timeline.pop(user_id, None)
+            self._identity.pop(user_id, None)
+            self._reflections.pop(user_id, None)
+            self._patterns.pop(user_id, None)
+            self._interactions.pop(user_id, None)
+
 
 class InMemoryTemporalStore(BaseTemporalStore):
     """In-memory temporal store for the temporal domain.
@@ -239,3 +248,20 @@ class InMemoryTemporalStore(BaseTemporalStore):
         async with self._lock:
             snapshots = self._snapshots.get(user_id, [])
             return sorted(snapshots, key=lambda s: s.timestamp)
+
+    async def delete_all_for_user(self, user_id: str) -> None:
+        async with self._lock:
+            owned_thread_ids = {t.id for t in self._threads.get(user_id, [])}
+            # Clean up events that belong to any of this user's threads
+            for thread_id in owned_thread_ids:
+                for ev in self._events.pop(thread_id, []):
+                    self._event_owner.pop(ev.id, None)
+            # Also purge any events attributed to the user that may live under
+            # an unknown thread bucket, plus their ownership records.
+            orphan_ids = [
+                eid for eid, owner in self._event_owner.items() if owner == user_id
+            ]
+            for eid in orphan_ids:
+                self._event_owner.pop(eid, None)
+            self._threads.pop(user_id, None)
+            self._snapshots.pop(user_id, None)

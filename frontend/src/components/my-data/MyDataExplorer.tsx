@@ -10,6 +10,7 @@ import { GoalsSection } from "./GoalsSection";
 import { PreferencesSection } from "./PreferencesSection";
 import { GenesisSection, IdentitySection } from "./GenesisAndIdentity";
 import { SectionCard } from "./SectionCard";
+import { DataControls } from "./DataControls";
 
 type Tab = "overview" | "goals" | "preferences" | "genesis" | "identity";
 
@@ -192,6 +193,9 @@ export function MyDataExplorer() {
                   </div>
                 </SectionCard>
               )}
+
+              {/* Data control (export / delete) */}
+              <DataControls />
             </div>
           )}
 

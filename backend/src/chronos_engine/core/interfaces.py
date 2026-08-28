@@ -100,6 +100,15 @@ class BaseTemporalStore(ABC):
     async def get_snapshots_by_user(self, user_id: str) -> List["TemporalSnapshot"]:
         pass
 
+    @abstractmethod
+    async def delete_all_for_user(self, user_id: str) -> None:
+        """Remove every temporal thread, event and snapshot owned by the user.
+
+        Must clear the user's threads, their events and their snapshots with
+        no orphaned events or ownership mappings left behind.
+        """
+        pass
+
 
 class BaseTemporalEventDetector(ABC):
     """Deterministic detection of meaningful temporal moments.
@@ -407,6 +416,12 @@ class BaseStorageAdapter(ABC):
     async def get_interactions_by_user(
         self, user_id: str, limit: int = 50
     ) -> List["InteractionRecord"]:
+        pass
+
+    @abstractmethod
+    async def delete_all_for_user(self, user_id: str) -> None:
+        """Remove all memories, timeline events, identity, reflections,
+        patterns and interactions owned by the user."""
         pass
 
 

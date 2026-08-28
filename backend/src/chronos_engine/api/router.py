@@ -1,16 +1,19 @@
 import logging
 import re
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel
 
 from chronos_engine.core.models import EngineResponse, InteractionRecord
 from chronos_engine.engine import ChronosEngine
 from chronos_engine.storage.mongo_repository import MongoStorageAdapter, MongoTemporalStore
 from chronos_engine.temporal.models import ActiveTemporalContext, ActiveTemporalEvent
+from opentime.api.dependencies import get_current_user
+from opentime.application.auth.dto import UserResponse
 from opentime.infrastructure.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -196,7 +199,6 @@ async def _resolve_active_thread(
 
 
 class ProcessInputRequest(BaseModel):
-    user_id: str = "user_default"
     content: Optional[str] = None
     input_type: str = "text"
     base64_data: Optional[str] = None
@@ -208,7 +210,7 @@ class ProcessInputRequest(BaseModel):
 
 @router.post("/process", status_code=status.HTTP_200_OK)
 async def process_input(
-    user_id: str = Form("user_default"),
+    current_user: UserResponse = Depends(get_current_user),
     content: Optional[str] = Form(None),
     input_type: str = Form("text"),
     provider_key: str = Form("chronos"),
@@ -221,7 +223,11 @@ async def process_input(
     Core Input Processing Endpoint for ChronOS Engine.
     Handles Text, Voice Audio Files/Recordings, and Video Files/Recordings.
     Memories are persisted in MongoDB and media files are saved to disk.
+
+    The user identity is derived from the authenticated bearer token.  A
+    client-supplied ``user_id`` is never trusted for data access.
     """
+    user_id = str(current_user.id)
     media_bytes = None
     file_name = None
     media_url = None
@@ -259,14 +265,22 @@ async def process_input(
 
 
 @router.post("/process-json", status_code=status.HTTP_200_OK)
-async def process_input_json(payload: ProcessInputRequest) -> Dict[str, Any]:
-    """JSON variant of input processing endpoint."""
+async def process_input_json(
+    payload: ProcessInputRequest,
+    current_user: UserResponse = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """JSON variant of input processing endpoint.
+
+    The user identity always comes from the authenticated bearer token, never
+    from the request body.
+    """
+    user_id = str(current_user.id)
     active_context = await _resolve_active_thread(
-        payload.active_thread_id, payload.user_id
+        payload.active_thread_id, user_id
     )
     try:
         response = await engine_instance.process_user_input(
-            user_id=payload.user_id,
+            user_id=user_id,
             content=payload.content,
             input_type=payload.input_type,
             base64_data=payload.base64_data,
@@ -284,7 +298,11 @@ async def process_input_json(payload: ProcessInputRequest) -> Dict[str, Any]:
 
 
 @router.get("/memories")
-async def get_memories(user_id: str = "user_default", limit: int = 100) -> List[Dict[str, Any]]:
+async def get_memories(
+    current_user: UserResponse = Depends(get_current_user),
+    limit: int = 100,
+) -> List[Dict[str, Any]]:
+    user_id = str(current_user.id)
     memories = await engine_instance.get_memories(user_id, limit=limit)
     result = []
     for m in memories:
@@ -295,25 +313,38 @@ async def get_memories(user_id: str = "user_default", limit: int = 100) -> List[
 
 
 @router.get("/timeline")
-async def get_timeline(user_id: str = "user_default") -> List[Dict[str, Any]]:
+async def get_timeline(
+    current_user: UserResponse = Depends(get_current_user),
+) -> List[Dict[str, Any]]:
+    user_id = str(current_user.id)
     events = await engine_instance.get_timeline(user_id)
     return [e.model_dump() for e in events]
 
 
 @router.get("/identity")
-async def get_identity(user_id: str = "user_default") -> Dict[str, Any]:
+async def get_identity(
+    current_user: UserResponse = Depends(get_current_user),
+) -> Dict[str, Any]:
+    user_id = str(current_user.id)
     identity = await engine_instance.get_identity(user_id)
     return identity.model_dump()
 
 
 @router.get("/reflections")
-async def get_reflections(user_id: str = "user_default", days_back: int = 30) -> List[Dict[str, Any]]:
+async def get_reflections(
+    current_user: UserResponse = Depends(get_current_user),
+    days_back: int = 30,
+) -> List[Dict[str, Any]]:
+    user_id = str(current_user.id)
     reflections = await engine_instance.get_reflections(user_id, days_back=days_back)
     return [r.model_dump() for r in reflections]
 
 
 @router.get("/patterns")
-async def get_patterns(user_id: str = "user_default") -> List[Dict[str, Any]]:
+async def get_patterns(
+    current_user: UserResponse = Depends(get_current_user),
+) -> List[Dict[str, Any]]:
+    user_id = str(current_user.id)
     patterns = await engine_instance.get_patterns(user_id)
     return [p.model_dump() for p in patterns]
 
@@ -328,9 +359,11 @@ async def get_providers() -> Dict[str, Any]:
 
 @router.get("/interactions")
 async def get_interactions(
-    user_id: str = "user_default", limit: int = 20
+    current_user: UserResponse = Depends(get_current_user),
+    limit: int = 20,
 ) -> List[Dict[str, Any]]:
     """Recent ChronOS interactions for conversation history."""
+    user_id = str(current_user.id)
     records = await engine_instance.storage.get_interactions_by_user(
         user_id, limit=limit
     )
@@ -355,8 +388,11 @@ async def get_interactions(
 
 
 @router.get("/threads")
-async def get_threads(user_id: str = "user_default") -> List[Dict[str, Any]]:
+async def get_threads(
+    current_user: UserResponse = Depends(get_current_user),
+) -> List[Dict[str, Any]]:
     """List all temporal threads for a user, newest first."""
+    user_id = str(current_user.id)
     threads = await engine_instance.temporal_store.get_threads_by_user(user_id)
     result = []
     for t in threads:
@@ -381,9 +417,10 @@ async def get_threads(user_id: str = "user_default") -> List[Dict[str, Any]]:
 @router.get("/threads/{thread_id}")
 async def get_thread(
     thread_id: str,
-    user_id: str = "user_default",
+    current_user: UserResponse = Depends(get_current_user),
 ) -> Dict[str, Any]:
     """Get a specific temporal thread with all its events."""
+    user_id = str(current_user.id)
     thread = await engine_instance.temporal_store.get_thread(thread_id, user_id)
     if not thread:
         raise HTTPException(status_code=404, detail="Thread not found")
@@ -419,6 +456,76 @@ async def get_thread(
 
 
 @router.post("/seed")
-async def seed_state(user_id: str = "user_default") -> Dict[str, str]:
+async def seed_state(current_user: UserResponse = Depends(get_current_user)) -> Dict[str, str]:
+    user_id = str(current_user.id)
     await engine_instance.seed_initial_state(user_id)
     return {"status": "success", "message": f"Initial state seeded for user '{user_id}'"}
+
+
+@router.get("/export")
+async def export_user_data(
+    current_user: UserResponse = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Export the authenticated user's ChronOS engine data.
+
+    Only the current user's own memories, timeline, identity, reflections,
+    patterns, interactions and temporal threads/events are returned. No
+    embeddings, provider secrets, credentials, or other users' data are
+    included.
+    """
+    user_id = str(current_user.id)
+
+    memories = []
+    for m in await engine_instance.get_memories(user_id, limit=10000):
+        d = m.model_dump(mode="json")
+        d.pop("embedding", None)
+        memories.append(d)
+
+    timeline = [e.model_dump() for e in await engine_instance.get_timeline(user_id)]
+    identity = await engine_instance.get_identity(user_id)
+    reflections = [
+        r.model_dump() for r in await engine_instance.get_reflections(user_id, days_back=36500)
+    ]
+    patterns = [p.model_dump() for p in await engine_instance.get_patterns(user_id)]
+    interactions = [
+        r.model_dump(mode="json")
+        for r in await engine_instance.storage.get_interactions_by_user(user_id, limit=10000)
+    ]
+
+    threads = await engine_instance.temporal_store.get_threads_by_user(user_id)
+    temporal_threads = []
+    temporal_events = []
+    for t in threads:
+        temporal_threads.append(t.model_dump(mode="json"))
+        temporal_events.extend(
+            e.model_dump(mode="json")
+            for e in await engine_instance.temporal_store.get_events_by_thread(t.id, user_id)
+        )
+
+    return {
+        "user_id": user_id,
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "memories": memories,
+        "timeline": timeline,
+        "identity": identity.model_dump(mode="json") if identity else None,
+        "reflections": reflections,
+        "patterns": patterns,
+        "interactions": interactions,
+        "temporal_threads": temporal_threads,
+        "temporal_events": temporal_events,
+    }
+
+
+@router.delete("", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user_data(
+    current_user: UserResponse = Depends(get_current_user),
+) -> None:
+    """Permanently delete the authenticated user's ChronOS engine data.
+
+    Removes memories, timeline, identity, reflections, patterns, interactions
+    and temporal threads/events (with no orphaned events). Other users' data
+    is never touched.
+    """
+    user_id = str(current_user.id)
+    await engine_instance.storage.delete_all_for_user(user_id)
+    await engine_instance.temporal_store.delete_all_for_user(user_id)

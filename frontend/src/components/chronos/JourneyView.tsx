@@ -49,7 +49,7 @@ export function JourneyView({ threads, userId, onSelectThread }: JourneyViewProp
         threads.map(async (t) => {
           if (t.events && t.events.length > 0) return t;
           try {
-            return await chronosApi.getThread(t.id, userId);
+            return await chronosApi.getThread(t.id);
           } catch {
             return t;
           }

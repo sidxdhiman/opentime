@@ -84,11 +84,11 @@ export default function DashboardPage() {
   const loadAllData = useCallback(async (signal?: AbortSignal) => {
     try {
       const [id, ints, thrs, mems, refs] = await Promise.all([
-        chronosApi.getIdentity(userId, signal).catch(() => null),
-        chronosApi.getInteractions(userId, 20, signal),
-        chronosApi.getThreads(userId, signal),
-        chronosApi.getMemories(userId, signal),
-        chronosApi.getReflections(userId, signal),
+        chronosApi.getIdentity(signal).catch(() => null),
+        chronosApi.getInteractions(20, signal),
+        chronosApi.getThreads(signal),
+        chronosApi.getMemories(signal),
+        chronosApi.getReflections(signal),
       ]);
 
       // Guard: don't update state if request was aborted (component unmounted)
@@ -112,7 +112,7 @@ export default function DashboardPage() {
   // the component unmounts or a newer request supersedes the old one.
   const refreshInteractions = useCallback(async () => {
     try {
-      const ints = await chronosApi.getInteractions(userId);
+      const ints = await chronosApi.getInteractions(20);
       setInteractions(ints);
     } catch (e: any) {
       if (e.name !== "AbortError") console.error("Error refreshing interactions:", e);
@@ -121,7 +121,7 @@ export default function DashboardPage() {
 
   const refreshThreads = useCallback(async () => {
     try {
-      const thrs = await chronosApi.getThreads(userId);
+      const thrs = await chronosApi.getThreads();
       setThreads(thrs);
     } catch (e: any) {
       if (e.name !== "AbortError") console.error("Error refreshing threads:", e);
@@ -130,7 +130,7 @@ export default function DashboardPage() {
 
   const refreshIdentity = useCallback(async () => {
     try {
-      const id = await chronosApi.getIdentity(userId);
+      const id = await chronosApi.getIdentity();
       setIdentity(id);
     } catch (e: any) {
       if (e.name !== "AbortError") console.error("Error refreshing identity:", e);
@@ -139,7 +139,7 @@ export default function DashboardPage() {
 
   const refreshMemories = useCallback(async () => {
     try {
-      setMemories(await chronosApi.getMemories(userId));
+      setMemories(await chronosApi.getMemories());
     } catch (e: any) {
       if (e.name !== "AbortError") console.error("Error refreshing memories:", e);
     }
@@ -147,7 +147,7 @@ export default function DashboardPage() {
 
   const refreshTimeline = useCallback(async () => {
     try {
-      setTimeline(await chronosApi.getTimeline(userId));
+      setTimeline(await chronosApi.getTimeline());
     } catch (e: any) {
       if (e.name !== "AbortError") console.error("Error refreshing timeline:", e);
     }
@@ -155,7 +155,7 @@ export default function DashboardPage() {
 
   const refreshReflections = useCallback(async () => {
     try {
-      setReflections(await chronosApi.getReflections(userId));
+      setReflections(await chronosApi.getReflections());
     } catch (e: any) {
       if (e.name !== "AbortError") console.error("Error refreshing reflections:", e);
     }
@@ -163,7 +163,7 @@ export default function DashboardPage() {
 
   const refreshPatterns = useCallback(async () => {
     try {
-      setPatterns(await chronosApi.getPatterns(userId));
+      setPatterns(await chronosApi.getPatterns());
     } catch (e: any) {
       if (e.name !== "AbortError") console.error("Error refreshing patterns:", e);
     }

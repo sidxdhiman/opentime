@@ -163,6 +163,18 @@ class MongoStorageAdapter(BaseStorageAdapter):
         )
         return [InteractionRecord(**d) for d in await cursor.to_list(length=None)]
 
+    async def delete_all_for_user(self, user_id: str) -> None:
+        db = await self._db()
+        for collection in (
+            "engine_memories",
+            "engine_timeline",
+            "engine_identity",
+            "engine_reflections",
+            "engine_patterns",
+            "engine_interactions",
+        ):
+            await db[collection].delete_many({"user_id": user_id})
+
 
 class MongoTemporalStore(BaseTemporalStore):
     """Persistent MongoDB store for the temporal domain (Phase 3D).
@@ -285,3 +297,15 @@ class MongoTemporalStore(BaseTemporalStore):
             .sort("timestamp", 1)
         )
         return [TemporalSnapshot(**d) async for d in cursor]
+
+    async def delete_all_for_user(self, user_id: str) -> None:
+        db = await self._db()
+        # Delete this user's threads, then any events/snapshots owned by them
+        thread_ids = await db["engine_temporal_threads"].distinct(
+            "id", {"user_id": user_id}
+        )
+        await db["engine_temporal_events"].delete_many(
+            {"$or": [{"user_id": user_id}, {"thread_id": {"$in": thread_ids}}]}
+        )
+        await db["engine_temporal_snapshots"].delete_many({"user_id": user_id})
+        await db["engine_temporal_threads"].delete_many({"user_id": user_id})

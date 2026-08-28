@@ -3,6 +3,40 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1
 const ENGINE_BASE = `${API_URL}/chronos/engine`;
 const BACKEND_ORIGIN = API_URL.replace(/\/api\/v1\/?$/, "");
 
+function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return JSON.parse(localStorage.getItem("opentime_tokens") ?? "null")?.access_token ?? null;
+  } catch { return null; }
+}
+
+function authHeaders(): Record<string, string> {
+  const token = getToken();
+  if (token) return { Authorization: `Bearer ${token}` };
+  return {};
+}
+
+async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const res = await fetch(`${ENGINE_BASE}${path}`, {
+    ...options,
+    headers: { ...authHeaders(), ...(options.headers as Record<string, string>) },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: "Request failed" }));
+    throw new Error(err.detail || "ChronOS request failed");
+  }
+  if (res.status === 204) return undefined as T;
+  return res.json();
+}
+
+async function reqNoThrow<T>(path: string, options: RequestInit = {}): Promise<T> {
+  try {
+    return await req<T>(path, options);
+  } catch {
+    return [] as unknown as T;
+  }
+}
+
 export interface UserInputPayload {
   id: string;
   user_id: string;
@@ -228,6 +262,7 @@ export const chronosApi = {
   async processInput(formData: FormData): Promise<EngineResponse> {
     const res = await fetch(`${ENGINE_BASE}/process`, {
       method: "POST",
+      headers: authHeaders(),
       body: formData,
     });
     if (!res.ok) {
@@ -237,51 +272,45 @@ export const chronosApi = {
     return res.json();
   },
 
-  async getMemories(userId = "user_default", signal?: AbortSignal): Promise<MemoryItem[]> {
-    const res = await fetch(`${ENGINE_BASE}/memories?user_id=${userId}`, { signal });
-    if (!res.ok) return [];
-    return res.json();
+  async getMemories(signal?: AbortSignal): Promise<MemoryItem[]> {
+    return reqNoThrow<MemoryItem[]>("/memories", { signal });
   },
 
-  async getTimeline(userId = "user_default", signal?: AbortSignal): Promise<TimelineEvent[]> {
-    const res = await fetch(`${ENGINE_BASE}/timeline?user_id=${userId}`, { signal });
-    if (!res.ok) return [];
-    return res.json();
+  async getTimeline(signal?: AbortSignal): Promise<TimelineEvent[]> {
+    return reqNoThrow<TimelineEvent[]>("/timeline", { signal });
   },
 
-  async getIdentity(userId = "user_default", signal?: AbortSignal): Promise<IdentityProfile> {
-    const res = await fetch(`${ENGINE_BASE}/identity?user_id=${userId}`, { signal });
-    if (!res.ok) throw new Error("Failed to load identity");
-    return res.json();
+  async getIdentity(signal?: AbortSignal): Promise<IdentityProfile> {
+    return req<IdentityProfile>("/identity", { signal });
   },
 
-  async getReflections(userId = "user_default", signal?: AbortSignal): Promise<ReflectionInsight[]> {
-    const res = await fetch(`${ENGINE_BASE}/reflections?user_id=${userId}`, { signal });
-    if (!res.ok) return [];
-    return res.json();
+  async getReflections(signal?: AbortSignal): Promise<ReflectionInsight[]> {
+    return reqNoThrow<ReflectionInsight[]>("/reflections", { signal });
   },
 
-  async getPatterns(userId = "user_default", signal?: AbortSignal): Promise<PatternItem[]> {
-    const res = await fetch(`${ENGINE_BASE}/patterns?user_id=${userId}`, { signal });
-    if (!res.ok) return [];
-    return res.json();
+  async getPatterns(signal?: AbortSignal): Promise<PatternItem[]> {
+    return reqNoThrow<PatternItem[]>("/patterns", { signal });
   },
 
-  async getInteractions(userId = "user_default", limit = 20, signal?: AbortSignal): Promise<InteractionRecord[]> {
-    const res = await fetch(`${ENGINE_BASE}/interactions?user_id=${userId}&limit=${limit}`, { signal });
-    if (!res.ok) return [];
-    return res.json();
+  async getInteractions(limit = 20, signal?: AbortSignal): Promise<InteractionRecord[]> {
+    return reqNoThrow<InteractionRecord[]>(`/interactions?limit=${limit}`, { signal });
   },
 
-  async getThreads(userId = "user_default", signal?: AbortSignal): Promise<TemporalThread[]> {
-    const res = await fetch(`${ENGINE_BASE}/threads?user_id=${userId}`, { signal });
-    if (!res.ok) return [];
-    return res.json();
+  async getThreads(signal?: AbortSignal): Promise<TemporalThread[]> {
+    return reqNoThrow<TemporalThread[]>("/threads", { signal });
   },
 
-  async getThread(threadId: string, userId = "user_default"): Promise<TemporalThread> {
-    const res = await fetch(`${ENGINE_BASE}/threads/${threadId}?user_id=${userId}`);
-    if (!res.ok) throw new Error("Thread not found");
-    return res.json();
+  async getThread(threadId: string): Promise<TemporalThread> {
+    return req<TemporalThread>(`/threads/${threadId}`);
+  },
+
+  /** Export the authenticated user's full ChronOS engine data. */
+  async exportData(): Promise<any> {
+    return req<any>("/export");
+  },
+
+  /** Permanently delete the authenticated user's ChronOS engine data. */
+  async deleteAllData(): Promise<void> {
+    return req<void>("/", { method: "DELETE" });
   },
 };

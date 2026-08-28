@@ -11,6 +11,7 @@ Verifies the active-thread-context feature end-to-end:
 from datetime import UTC, datetime, timedelta
 from unittest.mock import patch
 
+import pytest
 from httpx import ASGITransport, AsyncClient
 
 from chronos_engine.core.models import (
@@ -32,9 +33,16 @@ from chronos_engine.temporal.models import (
     TemporalType,
 )
 from opentime.main import app
+from tests.conftest import AUTH_USER_ID, OTHER_AUTH_USER_ID
 
-USER_F = "user_4f_active"
-OTHER_F = "user_4f_other"
+# Authenticated engine API endpoints resolve the user from the bearer token,
+# so the API tests in this module run with get_current_user overridden to
+# AUTH_USER_ID. Stored data keyed by USER_F is therefore the authenticated
+# user's own data.
+pytestmark = pytest.mark.usefixtures("override_auth")
+
+USER_F = AUTH_USER_ID
+OTHER_F = OTHER_AUTH_USER_ID
 BASE = datetime(2026, 1, 1, tzinfo=UTC)
 PREFIX = "/api/v1/chronos/engine"
 
@@ -90,7 +98,6 @@ class TestNoActiveThread:
                 resp = await client.post(
                     f"{PREFIX}/process-json",
                     json={
-                        "user_id": USER_F,
                         "content": "Hello ChronOS",
                         "input_type": "text",
                     },
@@ -107,7 +114,6 @@ class TestNoActiveThread:
                 resp = await client.post(
                     f"{PREFIX}/process",
                     data={
-                        "user_id": USER_F,
                         "content": "Hello via form",
                         "input_type": "text",
                         "provider_key": "chronos",
@@ -142,7 +148,6 @@ class TestActiveThreadLoaded:
                 resp = await client.post(
                     f"{PREFIX}/process-json",
                     json={
-                        "user_id": USER_F,
                         "content": "Thinking about my career",
                         "active_thread_id": t.id,
                     },
@@ -177,7 +182,6 @@ class TestUnknownThread:
                 resp = await client.post(
                     f"{PREFIX}/process-json",
                     json={
-                        "user_id": USER_F,
                         "content": "test",
                         "active_thread_id": "thread_nonexistent",
                     },
@@ -204,7 +208,6 @@ class TestCrossUserIsolation:
                 resp = await client.post(
                     f"{PREFIX}/process-json",
                     json={
-                        "user_id": USER_F,
                         "content": "test",
                         "active_thread_id": t.id,
                     },
@@ -228,13 +231,12 @@ class TestNoAIForce:
                 # Without thread
                 resp1 = await client.post(
                     f"{PREFIX}/process-json",
-                    json={"user_id": USER_F, "content": "Hello"},
+                    json={"content": "Hello"},
                 )
                 # With thread
                 resp2 = await client.post(
                     f"{PREFIX}/process-json",
                     json={
-                        "user_id": USER_F,
                         "content": "Hello",
                         "active_thread_id": t.id,
                     },
@@ -264,7 +266,6 @@ class TestNoAutoEventCreation:
                 resp = await client.post(
                     f"{PREFIX}/process-json",
                     json={
-                        "user_id": USER_F,
                         "content": "test",
                         "active_thread_id": t.id,
                     },
@@ -293,7 +294,6 @@ class TestNoLifecycleMutation:
                 await client.post(
                     f"{PREFIX}/process-json",
                     json={
-                        "user_id": USER_F,
                         "content": "test",
                         "active_thread_id": t.id,
                     },
@@ -318,7 +318,6 @@ class TestInputAuthoritative:
                 resp = await client.post(
                     f"{PREFIX}/process-json",
                     json={
-                        "user_id": USER_F,
                         "content": "I love cooking pasta",
                         "active_thread_id": t.id,
                     },
@@ -355,7 +354,6 @@ class TestContextBounded:
                 resp = await client.post(
                     f"{PREFIX}/process-json",
                     json={
-                        "user_id": USER_F,
                         "content": "test",
                         "active_thread_id": t.id,
                     },
@@ -389,7 +387,6 @@ class TestDeterministicOrdering:
                 resp = await client.post(
                     f"{PREFIX}/process-json",
                     json={
-                        "user_id": USER_F,
                         "content": "test",
                         "active_thread_id": t.id,
                     },
@@ -413,7 +410,6 @@ class TestExistingFlowUnchanged:
                 resp = await client.post(
                     f"{PREFIX}/process",
                     data={
-                        "user_id": USER_F,
                         "content": "Normal message",
                         "input_type": "text",
                         "provider_key": "chronos",
