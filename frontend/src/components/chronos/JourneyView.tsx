@@ -89,7 +89,8 @@ export function JourneyView({ threads, userId, onSelectThread }: JourneyViewProp
           <h4 className="text-[15px] font-medium text-foreground">Your journey will take shape here</h4>
           <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted">
             As ChronOS notices meaningful changes, decisions, goals, and moments in your life,
-            they will appear here as stories that evolve over time.
+            they will appear here as stories that evolve over time. To begin, share a first
+            thought on the Home tab — a story only takes shape once you have shared something.
           </p>
         </CardContent>
       </Card>

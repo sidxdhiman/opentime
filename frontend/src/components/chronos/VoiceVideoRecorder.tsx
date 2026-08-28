@@ -23,6 +23,15 @@ interface VoiceVideoRecorderProps {
   onThinkingEnd?: () => void;
   userId?: string;
   activeThread?: TemporalThread | null;
+  /** Initial input mode. Defaults to "audio" (existing behavior); first-use
+   * experience passes "text" so the clearest interaction is primary. */
+  defaultTab?: "text" | "audio" | "video" | "upload";
+  /** External prompt to inject into the text input (e.g. from a starter
+   * suggestion). When set, the recorder switches to text mode and fills it. */
+  injectedPrompt?: string | null;
+  /** Called after an injected prompt has been consumed so the parent can
+   * clear it and avoid re-filling. */
+  onInjectedPromptConsumed?: () => void;
 }
 
 export function VoiceVideoRecorder({
@@ -31,8 +40,11 @@ export function VoiceVideoRecorder({
   onThinkingEnd,
   userId = "user_default",
   activeThread,
+  defaultTab = "audio",
+  injectedPrompt,
+  onInjectedPromptConsumed,
 }: VoiceVideoRecorderProps) {
-  const [activeTab, setActiveTab] = useState<"text" | "audio" | "video" | "upload">("audio");
+  const [activeTab, setActiveTab] = useState<"text" | "audio" | "video" | "upload">(defaultTab);
   const [textContent, setTextContent] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -75,6 +87,16 @@ export function VoiceVideoRecorder({
       if (videoUrl) URL.revokeObjectURL(videoUrl);
     };
   }, []);
+
+  // Consume an externally supplied starter prompt — switch to text and fill it.
+  useEffect(() => {
+    if (injectedPrompt != null && injectedPrompt.trim()) {
+      setActiveTab("text");
+      setTextContent(injectedPrompt);
+      onInjectedPromptConsumed?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [injectedPrompt]);
 
   const stopVideoCamera = () => {
     if (videoStreamRef.current) {

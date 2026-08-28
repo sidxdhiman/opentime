@@ -25,8 +25,8 @@ export function ReflectionEngineView({ reflections }: ReflectionEngineViewProps)
     return (
       <EmptyState
         icon={ArrowRightLeft}
-        title="No reflections yet"
-        description="Keep sharing and ChronOS will quietly notice how you change."
+        title="Your reflections will grow here"
+        description="Once you have shared across time, ChronOS shows how your past self and present self compare. It happens naturally as you talk on the Home tab — there is no need to force it."
       />
     );
   }

@@ -16,8 +16,8 @@ export function TimelineEngineView({ events }: TimelineEngineViewProps) {
     return (
       <EmptyState
         icon={Clock}
-        title="Your timeline is quiet"
-        description="Share a memory and it will appear here as part of your life story."
+        title="Your timeline starts here"
+        description="Share a memory and it will be placed here, in order, as part of your life story. There is nothing to add yet — your first entries begin whenever you share on the Home tab."
       />
     );
   }

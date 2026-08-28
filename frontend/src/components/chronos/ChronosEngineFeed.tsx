@@ -45,7 +45,7 @@ export function ChronosEngineFeed({ interactions, latestResponse, isThinking }: 
           <Brain className="mb-4 h-9 w-9 text-muted" />
           <h4 className="text-[15px] font-semibold">The engine is listening</h4>
           <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted">
-            Record a voice note or write a thought above. ChronOS will quietly process it and show
+            Write a thought or record a voice note above. ChronOS will quietly process it and show
             you the result here.
           </p>
         </CardContent>

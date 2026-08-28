@@ -15,8 +15,8 @@ export function PatternDetectionView({ patterns }: PatternDetectionViewProps) {
     return (
       <EmptyState
         icon={Activity}
-        title="No patterns yet"
-        description="As you share more of your days, recurring habits and trends will surface gently."
+        title="Habits and trends, revealed gently"
+        description="As you share more of your days, recurring habits and quiet trends will surface here. Nothing is assumed up front — patterns come only from what you actually share, starting on the Home tab."
       />
     );
   }

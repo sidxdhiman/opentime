@@ -83,8 +83,8 @@ export function MemoryGraphView({ memories }: MemoryGraphViewProps) {
         ) : filteredMemories.length === 0 ? (
           <EmptyState
             icon={Database}
-            title="No memories yet"
-            description="Everything you share will appear here, in your own words."
+            title="Your memories, in your own words"
+            description="Everything you share is kept here exactly as you said it. Add your first one on the Home tab and it will appear here."
           />
         ) : (
           <div className="max-h-[420px] space-y-3 overflow-y-auto pr-1">

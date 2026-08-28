@@ -26,8 +26,10 @@ import {
   TemporalThread,
 } from "@/lib/chronosApi";
 import { onboardingApi, type OnboardingStatusResponse } from "@/lib/onboardingApi";
+import { myDataApi, type Goal } from "@/lib/myDataApi";
 
 import { ChronosRecoveryBanner } from "@/components/dashboard/ChronosRecoveryBanner";
+import { FirstUseWelcome } from "@/components/chronos/FirstUseWelcome";
 import { VoiceVideoRecorder } from "@/components/chronos/VoiceVideoRecorder";
 import { ChronosEngineFeed } from "@/components/chronos/ChronosEngineFeed";
 import { IdentityModelCard } from "@/components/chronos/IdentityModelCard";
@@ -49,6 +51,25 @@ const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
   { key: "memories", label: "Memories", icon: Database },
 ];
 
+/**
+ * Build optional starter prompts for a first-time user, grounded only in real
+ * onboarding data (their active goals) — never hardcoded "assistant" personas
+ * and never fabricated claims about the user. Falls back to honest, general
+ * reflective prompts when no goal is available.
+ */
+function deriveStarterPrompts(goals: Goal[]): string[] {
+  const prompts: string[] = [];
+  const goal = goals.find((g) => g.status === "active") ?? goals[0];
+  if (goal?.title?.trim()) {
+    const title = goal.title.trim();
+    prompts.push(`Let's talk about why "${title}" matters to you right now.`);
+    prompts.push(`You set a goal: "${title}". Where would you like to start?`);
+  }
+  prompts.push("What has your attention today?");
+  prompts.push("Tell me about a moment from this week you don't want to lose.");
+  return prompts.slice(0, 4);
+}
+
 export default function DashboardPage() {
   const { user, isLoading } = useAuth();
   const router = useRouter();
@@ -68,6 +89,16 @@ export default function DashboardPage() {
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [isThinking, setIsThinking] = useState(false);
   const [onboarding, setOnboarding] = useState<OnboardingStatusResponse | null>(null);
+
+  // Phase 5C — first-use experience state
+  const [onboardingGoals, setOnboardingGoals] = useState<Goal[]>([]);
+  const [goalsLoaded, setGoalsLoaded] = useState(false);
+  const [injectedPrompt, setInjectedPrompt] = useState<string | null>(null);
+  const [hasFirstStory, setHasFirstStory] = useState(false);
+
+  // Phase 5C — First-use detection, derived purely from existing loaded state.
+  // A brand-new user (post-onboarding) has no engine conversations or stories.
+  const isFirstUse = !isInitialLoad && interactions.length === 0 && threads.length === 0;
 
   // Track which tabs have been loaded for lazy loading
   const [loadedTabs, setLoadedTabs] = useState<Set<Tab>>(new Set(["overview"]));
@@ -211,9 +242,36 @@ export default function DashboardPage() {
     }
   }, [activeTab, isInitialLoad, loadedTabs, refreshThreads, refreshTimeline, refreshReflections, refreshPatterns, refreshMemories]);
 
+  // Phase 5C — Load onboarding goals once, only for a first-time user, to seed
+  // grounded starter prompts. This is a single, targeted call (not a reload).
+  useEffect(() => {
+    if (!isFirstUse || goalsLoaded) return;
+    let cancelled = false;
+    myDataApi
+      .goals(true)
+      .then((goals) => {
+        if (!cancelled) setOnboardingGoals(goals);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setGoalsLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isFirstUse, goalsLoaded]);
+
+
   // ── Message submission: targeted state update instead of full reload ────
   const handleResponseReceived = async (response: EngineResponse) => {
     setLatestResponse(response);
+
+    // Phase 5C — First-story acknowledgement: only when the engine actually
+    // created a new thread (real lifecycle data, not assumed).
+    if (response.chronos_state?.temporal_lifecycle?.created) {
+      setHasFirstStory(true);
+    }
 
     // Update stats: conversations always increments
     // Stories: conditionally refresh if temporal lifecycle indicates activity
@@ -266,6 +324,10 @@ export default function DashboardPage() {
   }
 
   const firstName = user.full_name?.split(" ")[0] ?? user.email;
+
+  const starterPrompts = deriveStarterPrompts(onboardingGoals);
+
+  const handlePickPrompt = (prompt: string) => setInjectedPrompt(prompt);
 
   // Count conversations: interactions + latestResponse if it hasn't been
   // persisted into the interactions list yet (avoids double-counting).
@@ -328,28 +390,39 @@ export default function DashboardPage() {
               Your timeline
             </p>
             <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-              Welcome back, <span className="text-accent-foreground">{firstName}</span>
+              {isFirstUse ? (
+                <>Welcome, <span className="text-accent-foreground">{firstName}</span></>
+              ) : (
+                <>Welcome back, <span className="text-accent-foreground">{firstName}</span></>
+              )}
             </h1>
             <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">
-              A quiet space for everything you have shared. Record a thought, glance at how you
-              have changed, or revisit an old memory.
+              {isFirstUse ? (
+                <>You&apos;ve made a start. Share your first thought below — ChronOS meets you where
+                you are and builds from there, one conversation at a time.</>
+              ) : (
+                <>A quiet space for everything you have shared. Record a thought, glance at how you
+                have changed, or revisit an old memory.</>
+              )}
             </p>
           </div>
 
-          <div className="flex items-center gap-6 rounded-2xl border border-border bg-card px-5 py-4 shadow-card">
-            <GitBranch className="h-5 w-5 text-accent-foreground" />
-            {engineStats.map((s, i) => (
-              <React.Fragment key={s.label}>
-                {i > 0 && <span className="h-8 w-px bg-border" aria-hidden />}
-                <div>
-                  <div className="text-xl font-semibold tabular-nums">{s.value}</div>
-                  <div className="text-[10px] font-medium uppercase tracking-wider text-muted">
-                    {s.label}
+          {!isFirstUse && (
+            <div className="flex items-center gap-6 rounded-2xl border border-border bg-card px-5 py-4 shadow-card">
+              <GitBranch className="h-5 w-5 text-accent-foreground" />
+              {engineStats.map((s, i) => (
+                <React.Fragment key={s.label}>
+                  {i > 0 && <span className="h-8 w-px bg-border" aria-hidden />}
+                  <div>
+                    <div className="text-xl font-semibold tabular-nums">{s.value}</div>
+                    <div className="text-[10px] font-medium uppercase tracking-wider text-muted">
+                      {s.label}
+                    </div>
                   </div>
-                </div>
-              </React.Fragment>
-            ))}
-          </div>
+                </React.Fragment>
+              ))}
+            </div>
+          )}
         </section>
 
         {/* Tab Navigation */}
@@ -383,6 +456,13 @@ export default function DashboardPage() {
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             <div className="lg:col-span-7 space-y-6">
+              {isFirstUse && (
+                <FirstUseWelcome
+                  firstName={firstName}
+                  starterPrompts={starterPrompts}
+                  onPickPrompt={handlePickPrompt}
+                />
+              )}
               {activeThread && (
                 <div className="flex items-center gap-3 rounded-xl border border-accent/30 bg-accent/5 px-4 py-3">
                   <GitBranch className="h-4 w-4 shrink-0 text-accent-foreground" />
@@ -399,17 +479,54 @@ export default function DashboardPage() {
                   </button>
                 </div>
               )}
+              {hasFirstStory && threads.length >= 1 && (
+                <div className="flex items-center gap-3 rounded-xl border border-accent/30 bg-accent/5 px-4 py-3">
+                  <GitBranch className="h-4 w-4 shrink-0 text-accent-foreground" />
+                  <p className="text-sm leading-relaxed text-foreground">
+                    A new story is beginning — ChronOS will keep it connected to your timeline as it grows.
+                  </p>
+                  <button
+                    onClick={() => setHasFirstStory(false)}
+                    className="ml-auto shrink-0 rounded-full p-1 text-muted transition-colors hover:text-foreground"
+                    aria-label="Dismiss"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
               <VoiceVideoRecorder
                 onResponseReceived={handleResponseReceived}
                 onThinkingStart={() => setIsThinking(true)}
                 onThinkingEnd={() => setIsThinking(false)}
                 userId={userId}
                 activeThread={activeThread}
+                defaultTab={isFirstUse ? "text" : "audio"}
+                injectedPrompt={injectedPrompt}
+                onInjectedPromptConsumed={() => setInjectedPrompt(null)}
               />
               <ChronosEngineFeed interactions={interactions} latestResponse={latestResponse} isThinking={isThinking} />
             </div>
             <div className="lg:col-span-5 space-y-6">
-              <IdentityModelCard identity={identity} onRefresh={refreshIdentity} />
+              {isFirstUse ? (
+                <div className="rounded-2xl border border-border bg-card p-5">
+                  <div className="mb-3 flex items-center gap-2.5">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/10 text-accent-foreground">
+                      <Sparkles className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold">Your identity, taking shape</h3>
+                      <p className="text-xs text-muted">Built from what you share</p>
+                    </div>
+                  </div>
+                  <p className="text-sm leading-relaxed text-muted">
+                    ChronOS doesn&apos;t assume who you are or what you value. As you talk, it learns
+                    what matters to you and how you change over time — a picture that&apos;s genuinely
+                    yours rather than guessed up front.
+                  </p>
+                </div>
+              ) : (
+                <IdentityModelCard identity={identity} onRefresh={refreshIdentity} />
+              )}
               <ReflectionEngineView reflections={reflections.slice(0, 2)} />
             </div>
               </div>
