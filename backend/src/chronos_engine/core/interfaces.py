@@ -34,6 +34,7 @@ from chronos_engine.temporal.models import (
     TemporalSnapshot,
     TemporalThread,
     TemporalThreadMatchResult,
+    ReturnLedger,
 )
 
 
@@ -101,11 +102,26 @@ class BaseTemporalStore(ABC):
         pass
 
     @abstractmethod
+    async def get_return_ledger(self, user_id: str) -> Optional["ReturnLedger"]:
+        """Read the user's return-hook resurfacing ledger (Phase 5D).
+
+        Returns ``None`` when no ledger document exists yet (a first-ever
+        visit or before any return context was ever surfaced).
+        """
+        pass
+
+    @abstractmethod
+    async def save_return_ledger(self, ledger: "ReturnLedger") -> "ReturnLedger":
+        """Persist the user's return-hook resurfacing ledger."""
+        pass
+
+    @abstractmethod
     async def delete_all_for_user(self, user_id: str) -> None:
         """Remove every temporal thread, event and snapshot owned by the user.
 
-        Must clear the user's threads, their events and their snapshots with
-        no orphaned events or ownership mappings left behind.
+        Must clear the user's threads, their events, their snapshots and
+        their return-hook ledger with no orphaned events or ownership
+        mappings left behind.
         """
         pass
 

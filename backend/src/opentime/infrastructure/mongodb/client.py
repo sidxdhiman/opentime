@@ -106,5 +106,7 @@ async def ensure_indexes() -> None:
         [("user_id", 1), ("thread_id", 1), ("occurred_at", 1)]
     )
     await db["engine_temporal_snapshots"].create_index("user_id")
+    # Return-hook resurfacing ledger (Phase 5D) — one document per user
+    await db["engine_return_ledgers"].create_index("user_id", unique=True)
 
     log.info("mongodb_indexes_ensured")

@@ -214,6 +214,33 @@ export interface ActiveTemporalContext {
   recent_events: ActiveTemporalEvent[];
 }
 
+export type ReturnUserKind = "FIRST_EVER" | "RETURNING" | "MEANINGFULLY_RETURNING";
+export type ReturnChangeType =
+  | "STORY_PROGRESSED"
+  | "STORY_RESOLVED"
+  | "STORY_CHANGED"
+  | "NEW_STORY";
+
+export interface ReturnChange {
+  change_type: ReturnChangeType;
+  headline: string;
+  detail: string;
+  thread_id?: string;
+  subject: string;
+}
+
+export interface ReturnContext {
+  has_return_context: boolean;
+  user_kind: ReturnUserKind;
+  since_timestamp?: string;
+  welcome: string;
+  summary_section?: string;
+  changes: ReturnChange[];
+  suggested_story_subject?: string;
+  suggested_thread_id?: string;
+  suggested_story_because: string;
+}
+
 export interface InteractionRecord {
   id: string;
   user_content: string;
@@ -302,6 +329,20 @@ export const chronosApi = {
 
   async getThread(threadId: string): Promise<TemporalThread> {
     return req<TemporalThread>(`/threads/${threadId}`);
+  },
+
+  /** Deterministic, grounded return context for the authenticated user. */
+  async getReturnContext(signal?: AbortSignal): Promise<ReturnContext> {
+    return req<ReturnContext>("/return-context", { signal });
+  },
+
+  /** Toggle the in-app return-hook preference for the authenticated user. */
+  async setReturnContextPreference(enabled: boolean): Promise<{ enabled: boolean }> {
+    return req<{ enabled: boolean }>("/return-context", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    });
   },
 
   /** Export the authenticated user's full ChronOS engine data. */

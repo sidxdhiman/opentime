@@ -532,6 +532,96 @@ class TemporalSnapshot(BaseModel):
     created_at: datetime = Field(default_factory=_utcnow)
 
 
+class ReturnUserKind(str, Enum):
+    """Classification of a user at the moment they open ChronOS (Phase 5D).
+
+    Derived purely from persisted activity, never assumed:
+
+    - FIRST_EVER          no previous interaction exists (brand-new user)
+    - RETURNING           has previous interaction(s); any recurrence
+    - MEANINGFULLY          has returned AND enough time/context has elapsed
+      RETURNING            that resurfacing may be useful
+    """
+
+    FIRST_EVER = "FIRST_EVER"
+    RETURNING = "RETURNING"
+    MEANINGFULLY_RETURNING = "MEANINGFULLY_RETURNING"
+
+
+class ReturnChangeType(str, Enum):
+    """Grounded kind of meaningful change since a user's last visit (Phase 5D).
+
+    These are deterministic rule outcomes over stored temporal evidence — a
+    change is only claimed when the underlying data supports it.
+
+    - STORY_PROGRESSED   an open story gained a new moment (with continuity)
+    - STORY_RESOLVED     a story reached an explicit outcome / turning point
+    - STORY_CHANGED      a story's direction shifted or was contradicted
+    - NEW_STORY          a brand-new story started since last visit
+    """
+
+    STORY_PROGRESSED = "STORY_PROGRESSED"
+    STORY_RESOLVED = "STORY_RESOLVED"
+    STORY_CHANGED = "STORY_CHANGED"
+    NEW_STORY = "NEW_STORY"
+
+
+class ReturnChange(BaseModel):
+    """One concise, user-facing meaningful change (Phase 5D).
+
+    ``headline`` / ``detail`` quote ONLY grounded material (the thread
+    subject and a conservative comparison summary produced by the existing
+    ``TemporalComparisonEngine``). No raw ids, memory ids or internal
+    metadata ever appear in user-facing text. ``thread_id`` is the story's
+    public identifier (already exposed elsewhere in the app) so the frontend
+    can offer "Continue this story"; it is not database metadata.
+    """
+
+    change_type: ReturnChangeType
+    headline: str = ""
+    detail: str = ""
+    thread_id: Optional[str] = None
+    subject: str = ""
+
+
+class ReturnContext(BaseModel):
+    """Bounded, deterministic return context for the authenticated user.
+
+    Contains only what the frontend return hook needs. ``has_return_context``
+    is false (and no meaningful changes are claimed) whenever there is no
+    grounded reason to resurface anything — ChronOS is then happy to simply
+    say "Welcome back". No internal IDs, confidence scores or reasoning
+    traces are exposed; user-facing copy is produced by the existing temporal
+    vocabulary. AI is never used to construct any of this.
+    """
+
+    has_return_context: bool = False
+    user_kind: ReturnUserKind = ReturnUserKind.FIRST_EVER
+    since_timestamp: Optional[datetime] = None
+    welcome: str = ""
+    summary_section: Optional[str] = None
+    changes: List[ReturnChange] = Field(default_factory=list)
+    suggested_story_subject: Optional[str] = None
+    suggested_thread_id: Optional[str] = None
+    suggested_story_because: str = ""
+
+
+class ReturnLedger(BaseModel):
+    """Persisted marker controlling return-hook resurfacing (Phase 5D).
+
+    Stores the latest timestamp up to which meaningful changes have already
+    been surfaced, so the identical insight is never shown repeatedly when
+    nothing new has happened. Also holds the per-user opt-in for the in-app
+    return hook (maps to real behavior: when ``enabled`` is false the hook
+    is not surfaced at all). Scoped to a single ``user_id``.
+    """
+
+    user_id: str
+    last_surfaced_at: Optional[datetime] = None
+    enabled: bool = True
+    updated_at: datetime = Field(default_factory=_utcnow)
+
+
 class ActiveTemporalContext(BaseModel):
     """Grounded context for an active temporal thread selected by the user.
 

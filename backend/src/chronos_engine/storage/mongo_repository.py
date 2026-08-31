@@ -26,6 +26,7 @@ from chronos_engine.core.models import (
     TimelineEvent,
 )
 from chronos_engine.temporal.models import (
+    ReturnLedger,
     TemporalEvent,
     TemporalSnapshot,
     TemporalThread,
@@ -298,6 +299,21 @@ class MongoTemporalStore(BaseTemporalStore):
         )
         return [TemporalSnapshot(**d) async for d in cursor]
 
+    # ── Return-hook ledger (Phase 5D) ────────────────────────────────────
+
+    async def get_return_ledger(self, user_id: str) -> Optional[ReturnLedger]:
+        db = await self._db()
+        doc = await db["engine_return_ledgers"].find_one({"user_id": user_id})
+        return ReturnLedger(**doc) if doc else None
+
+    async def save_return_ledger(self, ledger: ReturnLedger) -> ReturnLedger:
+        db = await self._db()
+        doc = ledger.model_dump(mode="json")
+        await db["engine_return_ledgers"].replace_one(
+            {"user_id": ledger.user_id}, doc, upsert=True
+        )
+        return ledger
+
     async def delete_all_for_user(self, user_id: str) -> None:
         db = await self._db()
         # Delete this user's threads, then any events/snapshots owned by them
@@ -309,3 +325,4 @@ class MongoTemporalStore(BaseTemporalStore):
         )
         await db["engine_temporal_snapshots"].delete_many({"user_id": user_id})
         await db["engine_temporal_threads"].delete_many({"user_id": user_id})
+        await db["engine_return_ledgers"].delete_many({"user_id": user_id})

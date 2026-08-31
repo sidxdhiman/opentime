@@ -22,6 +22,7 @@ import {
   MemoryItem,
   PatternItem,
   ReflectionInsight,
+  ReturnContext,
   TimelineEvent,
   TemporalThread,
 } from "@/lib/chronosApi";
@@ -40,6 +41,7 @@ import { MemoryGraphView } from "@/components/chronos/MemoryGraphView";
 import { TemporalThreadDetailView } from "@/components/chronos/TemporalThreadDetailView";
 import { JourneyView } from "@/components/chronos/JourneyView";
 import { OverviewSkeleton } from "@/components/chronos/OverviewSkeleton";
+import { ReturnHook } from "@/components/chronos/ReturnHook";
 
 type Tab = "overview" | "stories" | "timeline" | "insights" | "memories";
 
@@ -95,6 +97,10 @@ export default function DashboardPage() {
   const [goalsLoaded, setGoalsLoaded] = useState(false);
   const [injectedPrompt, setInjectedPrompt] = useState<string | null>(null);
   const [hasFirstStory, setHasFirstStory] = useState(false);
+
+  // Phase 5D — return-loop context (deterministic, grounded, once per visit)
+  const [returnContext, setReturnContext] = useState<ReturnContext | null>(null);
+  const [returnContextLoaded, setReturnContextLoaded] = useState(false);
 
   // Phase 5C — First-use detection, derived purely from existing loaded state.
   // A brand-new user (post-onboarding) has no engine conversations or stories.
@@ -261,6 +267,33 @@ export default function DashboardPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFirstUse, goalsLoaded]);
+
+  // ── Phase 5D — Return-loop context, once per visit, only for returning
+  // ── users. It is never gating, never pushy: a single grounded card on the
+  // ── overview that disappears when nothing genuinely changed. Fetching it
+  // ── advances the ledger marker so it renders at most once per session.
+  useEffect(() => {
+    if (isInitialLoad || isFirstUse || returnContextLoaded) return;
+    let cancelled = false;
+    chronosApi
+      .getReturnContext()
+      .then((ctx) => {
+        if (!cancelled) setReturnContext(ctx);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setReturnContextLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isInitialLoad, isFirstUse, returnContextLoaded, activeTab]);
+
+  const handleReturnHookContinue = (threadId: string) => {
+    const thread = threads.find((t) => t.id === threadId);
+    if (thread) handleContinueStory(thread);
+  };
 
 
   // ── Message submission: targeted state update instead of full reload ────
@@ -493,6 +526,13 @@ export default function DashboardPage() {
                     <X className="h-4 w-4" />
                   </button>
                 </div>
+              )}
+              {!isFirstUse && returnContext && (
+                <ReturnHook
+                  context={returnContext}
+                  firstName={firstName}
+                  onContinueStory={handleReturnHookContinue}
+                />
               )}
               <VoiceVideoRecorder
                 onResponseReceived={handleResponseReceived}

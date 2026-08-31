@@ -14,6 +14,7 @@ from chronos_engine.temporal.models import (
     TemporalSnapshot,
     TemporalThread,
     TemporalThreadStatus,
+    ReturnLedger,
 )
 
 
@@ -155,6 +156,7 @@ class InMemoryTemporalStore(BaseTemporalStore):
         self._events: Dict[str, List[TemporalEvent]] = {}
         self._event_owner: Dict[str, str] = {}
         self._snapshots: Dict[str, List[TemporalSnapshot]] = {}
+        self._return_ledgers: Dict[str, ReturnLedger] = {}
         self._lock = asyncio.Lock()
 
     async def save_thread(self, thread: TemporalThread) -> TemporalThread:
@@ -249,6 +251,15 @@ class InMemoryTemporalStore(BaseTemporalStore):
             snapshots = self._snapshots.get(user_id, [])
             return sorted(snapshots, key=lambda s: s.timestamp)
 
+    async def get_return_ledger(self, user_id: str) -> Optional[ReturnLedger]:
+        async with self._lock:
+            return self._return_ledgers.get(user_id)
+
+    async def save_return_ledger(self, ledger: ReturnLedger) -> ReturnLedger:
+        async with self._lock:
+            self._return_ledgers[ledger.user_id] = ledger
+            return ledger
+
     async def delete_all_for_user(self, user_id: str) -> None:
         async with self._lock:
             owned_thread_ids = {t.id for t in self._threads.get(user_id, [])}
@@ -265,3 +276,4 @@ class InMemoryTemporalStore(BaseTemporalStore):
                 self._event_owner.pop(eid, None)
             self._threads.pop(user_id, None)
             self._snapshots.pop(user_id, None)
+            self._return_ledgers.pop(user_id, None)

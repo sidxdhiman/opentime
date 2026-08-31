@@ -11,7 +11,12 @@ from pydantic import BaseModel
 from chronos_engine.core.models import EngineResponse, InteractionRecord
 from chronos_engine.engine import ChronosEngine
 from chronos_engine.storage.mongo_repository import MongoStorageAdapter, MongoTemporalStore
-from chronos_engine.temporal.models import ActiveTemporalContext, ActiveTemporalEvent
+from chronos_engine.temporal.models import (
+    ActiveTemporalContext,
+    ActiveTemporalEvent,
+    ReturnContext,
+)
+from chronos_engine.temporal.return_context import ReturnContextEngine
 from opentime.api.dependencies import get_current_user
 from opentime.application.auth.dto import UserResponse
 from opentime.infrastructure.config import get_settings
@@ -62,6 +67,14 @@ engine_instance = ChronosEngine(
     storage=MongoStorageAdapter(),
     temporal_store=MongoTemporalStore(),
 )
+
+# Phase 5D: deterministic return-loop context, backed by the same temporal
+# store so meaningful-change detection is user-scoped and reuse the existing
+# TemporalComparisonEngine relation vocabulary.  It is constructed per request
+# from the current ``engine_instance`` so tests that patch ``engine_instance``
+# (with an in-memory store) work unchanged.
+def _return_context_engine() -> ReturnContextEngine:
+    return ReturnContextEngine(temporal_store=engine_instance.temporal_store)
 
 _SAFE_NAME = re.compile(r"[^a-zA-Z0-9._-]")
 
@@ -453,6 +466,55 @@ async def get_thread(
             for e in events
         ],
     }
+
+
+class ReturnContextEnabledRequest(BaseModel):
+    enabled: bool
+
+
+async def _latest_interaction_at(user_id: str) -> Optional[datetime]:
+    """Newest interaction's ``created_at`` — the "previous visit" anchor.
+
+    Uses the existing user-scoped interaction read (bounded to the latest
+    record). No new timestamp field is added: this reuses what the storage
+    adapter already persists.
+    """
+    records = await engine_instance.storage.get_interactions_by_user(
+        user_id, limit=1
+    )
+    if not records:
+        return None
+    return records[0].created_at
+
+
+@router.get("/return-context")
+async def get_return_context(
+    current_user: UserResponse = Depends(get_current_user),
+) -> ReturnContext:
+    """Return the user's grounded return context (Phase 5D).
+
+    Computed deterministically from stored temporal activity; user-scoped to
+    the authenticated user; never fabricated; no AI. The surfaced marker is
+    advanced so the identical insight is not shown repeatedly.
+    """
+    user_id = str(current_user.id)
+    latest_at = await _latest_interaction_at(user_id)
+    return await _return_context_engine().build(user_id, latest_interaction_at=latest_at)
+
+
+@router.patch("/return-context")
+async def set_return_context_preference(
+    payload: ReturnContextEnabledRequest,
+    current_user: UserResponse = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Set the user's in-app return-hook preference (Phase 5D, Part 19).
+
+    Honors a real behavior: when ``enabled`` is false, the in-app return hook
+    stops surfacing for this user.
+    """
+    user_id = str(current_user.id)
+    await _return_context_engine().set_enabled(user_id, payload.enabled)
+    return {"enabled": payload.enabled}
 
 
 @router.post("/seed")

@@ -262,5 +262,7 @@ async def test_temporal_models_are_isolated_from_storage_and_engine():
         "get_events_by_thread",
         "save_snapshot",
         "get_snapshots_by_user",
+        "get_return_ledger",
+        "save_return_ledger",
         "delete_all_for_user",
     }
