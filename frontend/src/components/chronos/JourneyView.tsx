@@ -1,72 +1,35 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React from "react";
 import {
   Compass,
   ChevronRight,
-  Sparkles,
   Circle,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { chronosApi, TemporalThread, TemporalEvent } from "@/lib/chronosApi";
+import { TemporalThread } from "@/lib/chronosApi";
 import {
-  STATUS_STYLES,
   STATUS_NARRATIVE,
-  TYPE_LABELS,
   formatDate,
   formatTimeRange,
 } from "@/lib/chronosConstants";
 
 interface JourneyViewProps {
   threads: TemporalThread[];
-  userId: string;
   onSelectThread: (thread: TemporalThread) => void;
 }
 
 /**
- * The Journey view presents temporal threads as living storylines.
+ * The Stories view presents temporal threads as living narratives.
  *
- * It uses existing TemporalThread + TemporalEvent data as its source of truth.
- * No new intelligence is added — this is purely a presentation layer over
- * the already-persisted Phase 3 results.
+ * It renders directly from the thread list — which already carries its
+ * chronological moments — so no per-story detail request is needed (N+1 fix).
+ * No new intelligence is added; this is purely a presentation layer over the
+ * already-persisted temporal data.
  */
-export function JourneyView({ threads, userId, onSelectThread }: JourneyViewProps) {
-  const [enrichedThreads, setEnrichedThreads] = useState<TemporalThread[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  // Enrich threads with event data so we can show origin/progression
-  useEffect(() => {
-    if (!threads || threads.length === 0) {
-      setEnrichedThreads([]);
-      setLoading(false);
-      return;
-    }
-
-    let cancelled = false;
-
-    async function enrich() {
-      const results = await Promise.all(
-        threads.map(async (t) => {
-          if (t.events && t.events.length > 0) return t;
-          try {
-            return await chronosApi.getThread(t.id);
-          } catch {
-            return t;
-          }
-        })
-      );
-      if (!cancelled) {
-        setEnrichedThreads(results);
-        setLoading(false);
-      }
-    }
-
-    enrich();
-    return () => { cancelled = true; };
-  }, [threads, userId]);
-
-  // Sort threads: most recently updated first
-  const sortedThreads = [...enrichedThreads].sort(
+export function JourneyView({ threads, onSelectThread }: JourneyViewProps) {
+  // Sort stories: most recently updated first.
+  const sortedThreads = [...(threads || [])].sort(
     (a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
   );
 
@@ -78,7 +41,7 @@ export function JourneyView({ threads, userId, onSelectThread }: JourneyViewProp
             <Compass className="h-4 w-4" />
           </div>
           <div>
-            <h3 className="text-[15px] font-semibold">Your Journey</h3>
+            <h3 className="text-[15px] font-semibold">Your Stories</h3>
             <p className="text-xs text-muted">How your story unfolds over time</p>
           </div>
         </div>
@@ -86,32 +49,13 @@ export function JourneyView({ threads, userId, onSelectThread }: JourneyViewProp
           <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-secondary/60">
             <Compass className="h-7 w-7 text-muted" />
           </div>
-          <h4 className="text-[15px] font-medium text-foreground">Your journey will take shape here</h4>
+          <h4 className="text-[15px] font-medium text-foreground">Your stories will take shape here</h4>
           <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted">
             As ChronOS notices meaningful changes, decisions, goals, and moments in your life,
             they will appear here as stories that evolve over time. To begin, share a first
             thought on the Home tab — a story only takes shape once you have shared something.
           </p>
         </CardContent>
-      </Card>
-    );
-  }
-
-  if (loading) {
-    return (
-      <Card className="overflow-hidden">
-        <div className="flex items-center gap-3 border-b border-border/60 px-6 py-4">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent text-accent-foreground">
-            <Compass className="h-4 w-4" />
-          </div>
-          <div>
-            <h3 className="text-[15px] font-semibold">Your Journey</h3>
-            <p className="text-xs text-muted">How your story unfolds over time</p>
-          </div>
-        </div>
-        <div className="flex items-center justify-center py-16">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-        </div>
       </Card>
     );
   }
@@ -124,7 +68,7 @@ export function JourneyView({ threads, userId, onSelectThread }: JourneyViewProp
             <Compass className="h-4 w-4" />
           </div>
           <div>
-            <h3 className="text-[15px] font-semibold">Your Journey</h3>
+            <h3 className="text-[15px] font-semibold">Your Stories</h3>
             <p className="text-xs text-muted">
               {sortedThreads.length} {sortedThreads.length === 1 ? "story" : "stories"} across time
             </p>
@@ -145,7 +89,7 @@ export function JourneyView({ threads, userId, onSelectThread }: JourneyViewProp
   );
 }
 
-/* ── Journey Thread Card ─────────────────────────────────────────────── */
+/* ── Story card ───────────────────────────────────────────────────────── */
 
 function JourneyThreadCard({
   thread,
@@ -154,9 +98,7 @@ function JourneyThreadCard({
   thread: TemporalThread;
   onSelect: () => void;
 }) {
-  const status = STATUS_STYLES[thread.status] || STATUS_STYLES.OPEN;
   const narrative = STATUS_NARRATIVE[thread.status] || "";
-  const typeLabel = thread.temporal_type ? TYPE_LABELS[thread.temporal_type] : null;
 
   const events = (thread.events || []).slice().sort(
     (a, b) => new Date(a.occurred_at).getTime() - new Date(b.occurred_at).getTime()
@@ -171,20 +113,10 @@ function JourneyThreadCard({
       onClick={onSelect}
       className="w-full rounded-xl border border-border/60 bg-secondary/10 p-5 text-left transition-all duration-200 hover:bg-secondary/30 hover:border-border group"
     >
-      {/* Top row: subject + status */}
+      {/* Top row: subject */}
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="min-w-0 flex-1">
           <h4 className="text-sm font-medium text-foreground leading-snug">{thread.subject}</h4>
-          <div className="mt-1 flex items-center gap-2 flex-wrap">
-            <span className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-medium ${status.bg} ${status.text}`}>
-              {status.label}
-            </span>
-            {typeLabel && (
-              <span className="shrink-0 rounded-md border border-border bg-secondary/40 px-2 py-0.5 text-[10px] text-muted">
-                {typeLabel}
-              </span>
-            )}
-          </div>
         </div>
         <ChevronRight className="h-4 w-4 shrink-0 mt-0.5 text-muted/40 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-muted" />
       </div>
@@ -230,7 +162,7 @@ function JourneyThreadCard({
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-[10px] font-medium uppercase tracking-wider text-emerald-400 mb-0.5">
-                Current
+                Where it is now
               </p>
               <p className="text-xs leading-relaxed text-foreground/80 line-clamp-2">
                 {latest.description}
@@ -241,7 +173,7 @@ function JourneyThreadCard({
         </div>
       )}
 
-      {/* Single event thread — show honestly */}
+      {/* Single moment story — show honestly */}
       {!hasStory && origin && (
         <div className="flex items-start gap-3">
           <div className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center">
@@ -256,7 +188,7 @@ function JourneyThreadCard({
         </div>
       )}
 
-      {/* No events — thread exists but no events loaded yet */}
+      {/* No moments — a story ChronOS is tracking */}
       {events.length === 0 && (
         <p className="text-xs text-muted pl-8">
           {thread.description || "A story ChronOS is tracking."}
@@ -265,11 +197,11 @@ function JourneyThreadCard({
 
       {/* Footer: time span + narrative */}
       <div className="mt-3 flex items-center gap-3 pl-8 text-[10px] text-muted">
-        {hasStory && (
-          <span>{formatTimeRange(origin.occurred_at, latest!.occurred_at)}</span>
+        {hasStory && origin && latest && (
+          <span>{formatTimeRange(origin.occurred_at, latest.occurred_at)}</span>
         )}
         {!hasStory && thread.event_count > 0 && (
-          <span>{thread.event_count} {thread.event_count === 1 ? "event" : "events"}</span>
+          <span>{thread.event_count} {thread.event_count === 1 ? "moment" : "moments"}</span>
         )}
         {narrative && (
           <>

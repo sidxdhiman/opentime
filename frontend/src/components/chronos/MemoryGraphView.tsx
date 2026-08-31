@@ -1,29 +1,28 @@
 "use client";
 
 import React, { useState } from "react";
-import { Database, Search, Link2, FileText, Mic, Video } from "lucide-react";
+import { Database, Search, FileText, Trash2, X, Check, Music2, Video } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { chronosApi, MemoryItem } from "@/lib/chronosApi";
 import { formatDate } from "@/lib/chronosConstants";
 import { EmptyState } from "./EmptyState";
 
 interface MemoryGraphViewProps {
   memories: MemoryItem[];
+  onDelete?: (memoryId: string) => void;
 }
 
-export function MemoryGraphView({ memories }: MemoryGraphViewProps) {
+export function MemoryGraphView({ memories, onDelete }: MemoryGraphViewProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [errorId, setErrorId] = useState<string | null>(null);
 
   const filteredMemories = memories.filter((m) =>
     m.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
     m.tags?.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
   );
-
-  const getInputIcon = (type?: string) => {
-    if (type === "audio") return <Mic className="h-3.5 w-3.5" />;
-    if (type === "video") return <Video className="h-3.5 w-3.5" />;
-    return <FileText className="h-3.5 w-3.5" />;
-  };
 
   const renderMedia = (mem: MemoryItem) => {
     const type = mem.metadata?.input_type;
@@ -41,15 +40,33 @@ export function MemoryGraphView({ memories }: MemoryGraphViewProps) {
     }
     if (type === "audio") {
       return (
-        <audio
-          src={url}
-          controls
-          preload="metadata"
-          className="mt-3 h-9 w-full"
-        />
+        <div className="mt-3 flex items-center gap-2 rounded-lg border border-border bg-secondary/40 px-3 py-2">
+          <Music2 className="h-4 w-4 text-muted" />
+          <audio src={url} controls preload="metadata" className="h-8 flex-1" />
+        </div>
       );
     }
     return null;
+  };
+
+  const handleConfirm = async (mem: MemoryItem) => {
+    setDeletingId(mem.id);
+    setErrorId(null);
+    try {
+      await chronosApi.deleteMemory(mem.id);
+      // Update local state via the parent's targeted callback — no reload.
+      onDelete?.(mem.id);
+    } catch {
+      setErrorId(mem.id);
+    } finally {
+      setDeletingId(null);
+      setConfirmingId(null);
+    }
+  };
+
+  const handleCancel = () => {
+    setConfirmingId(null);
+    setErrorId(null);
   };
 
   return (
@@ -88,44 +105,80 @@ export function MemoryGraphView({ memories }: MemoryGraphViewProps) {
           />
         ) : (
           <div className="max-h-[420px] space-y-3 overflow-y-auto pr-1">
-            {filteredMemories.map((mem) => (
-              <div
-                key={mem.id}
-                className="rounded-xl border border-border bg-secondary/20 p-4 transition-all duration-200 hover:bg-secondary/40"
-              >
-                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 text-[11px] text-muted">
-                    <span className="flex items-center gap-1 rounded-md border border-border bg-secondary/40 px-2 py-0.5">
-                      {getInputIcon(mem.metadata?.input_type)} {mem.metadata?.input_type?.toUpperCase() || "TEXT"}
-                    </span>
-                    <span>Importance {(mem.importance_score * 100).toFixed(0)}%</span>
-                  </div>
-                  <span className="text-[11px] tabular-nums text-muted">
-                    {formatDate(mem.timestamp)}
-                  </span>
-                </div>
-
-                <p className="text-sm leading-relaxed text-foreground">{mem.content}</p>
-
-                {renderMedia(mem)}
-
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-border/40 pt-3 text-[11px] text-muted">
-                  <span className="flex items-center gap-1">
-                    <Link2 className="h-3 w-3" />
-                    {mem.linked_memory_ids?.length || 0} connected
-                  </span>
-                  {mem.tags && mem.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {mem.tags.map((tag) => (
-                        <span key={tag} className="rounded border border-border bg-secondary/40 px-1.5 py-0.5">
-                          {tag}
-                        </span>
-                      ))}
+            {filteredMemories.map((mem) => {
+              const confirming = confirmingId === mem.id;
+              return (
+                <div
+                  key={mem.id}
+                  className="rounded-xl border border-border bg-secondary/20 p-4 transition-all duration-200 hover:bg-secondary/40"
+                >
+                  {confirming ? (
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p className="text-xs font-medium text-foreground">Delete this memory?</p>
+                        <p className="mt-1 text-xs leading-relaxed text-muted">
+                          This removes it from ChronOS memory permanently and cannot be undone. Your
+                          stored moments and past conversations are left intact.
+                        </p>
+                        {errorId === mem.id && (
+                          <p className="mt-1 text-xs text-destructive">Could not delete this memory. Please try again.</p>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleCancel}
+                          className="gap-1 text-xs"
+                        >
+                          <X className="h-3 w-3" /> Keep
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => handleConfirm(mem)}
+                          disabled={deletingId === mem.id}
+                          className="gap-1 text-xs"
+                        >
+                          <Check className="h-3 w-3" />
+                          {deletingId === mem.id ? "Deleting..." : "Delete permanently"}
+                        </Button>
+                      </div>
                     </div>
+                  ) : (
+                    <>
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <span className="text-[11px] tabular-nums text-muted">
+                          Added {formatDate(mem.timestamp)}
+                        </span>
+                        <button
+                          onClick={() => { setConfirmingId(mem.id); setErrorId(null); }}
+                          className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-muted transition-colors hover:bg-secondary/60 hover:text-destructive"
+                          aria-label="Delete this memory"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Delete
+                        </button>
+                      </div>
+
+                      <p className="text-sm leading-relaxed text-foreground">{mem.content}</p>
+
+                      {renderMedia(mem)}
+
+                      {mem.tags && mem.tags.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {mem.tags.map((tag) => (
+                            <span key={tag} className="rounded border border-border bg-secondary/40 px-1.5 py-0.5 text-[11px] text-muted">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </CardContent>

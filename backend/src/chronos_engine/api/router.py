@@ -32,30 +32,37 @@ _ACTIVE_THREAD_MAX_EVENTS = 10
 
 
 class TemporalEventResponse(BaseModel):
+    """The subset of a moment the Stories UI needs.
+
+    Internal provenance (memory ids, confidence, importance) is intentionally
+    excluded so it never becomes user-facing content.
+    """
+
     id: str
-    thread_id: Optional[str] = None
     temporal_type: Optional[str] = None
     description: str = ""
-    memory_id: Optional[str] = None
     occurred_at: str
     recorded_at: str
-    importance: float = 0.5
-    confidence: float = 0.5
 
 
 class TemporalThreadResponse(BaseModel):
+    """The subset of a Story the Stories UI needs.
+
+    Contains identity, subject, presentation status, temporal type (kept
+    secondary for human wording), timestamps, an accurate moment count and
+    the chronological moments themselves. Internal confidence/importance and
+    memory linkage are excluded from API exposure.
+    """
+
     id: str
     temporal_type: Optional[str] = None
     subject: str = ""
     description: Optional[str] = None
     status: str = "OPEN"
-    origin_memory_id: Optional[str] = None
-    related_memory_ids: List[str] = []
-    importance: float = 0.5
-    confidence: float = 0.5
     created_at: str
     updated_at: str
     event_count: int = 0
+    user_archived: bool = False
     events: List[TemporalEventResponse] = []
 
 router = APIRouter(prefix="/chronos/engine", tags=["ChronOS Engine"])
@@ -400,30 +407,48 @@ async def get_interactions(
     ]
 
 
+def _thread_response(thread, events) -> TemporalThreadResponse:
+    """Build the user-safe Story response from a thread and its moments."""
+    return TemporalThreadResponse(
+        id=thread.id,
+        temporal_type=thread.temporal_type.value if thread.temporal_type else None,
+        subject=thread.subject,
+        description=thread.description,
+        status=thread.status.value,
+        created_at=thread.created_at.isoformat(),
+        updated_at=thread.updated_at.isoformat(),
+        event_count=len(events),
+        user_archived=thread.user_archived,
+        events=[
+            TemporalEventResponse(
+                id=e.id,
+                temporal_type=e.temporal_type.value if e.temporal_type else None,
+                description=e.description,
+                occurred_at=e.occurred_at.isoformat(),
+                recorded_at=e.recorded_at.isoformat(),
+            )
+            for e in events
+        ],
+    )
+
+
 @router.get("/threads")
 async def get_threads(
     current_user: UserResponse = Depends(get_current_user),
-) -> List[Dict[str, Any]]:
-    """List all temporal threads for a user, newest first."""
+) -> List[TemporalThreadResponse]:
+    """List all Stories for the authenticated user, newest first.
+
+    Each response already contains its chronological moments, so the Stories
+    view renders with a single request — no per-story detail fetch (N+1 fix).
+    Internal IDs and metadata (confidence, importance, memory linkage) are
+    never exposed.
+    """
     user_id = str(current_user.id)
     threads = await engine_instance.temporal_store.get_threads_by_user(user_id)
-    result = []
+    result: List[TemporalThreadResponse] = []
     for t in threads:
         events = await engine_instance.temporal_store.get_events_by_thread(t.id, user_id)
-        result.append({
-            "id": t.id,
-            "temporal_type": t.temporal_type.value if t.temporal_type else None,
-            "subject": t.subject,
-            "description": t.description,
-            "status": t.status.value,
-            "origin_memory_id": t.origin_memory_id,
-            "related_memory_ids": t.related_memory_ids,
-            "importance": t.importance,
-            "confidence": t.confidence,
-            "created_at": t.created_at.isoformat(),
-            "updated_at": t.updated_at.isoformat(),
-            "event_count": len(events),
-        })
+        result.append(_thread_response(t, events))
     return result
 
 
@@ -431,41 +456,84 @@ async def get_threads(
 async def get_thread(
     thread_id: str,
     current_user: UserResponse = Depends(get_current_user),
-) -> Dict[str, Any]:
-    """Get a specific temporal thread with all its events."""
+) -> TemporalThreadResponse:
+    """Get one Story with all its moments for the authenticated user."""
     user_id = str(current_user.id)
     thread = await engine_instance.temporal_store.get_thread(thread_id, user_id)
     if not thread:
         raise HTTPException(status_code=404, detail="Thread not found")
     events = await engine_instance.temporal_store.get_events_by_thread(thread_id, user_id)
-    return {
-        "id": thread.id,
-        "temporal_type": thread.temporal_type.value if thread.temporal_type else None,
-        "subject": thread.subject,
-        "description": thread.description,
-        "status": thread.status.value,
-        "origin_memory_id": thread.origin_memory_id,
-        "related_memory_ids": thread.related_memory_ids,
-        "importance": thread.importance,
-        "confidence": thread.confidence,
-        "created_at": thread.created_at.isoformat(),
-        "updated_at": thread.updated_at.isoformat(),
-        "event_count": len(events),
-        "events": [
-            {
-                "id": e.id,
-                "thread_id": e.thread_id,
-                "temporal_type": e.temporal_type.value if e.temporal_type else None,
-                "description": e.description,
-                "memory_id": e.memory_id,
-                "occurred_at": e.occurred_at.isoformat(),
-                "recorded_at": e.recorded_at.isoformat(),
-                "importance": e.importance,
-                "confidence": e.confidence,
-            }
-            for e in events
-        ],
-    }
+    return _thread_response(thread, events)
+
+
+@router.delete(
+    "/memories/{memory_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_memory(
+    memory_id: str,
+    current_user: UserResponse = Depends(get_current_user),
+) -> None:
+    """Permanently delete one memory owned by the authenticated user.
+
+    The store purges every reference to the deleted memory (other memories'
+    links, timeline, reflections, patterns, and temporal threads/events/
+    snapshots) so nothing is left orphaned. Historical temporal evidence text
+    is preserved; only dangling memory pointers are removed.
+
+    - 401 when unauthenticated
+    - 404 when the memory does not exist for this user
+    - the identity is always the authenticated user; a client-supplied
+      ``user_id`` is never read or trusted.
+    """
+    user_id = str(current_user.id)
+    deleted = await engine_instance.delete_memory(user_id, memory_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Memory not found")
+
+
+@router.post("/threads/{thread_id}/archive")
+async def archive_thread(
+    thread_id: str,
+    current_user: UserResponse = Depends(get_current_user),
+) -> TemporalThreadResponse:
+    """User-controlled archive of a Story (presentation-level, Phase 5E-C).
+
+    Sets a presentation flag so the Story no longer appears as an active/
+    ongoing Story and is excluded from future continuation matches. It does
+    NOT mutate the deterministic lifecycle ``status`` and does NOT delete or
+    rewrite any historical events — the user can restore it later.
+
+    Ownership is enforced via the authenticated user.
+    """
+    user_id = str(current_user.id)
+    thread = await engine_instance.set_thread_user_archived(
+        user_id, thread_id, archived=True
+    )
+    if thread is None:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    events = await engine_instance.temporal_store.get_events_by_thread(thread_id, user_id)
+    return _thread_response(thread, events)
+
+
+@router.post("/threads/{thread_id}/restore")
+async def restore_thread(
+    thread_id: str,
+    current_user: UserResponse = Depends(get_current_user),
+) -> TemporalThreadResponse:
+    """Restore a previously archived Story (presentation-level).
+
+    Clears the user-controlled archive flag so the Story is active again.
+    Historical evidence is untouched. Ownership enforced via auth.
+    """
+    user_id = str(current_user.id)
+    thread = await engine_instance.set_thread_user_archived(
+        user_id, thread_id, archived=False
+    )
+    if thread is None:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    events = await engine_instance.temporal_store.get_events_by_thread(thread_id, user_id)
+    return _thread_response(thread, events)
 
 
 class ReturnContextEnabledRequest(BaseModel):

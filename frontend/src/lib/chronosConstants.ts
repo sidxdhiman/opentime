@@ -1,11 +1,11 @@
 /** Shared constants for ChronOS temporal thread/status/type display. */
 
 export const STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
-  OPEN: { bg: "bg-sky-500/10", text: "text-sky-400", label: "Open" },
-  ACTIVE: { bg: "bg-emerald-500/10", text: "text-emerald-400", label: "Active" },
+  OPEN: { bg: "bg-sky-500/10", text: "text-sky-400", label: "Still unfolding" },
+  ACTIVE: { bg: "bg-emerald-500/10", text: "text-emerald-400", label: "In progress" },
   RESOLVED: { bg: "bg-purple-500/10", text: "text-purple-400", label: "Resolved" },
-  CHANGED: { bg: "bg-amber-500/10", text: "text-amber-400", label: "Changed" },
-  ABANDONED: { bg: "bg-zinc-500/10", text: "text-zinc-400", label: "Abandoned" },
+  CHANGED: { bg: "bg-amber-500/10", text: "text-amber-400", label: "Evolving" },
+  ABANDONED: { bg: "bg-zinc-500/10", text: "text-zinc-400", label: "Set aside" },
   ARCHIVED: { bg: "bg-zinc-500/10", text: "text-zinc-500", label: "Archived" },
 };
 

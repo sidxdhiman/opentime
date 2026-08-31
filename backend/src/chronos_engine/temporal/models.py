@@ -95,6 +95,12 @@ class TemporalThread(BaseModel):
     confidence: float = 0.5
     created_at: datetime = Field(default_factory=_utcnow)
     updated_at: datetime = Field(default_factory=_utcnow)
+    # Presentation-level, user-controlled flag (Phase 5E-C). When a user
+    # resolves/archives a Story, this is set True so it stops appearing as an
+    # active/ongoing story and is excluded from future continuation matches.
+    # It is deliberately separate from the deterministic lifecycle ``status``:
+    # setting it never rewrites historical temporal evidence.
+    user_archived: bool = False
 
 
 class TemporalEvent(BaseModel):

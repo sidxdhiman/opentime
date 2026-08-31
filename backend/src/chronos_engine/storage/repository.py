@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 from chronos_engine.core.interfaces import BaseStorageAdapter, BaseTemporalStore
 from chronos_engine.core.models import (
@@ -51,6 +52,37 @@ class InMemoryStorageAdapter(BaseStorageAdapter):
             sorted_memories = sorted(memories, key=lambda m: m.timestamp, reverse=True)
             effective_limit = max(1, limit)
             return sorted_memories[:effective_limit]
+
+    async def delete_memory(self, user_id: str, memory_id: str) -> bool:
+        async with self._lock:
+            user_list = self._memories.get(user_id, [])
+            if not any(m.id == memory_id for m in user_list):
+                return False
+
+            # Delete the memory document itself.
+            self._memories[user_id] = [m for m in user_list if m.id != memory_id]
+
+            # Purge references in other memories.
+            for m in self._memories.get(user_id, []):
+                if memory_id in m.linked_memory_ids:
+                    m.linked_memory_ids = [i for i in m.linked_memory_ids if i != memory_id]
+
+            # Purge references in timeline events (historical text preserved).
+            for ev in self._timeline.get(user_id, []):
+                if memory_id in ev.memory_ids:
+                    ev.memory_ids = [i for i in ev.memory_ids if i != memory_id]
+
+            # Purge references in reflections.
+            for r in self._reflections.get(user_id, []):
+                if memory_id in r.supporting_memory_ids:
+                    r.supporting_memory_ids = [i for i in r.supporting_memory_ids if i != memory_id]
+
+            # Purge references in patterns.
+            for p in self._patterns.get(user_id, []):
+                if memory_id in p.supporting_memory_ids:
+                    p.supporting_memory_ids = [i for i in p.supporting_memory_ids if i != memory_id]
+
+            return True
 
     async def save_timeline_event(self, event: TimelineEvent) -> TimelineEvent:
         async with self._lock:
@@ -194,7 +226,11 @@ class InMemoryTemporalStore(BaseTemporalStore):
             TemporalThreadStatus.CHANGED,
         }
         async with self._lock:
-            threads = [t for t in self._threads.get(user_id, []) if t.status in live]
+            threads = [
+                t
+                for t in self._threads.get(user_id, [])
+                if t.status in live and not t.user_archived
+            ]
             return sorted(threads, key=lambda t: t.created_at, reverse=True)[:limit]
 
     async def find_thread_by_origin_memory(
@@ -235,6 +271,33 @@ class InMemoryTemporalStore(BaseTemporalStore):
                 if self._event_owner.get(e.id) == user_id
             ]
             return sorted(events, key=lambda e: e.occurred_at)
+
+    async def purge_memory_references(self, user_id: str, memory_id: str) -> None:
+        async with self._lock:
+            # Threads: drop the id from related_memory_ids; clear origin if it
+            # pointed at this memory. Historical subject/description untouched.
+            for t in self._threads.get(user_id, []):
+                changed = False
+                if memory_id in t.related_memory_ids:
+                    t.related_memory_ids = [i for i in t.related_memory_ids if i != memory_id]
+                    changed = True
+                if t.origin_memory_id == memory_id:
+                    t.origin_memory_id = None
+                    changed = True
+                if changed:
+                    t.updated_at = datetime.now(timezone.utc)
+
+            # Events for any of this user's threads: clear the memory ref only.
+            owned_thread_ids = {t.id for t in self._threads.get(user_id, [])}
+            for thread_id in owned_thread_ids:
+                for e in self._events.get(thread_id, []):
+                    if self._event_owner.get(e.id) == user_id and e.memory_id == memory_id:
+                        e.memory_id = None
+
+            # Snapshots: clear the memory ref.
+            for s in self._snapshots.get(user_id, []):
+                if s.memory_id == memory_id:
+                    s.memory_id = None
 
     async def save_snapshot(self, snapshot: TemporalSnapshot) -> TemporalSnapshot:
         async with self._lock:

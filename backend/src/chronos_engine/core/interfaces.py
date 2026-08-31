@@ -94,6 +94,24 @@ class BaseTemporalStore(ABC):
         pass
 
     @abstractmethod
+    async def purge_memory_references(self, user_id: str, memory_id: str) -> None:
+        """Remove all references to a deleted memory from the temporal domain.
+
+        When a user deletes a memory, historical temporal evidence is
+        preserved: threads, events and snapshots are kept with their original
+        text/subject intact. Only the dangling memory *references* are purged:
+
+        - threads: ``memory_id`` removed from ``related_memory_ids``; if it
+          was the ``origin_memory_id`` that reference is cleared
+        - events: ``memory_id`` set to ``None`` (the historical moment text
+          is untouched)
+        - snapshots: ``memory_id`` set to ``None``
+
+        Must be scoped to the user's own documents only.
+        """
+        pass
+
+    @abstractmethod
     async def save_snapshot(self, snapshot: "TemporalSnapshot") -> "TemporalSnapshot":
         pass
 
@@ -390,6 +408,21 @@ class BaseStorageAdapter(ABC):
 
     @abstractmethod
     async def get_memories_by_user(self, user_id: str, limit: int = 100) -> List[MemoryItem]:
+        pass
+
+    @abstractmethod
+    async def delete_memory(self, user_id: str, memory_id: str) -> bool:
+        """Permanently delete one memory owned by the user.
+
+        The memory document is removed and any references to it are purged so
+        the system stays internally consistent: it is removed from other
+        memories' ``linked_memory_ids``, from ``TimelineEvent.memory_ids``,
+        from ``ReflectionInsight.supporting_memory_ids`` and from
+        ``PatternItem.supporting_memory_ids``.
+
+        Returns ``True`` when a memory was deleted, ``False`` when no such
+        memory exists for this user (so callers can return 404).
+        """
         pass
 
     @abstractmethod

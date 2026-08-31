@@ -345,6 +345,23 @@ export default function DashboardPage() {
     setActiveTab("overview");
   };
 
+  // Phase 5E-C — targeted, reload-free state updates for Stories/Memories.
+
+  const handleUpdateThread = useCallback((updated: TemporalThread) => {
+    setThreads((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+    setActiveThread((active) => (active && active.id === updated.id ? updated : active));
+  }, []);
+
+  // When a story is archived, it must stop being an active continuation
+  // context so the user is not resumed into a story they chose to end.
+  const handleStoryArchived = useCallback((thread: TemporalThread) => {
+    setActiveThread((active) => (active && active.id === thread.id ? null : active));
+  }, []);
+
+  const handleDeleteMemory = useCallback((memoryId: string) => {
+    setMemories((prev) => prev.filter((m) => m.id !== memoryId));
+  }, []);
+
   if (isLoading || !user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -588,11 +605,12 @@ export default function DashboardPage() {
                 thread={selectedThread}
                 onBack={() => setSelectedThread(null)}
                 onContinueStory={handleContinueStory}
+                onUpdateThread={handleUpdateThread}
+                onArchived={handleStoryArchived}
               />
             ) : (
               <JourneyView
                 threads={threads}
-                userId={userId}
                 onSelectThread={setSelectedThread}
               />
             )}
@@ -635,7 +653,7 @@ export default function DashboardPage() {
             transition={{ duration: 0.4, ease: "easeOut" }}
             className="max-w-4xl mx-auto"
           >
-            <MemoryGraphView memories={memories} />
+            <MemoryGraphView memories={memories} onDelete={handleDeleteMemory} />
           </motion.div>
         )}
       </main>

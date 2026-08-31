@@ -265,4 +265,6 @@ async def test_temporal_models_are_isolated_from_storage_and_engine():
         "get_return_ledger",
         "save_return_ledger",
         "delete_all_for_user",
+        # Phase 5E-C: purge dangling references when a user deletes a memory.
+        "purge_memory_references",
     }

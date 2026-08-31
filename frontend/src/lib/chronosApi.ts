@@ -119,14 +119,10 @@ export interface PatternItem {
 
 export interface TemporalEvent {
   id: string;
-  thread_id?: string;
   temporal_type?: string;
   description: string;
-  memory_id?: string;
   occurred_at: string;
   recorded_at: string;
-  importance: number;
-  confidence: number;
 }
 
 export interface TemporalThread {
@@ -135,10 +131,7 @@ export interface TemporalThread {
   subject: string;
   description?: string;
   status: string;
-  origin_memory_id?: string;
-  related_memory_ids: string[];
-  importance: number;
-  confidence: number;
+  user_archived?: boolean;
   created_at: string;
   updated_at: string;
   event_count: number;
@@ -329,6 +322,21 @@ export const chronosApi = {
 
   async getThread(threadId: string): Promise<TemporalThread> {
     return req<TemporalThread>(`/threads/${threadId}`);
+  },
+
+  /** Permanently delete one memory belonging to the authenticated user. */
+  async deleteMemory(memoryId: string): Promise<void> {
+    await req<void>(`/memories/${memoryId}`, { method: "DELETE" });
+  },
+
+  /** User-controlled archive of a Story (presentation-level; history kept). */
+  async archiveStory(threadId: string): Promise<TemporalThread> {
+    return req<TemporalThread>(`/threads/${threadId}/archive`, { method: "POST" });
+  },
+
+  /** Restore a previously archived Story. */
+  async restoreStory(threadId: string): Promise<TemporalThread> {
+    return req<TemporalThread>(`/threads/${threadId}/restore`, { method: "POST" });
   },
 
   /** Deterministic, grounded return context for the authenticated user. */

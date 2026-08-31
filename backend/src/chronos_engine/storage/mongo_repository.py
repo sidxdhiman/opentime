@@ -66,6 +66,37 @@ class MongoStorageAdapter(BaseStorageAdapter):
         )
         return [MemoryItem(**d) async for d in cursor]
 
+    async def delete_memory(self, user_id: str, memory_id: str) -> bool:
+        db = await self._db()
+        # Only ever delete a memory owned by this user.
+        res = await db["engine_memories"].delete_one(
+            {"id": memory_id, "user_id": user_id}
+        )
+        if res.deleted_count == 0:
+            return False
+
+        # Purge references in other memories of the same user.
+        await db["engine_memories"].update_many(
+            {"user_id": user_id, "linked_memory_ids": memory_id},
+            {"$pull": {"linked_memory_ids": memory_id}},
+        )
+        # Purge references in timeline events (historical text preserved).
+        await db["engine_timeline"].update_many(
+            {"user_id": user_id, "memory_ids": memory_id},
+            {"$pull": {"memory_ids": memory_id}},
+        )
+        # Purge references in reflections.
+        await db["engine_reflections"].update_many(
+            {"user_id": user_id, "supporting_memory_ids": memory_id},
+            {"$pull": {"supporting_memory_ids": memory_id}},
+        )
+        # Purge references in patterns.
+        await db["engine_patterns"].update_many(
+            {"user_id": user_id, "supporting_memory_ids": memory_id},
+            {"$pull": {"supporting_memory_ids": memory_id}},
+        )
+        return True
+
     # ── Timeline ───────────────────────────────────────────────────────────
 
     async def save_timeline_event(self, event: TimelineEvent) -> TimelineEvent:
@@ -223,6 +254,16 @@ class MongoTemporalStore(BaseTemporalStore):
         )
         return TemporalThread(**doc) if doc else None
 
+    async def find_thread_by_origin_memory(
+        self, user_id: str, memory_id: str
+    ) -> Optional[TemporalThread]:
+        """Indexed duplicate guard for lifecycle idempotency."""
+        db = await self._db()
+        doc = await db["engine_temporal_threads"].find_one(
+            {"user_id": user_id, "origin_memory_id": memory_id}
+        )
+        return TemporalThread(**doc) if doc else None
+
     async def get_threads_by_user(self, user_id: str) -> List[TemporalThread]:
         db = await self._db()
         cursor = (
@@ -238,26 +279,24 @@ class MongoTemporalStore(BaseTemporalStore):
         """Bounded candidate retrieval for matching — live threads only.
 
         Targeted indexed read over ``engine_temporal_threads`` only; never a
-        scan of memories or events.
+        scan of memories or events. User-archived stories are excluded so a
+        story the user chose to end is not resumed by future matches.
         """
         db = await self._db()
         cursor = (
             db["engine_temporal_threads"]
-            .find({"user_id": user_id, "status": {"$in": list(self._LIVE_STATUSES)}})
+            .find(
+                {
+                    "user_id": user_id,
+                    "status": {"$in": list(self._LIVE_STATUSES)},
+                    # Presentation-level archive also removes it from candidates.
+                    "user_archived": {"$ne": True},
+                }
+            )
             .sort("created_at", -1)
             .limit(limit)
         )
         return [TemporalThread(**d) async for d in cursor]
-
-    async def find_thread_by_origin_memory(
-        self, user_id: str, memory_id: str
-    ) -> Optional[TemporalThread]:
-        """Indexed duplicate guard for lifecycle idempotency."""
-        db = await self._db()
-        doc = await db["engine_temporal_threads"].find_one(
-            {"user_id": user_id, "origin_memory_id": memory_id}
-        )
-        return TemporalThread(**doc) if doc else None
 
     # ── Events ─────────────────────────────────────────────────────────────
 
@@ -279,6 +318,29 @@ class MongoTemporalStore(BaseTemporalStore):
             .sort("occurred_at", 1)
         )
         return [TemporalEvent(**d) async for d in cursor]
+
+    async def purge_memory_references(self, user_id: str, memory_id: str) -> None:
+        db = await self._db()
+        # Threads: pull the id from related_memory_ids and unset origin_memory_id
+        # if it pointed at this memory. Historical subject/description untouched.
+        await db["engine_temporal_threads"].update_many(
+            {"user_id": user_id, "related_memory_ids": memory_id},
+            {"$pull": {"related_memory_ids": memory_id}},
+        )
+        await db["engine_temporal_threads"].update_many(
+            {"user_id": user_id, "origin_memory_id": memory_id},
+            {"$set": {"origin_memory_id": None}},
+        )
+        # Events: clear the memory ref only; the moment text stays.
+        await db["engine_temporal_events"].update_many(
+            {"user_id": user_id, "memory_id": memory_id},
+            {"$set": {"memory_id": None}},
+        )
+        # Snapshots: clear the memory ref.
+        await db["engine_temporal_snapshots"].update_many(
+            {"user_id": user_id, "memory_id": memory_id},
+            {"$set": {"memory_id": None}},
+        )
 
     # ── Snapshots ──────────────────────────────────────────────────────────
 

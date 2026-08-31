@@ -1,14 +1,13 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { ArrowLeft, Calendar, MessageSquare } from "lucide-react";
+import { ArrowLeft, Calendar, MessageSquare, Archive, RotateCcw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { chronosApi, TemporalThread, TemporalEvent } from "@/lib/chronosApi";
+import { chronosApi, TemporalThread } from "@/lib/chronosApi";
 import {
   STATUS_STYLES,
   STATUS_NARRATIVE,
-  TYPE_LABELS,
   formatDate,
   formatDateLong,
 } from "@/lib/chronosConstants";
@@ -17,11 +16,20 @@ interface TemporalThreadDetailViewProps {
   thread: TemporalThread;
   onBack: () => void;
   onContinueStory?: (thread: TemporalThread) => void;
+  onUpdateThread?: (updated: TemporalThread) => void;
+  onArchived?: (thread: TemporalThread) => void;
 }
 
-export function TemporalThreadDetailView({ thread: initialThread, onBack, onContinueStory }: TemporalThreadDetailViewProps) {
+export function TemporalThreadDetailView({
+  thread: initialThread,
+  onBack,
+  onContinueStory,
+  onUpdateThread,
+  onArchived,
+}: TemporalThreadDetailViewProps) {
   const [thread, setThread] = useState<TemporalThread>(initialThread);
   const [loading, setLoading] = useState(!initialThread.events || initialThread.events.length === 0);
+  const [acting, setActing] = useState(false);
 
   useEffect(() => {
     if (!initialThread.events || initialThread.events.length === 0) {
@@ -38,7 +46,23 @@ export function TemporalThreadDetailView({ thread: initialThread, onBack, onCont
   const events = (thread.events || []).slice().sort(
     (a, b) => new Date(a.occurred_at).getTime() - new Date(b.occurred_at).getTime()
   );
-  const typeLabel = thread.temporal_type ? TYPE_LABELS[thread.temporal_type] : null;
+  const isArchived = thread.user_archived === true;
+
+  const handleArchiveToggle = async () => {
+    setActing(true);
+    try {
+      const updated = isArchived
+        ? await chronosApi.restoreStory(thread.id)
+        : await chronosApi.archiveStory(thread.id);
+      setThread(updated);
+      onUpdateThread?.(updated);
+      if (!isArchived) onArchived?.(updated);
+    } catch {
+      // leave state unchanged; the action simply did not apply
+    } finally {
+      setActing(false);
+    }
+  };
 
   return (
     <Card className="overflow-hidden">
@@ -58,30 +82,37 @@ export function TemporalThreadDetailView({ thread: initialThread, onBack, onCont
             <span className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-medium ${status.bg} ${status.text}`}>
               {status.label}
             </span>
-            {typeLabel && (
-              <span className="shrink-0 rounded-md border border-border bg-secondary/40 px-2 py-0.5 text-[10px] text-muted">
-                {typeLabel}
-              </span>
-            )}
           </div>
           <p className="text-xs text-muted">
             {narrative && <>{narrative} {" \u00b7 "}</>}
-            {events.length} {events.length === 1 ? "event" : "events"}
+            {events.length} {events.length === 1 ? "moment" : "moments"}
             {" \u00b7 "}
             Started {formatDateLong(thread.created_at)}
           </p>
         </div>
-        {onContinueStory && (
+        <div className="flex shrink-0 items-center gap-2">
           <Button
-            variant="default"
+            variant="ghost"
             size="sm"
-            onClick={() => onContinueStory(thread)}
-            className="shrink-0 gap-1.5 text-xs"
+            onClick={handleArchiveToggle}
+            disabled={acting}
+            className="gap-1.5 text-xs text-muted hover:text-foreground"
           >
-            <MessageSquare className="h-3.5 w-3.5" />
-            Continue this story
+            {isArchived ? <RotateCcw className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
+            {isArchived ? "Restore" : "Archive"}
           </Button>
-        )}
+          {onContinueStory && !isArchived && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => onContinueStory(thread)}
+              className="gap-1.5 text-xs"
+            >
+              <MessageSquare className="h-3.5 w-3.5" />
+              Continue this story
+            </Button>
+          )}
+        </div>
       </div>
       <CardContent className="p-6">
         {loading ? (
@@ -90,9 +121,9 @@ export function TemporalThreadDetailView({ thread: initialThread, onBack, onCont
           </div>
         ) : events.length === 0 ? (
           <div className="py-12 text-center">
-            <p className="text-sm text-muted">No events recorded for this thread yet.</p>
+            <p className="text-sm text-muted">No moments recorded for this story yet.</p>
             <p className="mt-2 text-xs text-muted-foreground">
-              Events will appear here as ChronOS detects meaningful moments connected to this story.
+              Moments will appear here as ChronOS notices meaningful changes connected to this story.
             </p>
           </div>
         ) : (
@@ -122,7 +153,7 @@ export function TemporalThreadDetailView({ thread: initialThread, onBack, onCont
                     />
                   </div>
 
-                  {/* Event content */}
+                  {/* Moment content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1.5">
                       {isOrigin && !isSingle && (
@@ -137,12 +168,7 @@ export function TemporalThreadDetailView({ thread: initialThread, onBack, onCont
                       )}
                       {isLatest && !isOrigin && (
                         <span className="rounded-md bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-400">
-                          Current
-                        </span>
-                      )}
-                      {event.temporal_type && (
-                        <span className="rounded-md border border-border bg-secondary/40 px-2 py-0.5 text-[11px] text-muted">
-                          {TYPE_LABELS[event.temporal_type] || event.temporal_type}
+                          Where it is now
                         </span>
                       )}
                     </div>

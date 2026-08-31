@@ -98,6 +98,7 @@ from chronos_engine.temporal.models import (
     TemporalReflectionResult,
     TemporalRelevanceDecision,
     TemporalRelevanceResult,
+    TemporalThread,
     TemporalThreadMatchResult,
 )
 
@@ -945,8 +946,37 @@ class ChronosEngine:
     async def get_memories(self, user_id: str, limit: int = 100) -> List[MemoryItem]:
         return await self.storage.get_memories_by_user(user_id, limit=limit)
 
+    async def delete_memory(self, user_id: str, memory_id: str) -> bool:
+        """Permanently delete one memory and purge its references.
+
+        Returns ``True`` when the memory was deleted, ``False`` when it does
+        not exist for this user. Historical temporal evidence is preserved;
+        only dangling memory references are purged.
+        """
+        deleted = await self.storage.delete_memory(user_id, memory_id)
+        if deleted:
+            await self.temporal_store.purge_memory_references(user_id, memory_id)
+        return deleted
+
+    async def set_thread_user_archived(
+        self, user_id: str, thread_id: str, archived: bool
+    ) -> Optional[TemporalThread]:
+        """Set the presentation-level user archive flag on a story.
+
+        Never mutates the deterministic lifecycle ``status`` or historical
+        events. Returns the updated thread, or ``None`` when it does not
+        exist for this user.
+        """
+        thread = await self.temporal_store.get_thread(thread_id, user_id)
+        if thread is None:
+            return None
+        thread.user_archived = archived
+        thread.updated_at = datetime.now(timezone.utc)
+        return await self.temporal_store.save_thread(thread)
+
     async def get_timeline(self, user_id: str) -> List[TimelineEvent]:
         return await self.timeline_engine.get_timeline(user_id)
+
 
     async def get_identity(self, user_id: str) -> IdentityProfile:
         return await self.identity_model.get_or_create_profile(user_id)
