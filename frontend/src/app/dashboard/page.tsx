@@ -539,7 +539,7 @@ export default function DashboardPage() {
                     compete with it. Deliberately lighter visual weight. */}
                 {!isFirstUse && (
                   <div className="mt-4 space-y-6 border-t border-border/40 pt-6">
-                    <IdentityModelCard identity={identity} onRefresh={refreshIdentity} />
+                    <IdentityModelCard identity={identity} />
                     <ReflectionEngineView reflections={reflections.slice(0, 2)} />
                   </div>
                 )}
@@ -594,10 +594,27 @@ export default function DashboardPage() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, ease: "easeOut" }}
-            className="max-w-4xl mx-auto space-y-6"
+            className="mx-auto max-w-4xl space-y-6"
           >
-            <ReflectionEngineView reflections={reflections} />
-            <PatternDetectionView patterns={patterns} />
+            <section className="mx-auto max-w-2xl">
+              <p className="mb-1.5 text-xs font-medium uppercase tracking-widest text-accent-foreground">
+                Insights
+              </p>
+              <h2 className="text-xl font-semibold tracking-tight sm:text-2xl">
+                What ChronOS has noticed
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed text-muted">
+                Everything here is built only from what you&apos;ve shared in conversation — nothing
+                is guessed, assumed, or measured from thin air. Reflections show change over time;
+                patterns show what keeps showing up. Your evolving profile lives on Home, beneath
+                your conversation.
+              </p>
+            </section>
+            {/* First-use users always see honest empty states — the engine's
+                deterministic collections have not yet been built from real
+                shares for them. */}
+            <ReflectionEngineView reflections={isFirstUse ? [] : reflections} />
+            <PatternDetectionView patterns={isFirstUse ? [] : patterns} />
           </motion.div>
         )}
 

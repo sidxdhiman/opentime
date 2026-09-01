@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { UserCheck, Target, Sparkles, Award, RefreshCw, MessageSquare } from "lucide-react";
+import { UserCheck, Target, Sparkles, Award, MessageSquare, HeartHandshake, Compass } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { IdentityProfile } from "@/lib/chronosApi";
 import { formatDate } from "@/lib/chronosConstants";
@@ -9,16 +9,22 @@ import { EmptyState } from "./EmptyState";
 
 interface IdentityModelCardProps {
   identity: IdentityProfile | null;
-  onRefresh?: () => void;
 }
 
-export function IdentityModelCard({ identity, onRefresh }: IdentityModelCardProps) {
+/**
+ * ChronOS's current understanding of the user — deliberately framed as an
+ * evolving picture built from what they've shared, never as a verdict.
+ * Technical metadata (version numbers, confidence scores, refresh controls)
+ * is intentionally hidden: scores are non-calibrated and would imply a
+ * precision the system does not claim.
+ */
+export function IdentityModelCard({ identity }: IdentityModelCardProps) {
   if (!identity) {
     return (
       <EmptyState
         icon={UserCheck}
-        title="Building your identity model"
-        description="Share a few thoughts and ChronOS will build a portrait of who you are."
+        title="ChronOS is still getting to know you"
+        description="Keep talking on the Home tab — ChronOS builds this picture only from what you share, over time. There is nothing to fill in here."
       />
     );
   }
@@ -31,9 +37,10 @@ export function IdentityModelCard({ identity, onRefresh }: IdentityModelCardProp
     skills,
     decision_patterns,
     communication_style,
-    version,
     last_updated,
   } = identity;
+
+  const tendencies = Object.keys(emotional_tendencies || {});
 
   return (
     <Card className="overflow-hidden">
@@ -43,53 +50,25 @@ export function IdentityModelCard({ identity, onRefresh }: IdentityModelCardProp
             <UserCheck className="h-4 w-4" />
           </div>
           <div>
-            <h3 className="text-[15px] font-semibold">Identity model</h3>
+            <h3 className="text-[15px] font-semibold">Your evolving profile</h3>
             <p className="text-xs text-muted">
-              Version {version}, updated {formatDate(last_updated)}
+              How ChronOS currently sees you — from what you&apos;ve shared
             </p>
           </div>
         </div>
-
-        {onRefresh && (
-          <button
-            onClick={onRefresh}
-            className="flex items-center gap-1.5 rounded-lg border border-border bg-secondary/40 px-2.5 py-1.5 text-xs text-muted transition-colors hover:text-foreground"
-          >
-            <RefreshCw className="h-3 w-3" /> Refresh
-          </button>
-        )}
       </div>
 
       <CardContent className="space-y-6 p-6">
-        {/* Emotional tendencies */}
-        <div className="space-y-3">
-          <p className="text-xs font-medium uppercase tracking-widest text-muted">
-            Emotional posture
-          </p>
-          <div className="grid grid-cols-2 gap-3">
-            {Object.entries(emotional_tendencies || {}).map(([key, score]) => (
-              <div key={key} className="rounded-xl border border-border bg-secondary/20 p-3">
-                <div className="mb-2 flex items-center justify-between text-xs font-medium">
-                  <span className="capitalize text-foreground">{key}</span>
-                  <span className="tabular-nums text-accent-foreground">
-                    {(score * 100).toFixed(0)}%
-                  </span>
-                </div>
-                <div className="h-1 w-full overflow-hidden rounded-full bg-secondary">
-                  <div
-                    className="h-full rounded-full bg-primary transition-all duration-700"
-                    style={{ width: `${Math.min(100, Math.max(0, score * 100))}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        {/* Grounding note — sets the expectation up front. */}
+        <p className="rounded-xl border border-border/60 bg-secondary/20 px-4 py-3 text-xs leading-relaxed text-muted">
+          This is ChronOS&apos;s understanding of you right now, not a test result or a verdict. It
+          changes as you share more, and you&apos;re always in control of what it&apos;s built from.
+        </p>
 
-        {/* Goals */}
+        {/* What matters right now */}
         <div className="space-y-2.5">
           <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-widest text-muted">
-            <Target className="h-3.5 w-3.5 text-accent-foreground" /> Active goals
+            <Target className="h-3.5 w-3.5 text-accent-foreground" /> What matters to you right now
           </p>
           {goals && goals.length > 0 ? (
             <div className="space-y-1.5">
@@ -103,7 +82,28 @@ export function IdentityModelCard({ identity, onRefresh }: IdentityModelCardProp
               ))}
             </div>
           ) : (
-            <p className="text-sm text-muted">No goals recorded yet</p>
+            <p className="text-sm text-muted">Not yet — it will grow from your conversations</p>
+          )}
+        </div>
+
+        {/* How you tend to approach things */}
+        <div className="space-y-2.5">
+          <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-widest text-muted">
+            <HeartHandshake className="h-3.5 w-3.5 text-accent-foreground" /> How you tend to approach things
+          </p>
+          {tendencies.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {tendencies.map((t) => (
+                <span
+                  key={t}
+                  className="rounded-full border border-border bg-secondary/40 px-2.5 py-1 text-xs text-foreground/80"
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted">Emerging from what you share</p>
           )}
         </div>
 
@@ -111,7 +111,7 @@ export function IdentityModelCard({ identity, onRefresh }: IdentityModelCardProp
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           <div className="space-y-2.5">
             <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-widest text-muted">
-              <Sparkles className="h-3.5 w-3.5 text-accent-foreground" /> Interests
+              <Sparkles className="h-3.5 w-3.5 text-accent-foreground" /> What you&apos;re drawn to
             </p>
             {interests && interests.length > 0 ? (
               <div className="flex flex-wrap gap-1.5">
@@ -125,13 +125,13 @@ export function IdentityModelCard({ identity, onRefresh }: IdentityModelCardProp
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted">Nothing inferred yet</p>
+              <p className="text-sm text-muted">Emerging from what you share</p>
             )}
           </div>
 
           <div className="space-y-2.5">
             <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-widest text-muted">
-              <Award className="h-3.5 w-3.5 text-accent-foreground" /> Skills
+              <Award className="h-3.5 w-3.5 text-accent-foreground" /> What you lean on
             </p>
             {skills && skills.length > 0 ? (
               <div className="flex flex-wrap gap-1.5">
@@ -145,28 +145,17 @@ export function IdentityModelCard({ identity, onRefresh }: IdentityModelCardProp
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-muted">Nothing inferred yet</p>
+              <p className="text-sm text-muted">Emerging from what you share</p>
             )}
           </div>
         </div>
 
-        {/* Communication & decisions */}
-        {(communication_style || decision_patterns?.length) && (
-          <div className="rounded-xl border border-border bg-secondary/20 p-4">
-            <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-widest text-muted">
-              <MessageSquare className="h-3.5 w-3.5 text-accent-foreground" />
-              Communication & decision style
-            </p>
-            <p className="mt-3 text-sm leading-relaxed text-foreground">{communication_style}</p>
-            {decision_patterns && decision_patterns.length > 0 && (
-              <p className="mt-2 text-sm text-muted">{decision_patterns[0]}</p>
-            )}
-          </div>
-        )}
-
+        {/* Values */}
         {values && values.length > 0 && (
           <div className="space-y-2.5">
-            <p className="text-xs font-medium uppercase tracking-widest text-muted">Values</p>
+            <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-widest text-muted">
+              <Compass className="h-3.5 w-3.5 text-accent-foreground" /> What you value
+            </p>
             <div className="flex flex-wrap gap-1.5">
               {values.map((v) => (
                 <span
@@ -179,6 +168,28 @@ export function IdentityModelCard({ identity, onRefresh }: IdentityModelCardProp
             </div>
           </div>
         )}
+
+        {/* Communication — framed as an observation */}
+        {(communication_style || decision_patterns?.length) && (
+          <div className="rounded-xl border border-border bg-secondary/20 p-4">
+            <p className="flex items-center gap-2 text-xs font-medium uppercase tracking-widest text-muted">
+              <MessageSquare className="h-3.5 w-3.5 text-accent-foreground" />
+              How you tend to communicate
+            </p>
+            {communication_style && (
+              <p className="mt-3 text-sm leading-relaxed text-foreground">{communication_style}</p>
+            )}
+            {decision_patterns && decision_patterns.length > 0 && (
+              <p className="mt-2 text-sm text-muted">{decision_patterns[0]}</p>
+            )}
+          </div>
+        )}
+
+        <p className="border-t border-border/40 pt-4 text-xs text-muted/80">
+          <span className="font-medium text-muted">It evolves as you do.</span> Updated{" "}
+          {last_updated ? formatDate(last_updated) : "recently"} — based on what you&apos;ve shared
+          in conversation.
+        </p>
       </CardContent>
     </Card>
   );

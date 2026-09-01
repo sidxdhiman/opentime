@@ -32,6 +32,27 @@ export const STATUS_NARRATIVE: Record<string, string> = {
   ARCHIVED: "Archived",
 };
 
+/** Human-facing labels for reflection types — observations, never verdicts.
+ *  Raw enum values (e.g. "emotional_shift") are never shown to users. */
+export const REFLECTION_LABELS: Record<string, string> = {
+  belief_shift: "A belief shifted",
+  focus_shift: "Your focus moved",
+  emotional_shift: "Your mood shifted",
+  habit_change: "A habit changed",
+};
+
+/** Human-facing labels for detected patterns. The internal category ids are
+ *  presentation details; users see the theme, framed as something noticed. */
+export const PATTERN_LABELS: Record<string, string> = {
+  habit: "Something you do regularly",
+  recurring_problem: "A recurring challenge",
+  repeated_success: "A repeated success",
+  behavior_loop: "A pattern you repeat",
+  productivity_trend: "A productivity trend",
+  mood_shift: "A shift in mood",
+  decision_change: "A change in how you decide",
+};
+
 /** Format a date string for display. */
 export function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString(undefined, {
