@@ -1,19 +1,26 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Brain,
   Eye,
-  FileCode,
   X,
   FileText,
   Mic,
   Video,
   MessageSquare,
+  Sparkles,
+  Link2,
+  Layers,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EngineResponse, InteractionRecord } from "@/lib/chronosApi";
+import {
+  buildExplainability,
+  buildHistoricalExplainability,
+  Explanation,
+} from "@/lib/explainability";
 import { PastSelfMomentCard } from "./PastSelfMomentCard";
 
 interface ChronosEngineFeedProps {
@@ -22,8 +29,12 @@ interface ChronosEngineFeedProps {
   isThinking?: boolean;
 }
 
+type ExplanationTarget =
+  | { kind: "live" }
+  | { kind: "history"; record: InteractionRecord };
+
 export function ChronosEngineFeed({ interactions, latestResponse, isThinking }: ChronosEngineFeedProps) {
-  const [showExplainabilityModal, setShowExplainabilityModal] = useState(false);
+  const [explanationTarget, setExplanationTarget] = useState<ExplanationTarget | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -32,6 +43,13 @@ export function ChronosEngineFeed({ interactions, latestResponse, isThinking }: 
     // being scrolled past to the top.
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [interactions.length, latestResponse, isThinking]);
+
+  const openLiveExplanation = useCallback(() => setExplanationTarget({ kind: "live" }), []);
+  const openHistoryExplanation = useCallback(
+    (record: InteractionRecord) => setExplanationTarget({ kind: "history", record }),
+    [],
+  );
+  const closeExplanation = useCallback(() => setExplanationTarget(null), []);
 
   const hasHistory = interactions.length > 0;
   const hasLatest = latestResponse !== null;
@@ -49,6 +67,16 @@ export function ChronosEngineFeed({ interactions, latestResponse, isThinking }: 
       (a, b) =>
         new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
     );
+
+  // The modal always explains exactly one inspected message: either the live
+  // latest response, or the specific historical record chosen. It can never
+  // drift onto another interaction's data.
+  const explanationToShow: Explanation | null =
+    explanationTarget?.kind === "live" && latestResponse
+      ? buildExplainability(latestResponse)
+      : explanationTarget?.kind === "history"
+        ? buildHistoricalExplainability(explanationTarget.record)
+        : null;
 
   if (!hasHistory && !hasLatest) {
     return (
@@ -69,23 +97,26 @@ export function ChronosEngineFeed({ interactions, latestResponse, isThinking }: 
     <div className="space-y-4">
       {/* Historical interactions */}
       {filteredInteractions.map((record) => (
-        <InteractionBlock key={record.id} record={record} />
+        <InteractionBlock
+          key={record.id}
+          record={record}
+          onExplain={() => openHistoryExplanation(record)}
+        />
       ))}
 
       {/* Current session response — full experience with explainability */}
-      {hasLatest && <LatestResponseBlock response={latestResponse!} onExplain={() => setShowExplainabilityModal(true)} />}
+      {hasLatest && (
+        <LatestResponseBlock response={latestResponse!} onExplain={openLiveExplanation} />
+      )}
 
       {/* Thinking bubble — shown while ChronOS is processing a new message */}
       {isThinking && <ThinkingBubble />}
 
       <div ref={bottomRef} />
 
-      {/* Explainability modal — only for the latest response */}
-      {hasLatest && showExplainabilityModal && (
-        <ExplainabilityModal
-          response={latestResponse!}
-          onClose={() => setShowExplainabilityModal(false)}
-        />
+      {/* Explainability modal — only for the message being inspected */}
+      {explanationToShow && (
+        <ExplainabilityModal explanation={explanationToShow} onClose={closeExplanation} />
       )}
     </div>
   );
@@ -93,7 +124,13 @@ export function ChronosEngineFeed({ interactions, latestResponse, isThinking }: 
 
 /* ── Historical interaction block ──────────────────────────────────────── */
 
-function InteractionBlock({ record }: { record: InteractionRecord }) {
+function InteractionBlock({
+  record,
+  onExplain,
+}: {
+  record: InteractionRecord;
+  onExplain: () => void;
+}) {
   const hasMoment =
     (record.past_self_context || "").trim().length > 0 ||
     (record.past_self_question || "").trim().length > 0;
@@ -134,6 +171,14 @@ function InteractionBlock({ record }: { record: InteractionRecord }) {
             <div className="mb-1.5 flex items-center gap-1.5">
               <Brain className="h-3 w-3 text-muted" />
               <span className="text-[10px] font-medium text-muted">ChronOS</span>
+              <button
+                onClick={onExplain}
+                className="ml-auto flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-muted transition-colors hover:bg-secondary hover:text-foreground"
+                title="Why did ChronOS respond this way?"
+                aria-label="Why did ChronOS respond this way?"
+              >
+                <Eye className="h-3 w-3" />
+              </button>
             </div>
             <div className="whitespace-pre-line text-sm leading-relaxed text-foreground">
               {displayResponse}
@@ -176,7 +221,6 @@ function LatestResponseBlock({
   const {
     original_input,
     final_response,
-    reasoning_trace,
     chronos_state,
   } = response;
 
@@ -219,7 +263,8 @@ function LatestResponseBlock({
               <button
                 onClick={onExplain}
                 className="ml-auto flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-muted transition-colors hover:bg-secondary hover:text-foreground"
-                title="View reasoning trace"
+                title="Why did ChronOS respond this way?"
+                aria-label="Why did ChronOS respond this way?"
               >
                 <Eye className="h-3 w-3" />
               </button>
@@ -242,94 +287,115 @@ function LatestResponseBlock({
 /* ── Explainability modal ──────────────────────────────────────────────── */
 
 function ExplainabilityModal({
-  response,
+  explanation,
   onClose,
 }: {
-  response: EngineResponse;
+  explanation: Explanation;
   onClose: () => void;
 }) {
-  const { reasoning_trace, prompt_context } = response;
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Focus moves into the dialog when it opens, and Escape closes it.
+    panelRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/70 p-4 backdrop-blur-sm">
-      <div className="relative max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-lift">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="explainability-title"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/70 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+        className="relative max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-lift focus:outline-none"
+      >
         <div className="mb-5 flex items-center justify-between border-b border-border pb-4">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent text-accent-foreground">
               <Brain className="h-4.5 w-4.5" />
             </div>
             <div>
-              <h3 className="text-[15px] font-semibold">Explainability trace</h3>
-              <p className="text-xs text-muted">Why ChronOS answered the way it did</p>
+              <h3 id="explainability-title" className="text-[15px] font-semibold">
+                Why this response?
+              </h3>
+              <p className="text-xs text-muted">
+                A plain-language look at what ChronOS drew on
+              </p>
             </div>
           </div>
           <button
             onClick={onClose}
             className="rounded-lg p-1.5 text-muted transition-colors hover:bg-secondary hover:text-foreground"
-            aria-label="Close trace"
+            aria-label="Close explanation"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="rounded-xl border border-border bg-secondary/30 p-4">
-            <p className="text-xs text-muted">Confidence</p>
-            <p className="mt-1 text-2xl font-semibold tabular-nums">
-              {(reasoning_trace.confidence_score * 100).toFixed(0)}%
-            </p>
-          </div>
-          <div className="rounded-xl border border-border bg-secondary/30 p-4">
-            <p className="text-xs text-muted">Time window</p>
-            <p className="mt-1 text-sm font-medium">{reasoning_trace.affected_time_range}</p>
-          </div>
-        </div>
+        <div className="space-y-5">
+          <p className="text-sm leading-relaxed text-foreground">{explanation.lead}</p>
 
-        <div className="mt-5 space-y-3">
-          <h4 className="text-xs font-medium uppercase tracking-widest text-muted">Reasoning steps</h4>
-          <ol className="space-y-2">
-            {reasoning_trace.reasoning_steps.map((step, idx) => (
-              <li
-                key={idx}
-                className="flex items-start gap-3 rounded-xl border border-border bg-secondary/20 px-3.5 py-3 text-sm text-foreground"
-              >
-                <span className="mt-0.5 text-xs font-medium tabular-nums text-muted">
-                  {String(idx + 1).padStart(2, "0")}
-                </span>
-                <span className="leading-relaxed">{step}</span>
-              </li>
-            ))}
-          </ol>
-        </div>
+          {explanation.sections.length > 0 && (
+            <div className="space-y-4">
+              {explanation.sections.map((section) => (
+                <section key={section.title}>
+                  <h4 className="flex items-center gap-2 text-xs font-medium uppercase tracking-widest text-muted">
+                    {section.title === "What I noticed" ? (
+                      <Sparkles className="h-3.5 w-3.5 text-accent-foreground" />
+                    ) : (
+                      <Link2 className="h-3.5 w-3.5 text-accent-foreground" />
+                    )}
+                    {section.title}
+                  </h4>
+                  <div className="mt-2 space-y-2">
+                    {section.paragraphs.map((paragraph, idx) => (
+                      <p
+                        key={idx}
+                        className="break-words rounded-xl border border-border bg-secondary/20 px-3.5 py-2.5 text-sm leading-relaxed text-foreground/90"
+                      >
+                        {paragraph}
+                      </p>
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
 
-        <div className="mt-5 space-y-3">
-          <h4 className="text-xs font-medium uppercase tracking-widest text-muted">Linked memories</h4>
-          <div className="flex flex-wrap gap-2">
-            {reasoning_trace.supporting_memory_ids.length > 0 ? (
-              reasoning_trace.supporting_memory_ids.map((id) => (
+          <div className="space-y-2.5">
+            <h4 className="flex items-center gap-2 text-xs font-medium uppercase tracking-widest text-muted">
+              <Layers className="h-3.5 w-3.5 text-accent-foreground" /> Based on
+            </h4>
+            <div className="flex flex-wrap gap-1.5">
+              {explanation.sources.map((source) => (
                 <span
-                  key={id}
-                  className="rounded-md border border-border bg-secondary/40 px-2.5 py-1 font-mono text-xs text-muted"
+                  key={source}
+                  className="rounded-full border border-border bg-secondary/40 px-2.5 py-1 text-xs text-foreground/80"
                 >
-                  {id}
+                  {source}
                 </span>
-              ))
-            ) : (
-              <span className="text-sm text-muted">Initial memory linked</span>
-            )}
+              ))}
+            </div>
           </div>
+
+          {!explanation.limited && (
+            <p className="border-t border-border/40 pt-3 text-xs text-muted">
+              {explanation.uncertainty}
+            </p>
+          )}
         </div>
 
-        <div className="mt-5 space-y-2 border-t border-border pt-4">
-          <h4 className="flex items-center gap-2 text-xs font-medium uppercase tracking-widest text-muted">
-            <FileCode className="h-3.5 w-3.5" /> Prompt payload
-          </h4>
-          <pre className="max-h-48 overflow-y-auto rounded-xl border border-border bg-secondary/40 p-4 font-mono text-[11px] leading-relaxed text-muted whitespace-pre-wrap">
-            {prompt_context?.user_prompt || "Prompt payload logged."}
-          </pre>
-        </div>
-
-        <div className="mt-5 flex justify-end gap-2">
+        <div className="mt-6 flex justify-end">
           <Button variant="outline" onClick={onClose}>
             Close
           </Button>

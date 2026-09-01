@@ -184,10 +184,36 @@ export interface TemporalLifecycleResult {
   transitioned: boolean;
 }
 
+/** Minimal, safely-typed view of a retrieved memory: only the human-readable
+ *  content is ever needed on the client. Raw ids / embeddings never surface. */
+export interface RetrievedMemoryPayload {
+  content: string;
+  memory_type?: string;
+}
+
+/** Minimal client view of the deterministic retrieval context. Mirrors the
+ *  shape already emitted by the backend; strictly human-readable subsets. */
+export interface RetrievedContextPayload {
+  relevant_memories?: RetrievedMemoryPayload[];
+}
+
+export interface IntentResultPayload {
+  intent?: string | null;
+  signals?: string[];
+}
+
+export interface UserStateResultPayload {
+  emotional_state?: string | null;
+  cognitive_state?: string | null;
+}
+
 export interface ChronosState {
-  past_self_conversation?: PastSelfMoment;
+  intent?: IntentResultPayload;
+  user_state?: UserStateResultPayload;
+  context?: RetrievedContextPayload;
   temporal_reflection?: TemporalReflection;
   temporal_lifecycle?: TemporalLifecycleResult;
+  past_self_conversation?: PastSelfMoment;
 }
 
 export interface ActiveTemporalEvent {

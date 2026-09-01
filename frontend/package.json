@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "check:leakage": "node scripts/check-explainability-leaks.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.62.0",
