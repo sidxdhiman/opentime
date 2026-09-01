@@ -18,7 +18,14 @@ export function OnboardingProgress({ steps, currentIndex, completedKeys }: Props
   return (
     <div className="w-full">
       {/* Progress bar */}
-      <div className="relative h-1 bg-border rounded-full overflow-hidden mb-6">
+      <div
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={Math.max(steps.length - 1, 0)}
+        aria-valuenow={currentIndex}
+        aria-label="Onboarding progress"
+        className="relative h-1 bg-border rounded-full overflow-hidden mb-6"
+      >
         <div
           className="absolute inset-y-0 left-0 bg-primary transition-all duration-500"
           style={{ width: `${((currentIndex) / (steps.length - 1)) * 100}%` }}

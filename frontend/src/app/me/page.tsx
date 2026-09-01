@@ -41,7 +41,10 @@ export default function MePage() {
   if (isLoading || !user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-violet-500" />
+        <div role="status" className="flex flex-col items-center gap-2">
+          <Loader2 className="h-8 w-8 animate-spin text-violet-500 motion-reduce:animate-none" aria-hidden="true" />
+          <span className="text-sm font-medium text-muted">Loading your profile...</span>
+        </div>
       </div>
     );
   }
@@ -84,6 +87,7 @@ export default function MePage() {
           <button
             type="button"
             onClick={() => setSection("profile")}
+            aria-pressed={section === "profile"}
             className={`flex items-center gap-2 px-4 py-2 text-xs font-medium rounded-lg transition-all duration-200 ${
               section === "profile"
                 ? "bg-accent text-accent-foreground"
@@ -95,6 +99,7 @@ export default function MePage() {
           <button
             type="button"
             onClick={() => setSection("data")}
+            aria-pressed={section === "data"}
             className={`flex items-center gap-2 px-4 py-2 text-xs font-medium rounded-lg transition-all duration-200 ${
               section === "data"
                 ? "bg-accent text-accent-foreground"

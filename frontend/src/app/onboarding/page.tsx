@@ -284,8 +284,8 @@ export default function OnboardingPage() {
   if (authLoading || isBooting) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-8 w-8 animate-spin text-violet-500" />
+        <div role="status" className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-violet-500 motion-reduce:animate-none" aria-hidden="true" />
           <span className="text-sm text-muted">Preparing your onboarding...</span>
         </div>
       </div>
@@ -416,7 +416,7 @@ export default function OnboardingPage() {
 
               {/* Error */}
               {error && (
-                <p className="text-sm text-destructive rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2">
+                <p role="alert" className="text-sm text-destructive rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2">
                   {error}
                 </p>
               )}
@@ -455,7 +455,7 @@ export default function OnboardingPage() {
                     className="gap-2 bg-gradient-to-r from-violet-600 to-indigo-500 hover:from-violet-500 hover:to-indigo-400 text-white shadow-lg shadow-violet-600/20 disabled:opacity-40"
                   >
                     {isSaving || isCompleting ? (
-                      <><Loader2 className="h-4 w-4 animate-spin" />{isCompleting ? "Initialising Chronos..." : "Saving..."}</>
+                      <><Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />{isCompleting ? "Initialising Chronos..." : "Saving..."}</>
                     ) : isLastStep ? (
                       <><CheckCircle2 className="h-4 w-4" />Finish & launch Chronos</>
                     ) : (

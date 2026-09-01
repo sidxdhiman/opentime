@@ -77,7 +77,7 @@ export function MyDataExplorer() {
       </div>
 
       {error && (
-        <div className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
         </div>
       )}
@@ -90,6 +90,7 @@ export function MyDataExplorer() {
               key={t.key}
               type="button"
               onClick={() => setTab(t.key)}
+              aria-pressed={tab === t.key}
               className={`shrink-0 px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-all ${
                 tab === t.key
                   ? "border-accent-foreground text-accent-foreground"
@@ -107,16 +108,17 @@ export function MyDataExplorer() {
           disabled={loading}
           className="gap-1.5 text-xs text-muted hover:text-foreground shrink-0"
         >
-          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin motion-reduce:animate-none" : ""}`} />
           Refresh
         </Button>
       </div>
 
       {/* Loading skeleton */}
       {loading ? (
-        <div className="space-y-4">
+        <div role="status" className="space-y-4">
+          <span className="sr-only">Loading your data...</span>
           {[1, 2, 3].map((i) => (
-            <div key={i} className="rounded-2xl border border-border bg-card h-32 animate-pulse" />
+            <div key={i} className="rounded-2xl border border-border bg-card h-32 animate-pulse motion-reduce:animate-none" />
           ))}
         </div>
       ) : (

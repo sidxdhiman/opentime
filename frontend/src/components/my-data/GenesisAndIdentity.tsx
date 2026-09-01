@@ -48,13 +48,14 @@ export function GenesisSection({ initialMemory }: { initialMemory: GenesisMemory
         <div className="space-y-3">
           <ImpactWarningBanner />
           <textarea
+            aria-label="Genesis memory content"
             className="w-full rounded-lg border border-input bg-background px-4 py-3 text-sm leading-relaxed resize-y focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             rows={8}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             autoFocus
           />
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
           <div className="flex gap-2 justify-end">
             <Button type="button" variant="ghost" size="sm" onClick={cancel}><X className="h-3.5 w-3.5 mr-1" />Cancel</Button>
             <Button type="button" size="sm" onClick={save} disabled={saving} className="bg-primary text-primary-foreground hover:bg-primary/90"><Check className="h-3.5 w-3.5 mr-1" />{saving ? "Saving..." : "Save"}</Button>
@@ -140,16 +141,16 @@ export function IdentitySection({ initialIdentity }: { initialIdentity: Identity
                   {draftTraits.map((t) => (
                     <span key={t} className="flex items-center gap-1 rounded-full border border-accent/50 bg-accent px-3 py-1 text-xs text-accent-foreground">
                       {t}
-                      <button type="button" onClick={() => removeTrait(t)} className="hover:text-destructive">×</button>
+                      <button type="button" onClick={() => removeTrait(t)} className="hover:text-destructive" aria-label={`Remove ${t}`}>×</button>
                     </span>
                   ))}
                   {draftTraits.length === 0 && <p className="text-xs text-muted">No traits yet.</p>}
                 </div>
                 <div className="flex gap-2">
-                  <Input placeholder="Add a trait..." value={newTrait} onChange={(e) => setNewTrait(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTrait(); }}} className="text-sm" />
-                  <Button type="button" variant="outline" onClick={addTrait} className="shrink-0 border-accent/60 text-accent-foreground hover:bg-accent"><Plus className="h-4 w-4" /></Button>
+                  <Input aria-label="New trait" placeholder="Add a trait..." value={newTrait} onChange={(e) => setNewTrait(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTrait(); }}} className="text-sm" />
+                  <Button type="button" variant="outline" onClick={addTrait} aria-label="Add trait" className="shrink-0 border-accent/60 text-accent-foreground hover:bg-accent"><Plus className="h-4 w-4" /></Button>
                 </div>
-                {error && <p className="text-xs text-destructive">{error}</p>}
+{error && <p role="alert" className="text-xs text-destructive">{error}</p>}
                 <div className="flex gap-2 justify-end">
                   <Button type="button" variant="ghost" size="sm" onClick={cancel}><X className="h-3.5 w-3.5 mr-1" />Cancel</Button>
                   <Button type="button" size="sm" onClick={save} disabled={saving} className="bg-primary text-primary-foreground hover:bg-primary/90"><Check className="h-3.5 w-3.5 mr-1" />{saving ? "Saving..." : "Save"}</Button>

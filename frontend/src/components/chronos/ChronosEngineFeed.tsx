@@ -36,20 +36,37 @@ type ExplanationTarget =
 export function ChronosEngineFeed({ interactions, latestResponse, isThinking }: ChronosEngineFeedProps) {
   const [explanationTarget, setExplanationTarget] = useState<ExplanationTarget | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const focusReturnRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     // Keep the newest content in view. block:"end" anchors the feed bottom to
     // the viewport bottom so the latest message stays visible instead of
     // being scrolled past to the top.
-    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    bottomRef.current?.scrollIntoView({
+      behavior: reduce ? "auto" : "smooth",
+      block: "end",
+    });
   }, [interactions.length, latestResponse, isThinking]);
 
-  const openLiveExplanation = useCallback(() => setExplanationTarget({ kind: "live" }), []);
+  const openLiveExplanation = useCallback(() => {
+    focusReturnRef.current = document.activeElement as HTMLElement | null;
+    setExplanationTarget({ kind: "live" });
+  }, []);
   const openHistoryExplanation = useCallback(
-    (record: InteractionRecord) => setExplanationTarget({ kind: "history", record }),
+    (record: InteractionRecord) => {
+      focusReturnRef.current = document.activeElement as HTMLElement | null;
+      setExplanationTarget({ kind: "history", record });
+    },
     [],
   );
-  const closeExplanation = useCallback(() => setExplanationTarget(null), []);
+  const closeExplanation = useCallback(() => {
+    setExplanationTarget(null);
+    requestAnimationFrame(() => {
+      focusReturnRef.current?.focus?.();
+      focusReturnRef.current = null;
+    });
+  }, []);
 
   const hasHistory = interactions.length > 0;
   const hasLatest = latestResponse !== null;
@@ -160,7 +177,7 @@ function InteractionBlock({
               })}
             </span>
           </div>
-          <p className="text-sm leading-relaxed text-foreground">&ldquo;{record.user_content}&rdquo;</p>
+          <p className="text-sm leading-relaxed text-foreground break-words">&ldquo;{record.user_content}&rdquo;</p>
         </div>
       </div>
 
@@ -180,7 +197,7 @@ function InteractionBlock({
                 <Eye className="h-3 w-3" />
               </button>
             </div>
-            <div className="whitespace-pre-line text-sm leading-relaxed text-foreground">
+            <div className="whitespace-pre-line break-words text-sm leading-relaxed text-foreground">
               {displayResponse}
             </div>
           </div>
@@ -247,7 +264,7 @@ function LatestResponseBlock({
             {getInputIcon(original_input.input_type)}
             <span className="text-[10px] font-medium text-muted">Just now</span>
           </div>
-          <p className="text-sm leading-relaxed text-foreground">
+          <p className="text-sm leading-relaxed text-foreground break-words">
             &ldquo;{original_input.content}&rdquo;
           </p>
         </div>
@@ -269,7 +286,7 @@ function LatestResponseBlock({
                 <Eye className="h-3 w-3" />
               </button>
             </div>
-            <div className="whitespace-pre-line text-sm leading-relaxed text-foreground">
+            <div className="whitespace-pre-line break-words text-sm leading-relaxed text-foreground">
               {displayResponse}
             </div>
           </div>
@@ -299,7 +316,28 @@ function ExplainabilityModal({
     // Focus moves into the dialog when it opens, and Escape closes it.
     panelRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      // Keep Tab within the dialog so focus cannot fall out onto the page.
+      const panel = panelRef.current;
+      if (!panel) return;
+      const focusables = panel.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -409,16 +447,20 @@ function ExplainabilityModal({
 
 function ThinkingBubble() {
   return (
-    <div className="flex justify-start">
-      <div className="max-w-[85%] rounded-2xl rounded-bl-md border border-border bg-card px-4 py-3">
+    <div role="status" className="flex justify-start">
+      <span className="sr-only">ChronOS is thinking.</span>
+      <div
+        aria-hidden="true"
+        className="max-w-[85%] rounded-2xl rounded-bl-md border border-border bg-card px-4 py-3"
+      >
         <div className="mb-1.5 flex items-center gap-1.5">
           <Brain className="h-3 w-3 text-muted" />
           <span className="text-[10px] font-medium text-muted">ChronOS</span>
         </div>
         <div className="flex items-center gap-1.5 py-1">
-          <span className="h-2 w-2 animate-bounce rounded-full bg-muted/60 [animation-delay:0ms]" />
-          <span className="h-2 w-2 animate-bounce rounded-full bg-muted/60 [animation-delay:150ms]" />
-          <span className="h-2 w-2 animate-bounce rounded-full bg-muted/60 [animation-delay:300ms]" />
+          <span className="h-2 w-2 animate-bounce rounded-full bg-muted/60 motion-reduce:animate-none [animation-delay:0ms]" />
+          <span className="h-2 w-2 animate-bounce rounded-full bg-muted/60 motion-reduce:animate-none [animation-delay:150ms]" />
+          <span className="h-2 w-2 animate-bounce rounded-full bg-muted/60 motion-reduce:animate-none [animation-delay:300ms]" />
         </div>
       </div>
     </div>

@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 
 function SkeletonPulse({ className }: { className?: string }) {
   return (
-    <div className={`animate-pulse rounded-lg bg-secondary/40 ${className || ""}`} />
+    <div className={`animate-pulse rounded-lg bg-secondary/40 motion-reduce:animate-none ${className || ""}`} />
   );
 }
 

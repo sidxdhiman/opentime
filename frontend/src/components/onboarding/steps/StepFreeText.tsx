@@ -13,6 +13,7 @@ export function StepFreeText({ value, onChange, placeholder, minRows = 8 }: Prop
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
+      aria-label={placeholder.split("\n")[0]}
       rows={minRows}
       autoFocus
       className="w-full rounded-lg border border-input bg-background px-4 py-3 text-sm leading-relaxed resize-y placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

@@ -77,10 +77,10 @@ export function PreferencesSection({ initialPrefs }: { initialPrefs: AnalysisPre
           <div className="grid grid-cols-2 gap-2">
             {PRESET_OPTIONS.map((opt) => {
               const on = draft.includes(opt.value);
-              return (
-                <button key={opt.value} type="button" onClick={() => toggle(opt.value)}
-                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs text-left transition-all ${on ? "border-accent bg-accent text-accent-foreground" : "border-border bg-secondary/20 text-foreground hover:border-accent/40 hover:bg-accent/20"}`}
-                >
+return (
+              <button key={opt.value} type="button" onClick={() => toggle(opt.value)} aria-pressed={on}
+                className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs text-left transition-all ${on ? "border-accent bg-accent text-accent-foreground" : "border-border bg-secondary/20 text-foreground hover:border-accent/40 hover:bg-accent/20"}`}
+              >
                   <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-all ${on ? "border-primary bg-primary" : "border-border"}`}>
                     {on && <Check className="h-2.5 w-2.5 text-primary-foreground" />}
                   </span>
@@ -95,16 +95,16 @@ export function PreferencesSection({ initialPrefs }: { initialPrefs: AnalysisPre
               {draft.filter((d) => !PRESET_OPTIONS.some((o) => o.value === d)).map((d) => (
                 <span key={d} className="flex items-center gap-1 rounded-full border border-accent/50 bg-accent px-2.5 py-0.5 text-xs text-accent-foreground">
                   {d}
-                  <button type="button" onClick={() => setDraft((prev) => prev.filter((x) => x !== d))} className="hover:text-destructive">×</button>
+                  <button type="button" onClick={() => setDraft((prev) => prev.filter((x) => x !== d))} className="hover:text-destructive" aria-label={`Remove ${d}`}>×</button>
                 </span>
               ))}
             </div>
           )}
           <div className="flex gap-2">
-            <Input placeholder="Add a custom preference..." value={custom} onChange={(e) => setCustom(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustom(); }}} className="text-sm" />
-            <Button type="button" variant="outline" onClick={addCustom} className="shrink-0 border-accent/60 text-accent-foreground hover:bg-accent"><Plus className="h-4 w-4" /></Button>
+<Input aria-label="Custom preference" placeholder="Add a custom preference..." value={custom} onChange={(e) => setCustom(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustom(); }}} className="text-sm" />
+          <Button type="button" variant="outline" onClick={addCustom} aria-label="Add custom preference" className="shrink-0 border-accent/60 text-accent-foreground hover:bg-accent"><Plus className="h-4 w-4" /></Button>
           </div>
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
           <div className="flex gap-2 justify-end">
             <Button type="button" variant="ghost" size="sm" onClick={cancelEdit}><X className="h-3.5 w-3.5 mr-1" />Cancel</Button>
             <Button type="button" size="sm" onClick={save} disabled={saving} className="bg-primary text-primary-foreground hover:bg-primary/90"><Check className="h-3.5 w-3.5 mr-1" />{saving ? "Saving..." : "Save"}</Button>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Database, Search, FileText, Trash2, X, Check, Music2, Video } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,21 @@ export function MemoryGraphView({ memories, onDelete }: MemoryGraphViewProps) {
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [errorId, setErrorId] = useState<string | null>(null);
+
+  const confirmingIdRef = useRef<string | null>(null);
+  const keepButtonRef = useRef<HTMLButtonElement | null>(null);
+  const deleteButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  useEffect(() => {
+    if (confirmingId !== null) {
+      confirmingIdRef.current = confirmingId;
+      keepButtonRef.current?.focus();
+    } else if (confirmingIdRef.current) {
+      const trigger = deleteButtonRefs.current[confirmingIdRef.current];
+      confirmingIdRef.current = null;
+      trigger?.focus();
+    }
+  }, [confirmingId]);
 
   const filteredMemories = memories.filter((m) =>
     m.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -89,6 +104,7 @@ export function MemoryGraphView({ memories, onDelete }: MemoryGraphViewProps) {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search memories..."
+            aria-label="Search memories"
             className="w-full rounded-lg border border-border bg-secondary/40 py-1.5 pl-9 pr-3 text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-ring"
           />
         </div>
@@ -121,11 +137,12 @@ export function MemoryGraphView({ memories, onDelete }: MemoryGraphViewProps) {
                           stored moments and past conversations are left intact.
                         </p>
                         {errorId === mem.id && (
-                          <p className="mt-1 text-xs text-destructive">Could not delete this memory. Please try again.</p>
+                          <p role="alert" className="mt-1 text-xs text-destructive">Could not delete this memory. Please try again.</p>
                         )}
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
                         <Button
+                          ref={keepButtonRef}
                           variant="outline"
                           size="sm"
                           onClick={handleCancel}
@@ -152,8 +169,11 @@ export function MemoryGraphView({ memories, onDelete }: MemoryGraphViewProps) {
                           Added {formatDate(mem.timestamp)}
                         </span>
                         <button
+                          ref={(el) => {
+                            deleteButtonRefs.current[mem.id] = el;
+                          }}
                           onClick={() => { setConfirmingId(mem.id); setErrorId(null); }}
-                          className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-muted transition-colors hover:bg-secondary/60 hover:text-destructive"
+                          className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] text-muted transition-colors hover:bg-secondary/60 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           aria-label="Delete this memory"
                         >
                           <Trash2 className="h-3.5 w-3.5" />

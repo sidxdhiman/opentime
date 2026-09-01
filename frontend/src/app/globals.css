@@ -213,3 +213,20 @@
   0%, 100% { opacity: 0.45; transform: translateX(-50%) scale(1); }
   50% { opacity: 0.85; transform: translateX(-50%) scale(1.06); }
 }
+
+/* ── Reduced motion ─────────────────────────────────────────────────────────
+   Respect prefers-reduced-motion without globally flattening the UI: smooth
+   page scrolling becomes instant, and the mood ambient layers (purely
+   decorative, pointer-events-none, aria-hidden) freeze. Component-level
+   animations use Tailwind's motion-reduce:* variants individually. */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .op-ambient,
+  .op-ambient * {
+    animation: none !important;
+  }
+}

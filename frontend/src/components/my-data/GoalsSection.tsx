@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Check, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +38,7 @@ function GoalRow({ goal, onUpdated, onDeleted }: {
 }) {
   const [editing, setEditing] = useState(false);
   const [showWarning, setShowWarning] = useState(false);
+  const [confirmingRemove, setConfirmingRemove] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<EditState>({
@@ -47,6 +48,20 @@ function GoalRow({ goal, onUpdated, onDeleted }: {
     importance: goal.importance,
     status: goal.status,
   });
+
+  const removeTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const keepRemoveRef = useRef<HTMLButtonElement | null>(null);
+  const wasConfirmingRemoveRef = useRef(false);
+
+  useEffect(() => {
+    if (confirmingRemove === wasConfirmingRemoveRef.current) return;
+    wasConfirmingRemoveRef.current = confirmingRemove;
+    if (confirmingRemove) {
+      keepRemoveRef.current?.focus();
+    } else {
+      removeTriggerRef.current?.focus();
+    }
+  }, [confirmingRemove]);
 
   const startEdit = () => { setShowWarning(true); setEditing(true); setError(null); };
   const cancelEdit = () => { setEditing(false); setShowWarning(false); setDraft({ title: goal.title, description: goal.description ?? "", category: goal.category, importance: goal.importance, status: goal.status }); };
@@ -63,7 +78,6 @@ function GoalRow({ goal, onUpdated, onDeleted }: {
   };
 
   const remove = async () => {
-    if (!confirm("Remove this goal? It will be marked as abandoned but not deleted.")) return;
     setSaving(true);
     try {
       await myDataApi.deleteGoal(goal.id);
@@ -71,6 +85,7 @@ function GoalRow({ goal, onUpdated, onDeleted }: {
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Delete failed.");
       setSaving(false);
+      setConfirmingRemove(false);
     }
   };
 
@@ -82,8 +97,8 @@ function GoalRow({ goal, onUpdated, onDeleted }: {
 
       {editing ? (
         <div className="space-y-3">
-          <Input value={draft.title} onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))} placeholder="Goal title" autoFocus />
-          <textarea className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm resize-y focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" rows={2} placeholder="Description (optional)" value={draft.description} onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))} />
+          <Input value={draft.title} onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))} placeholder="Goal title" aria-label="Goal title" autoFocus />
+          <textarea aria-label="Goal description" className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm resize-y focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" rows={2} placeholder="Description (optional)" value={draft.description} onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))} />
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs text-muted mb-1 block">Category</label>
@@ -109,22 +124,63 @@ function GoalRow({ goal, onUpdated, onDeleted }: {
           </div>
         </div>
       ) : (
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-medium text-sm text-foreground">{goal.title}</span>
-              <span className={`text-xs border rounded-full px-2 py-0.5 ${STATUS_COLORS[goal.status] ?? ""}`}>{STATUS_LABELS[goal.status] ?? goal.status}</span>
-              <span className="text-xs text-muted border border-border rounded-full px-2 py-0.5">{goal.category.replace("_", " ")}</span>
+        <div className="space-y-3">
+          {confirmingRemove && (
+            <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-3">
+              <p className="text-xs font-medium text-destructive">Remove this goal?</p>
+              <p className="mt-1 text-xs leading-relaxed text-destructive/80">
+                It will be marked as removed but not deleted. You can keep it for reference in the data explorer.
+              </p>
+              {error && <p role="alert" className="mt-1 text-xs text-destructive">{error}</p>}
+              <div className="mt-2 flex gap-2">
+                <Button
+                  ref={keepRemoveRef}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { setConfirmingRemove(false); setError(null); }}
+                  className="text-xs"
+                >
+                  Keep
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={remove}
+                  disabled={saving}
+                  className="text-xs"
+                >
+                  {saving ? "Removing..." : "Remove"}
+                </Button>
+              </div>
             </div>
-            {goal.description && <p className="text-xs text-muted mt-1 line-clamp-2">{goal.description}</p>}
-            <div className="mt-2 flex items-center gap-2">
-              <div className="h-1 flex-1 max-w-[120px] rounded-full bg-border overflow-hidden"><div className="h-full bg-primary transition-all" style={{ width: `${goal.importance * 100}%` }} /></div>
-              <span className="text-xs text-muted">{Math.round(goal.importance * 100)}% importance</span>
+          )}
+
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-medium text-sm text-foreground">{goal.title}</span>
+                <span className={`text-xs border rounded-full px-2 py-0.5 ${STATUS_COLORS[goal.status] ?? ""}`}>{STATUS_LABELS[goal.status] ?? goal.status}</span>
+                <span className="text-xs text-muted border border-border rounded-full px-2 py-0.5">{goal.category.replace("_", " ")}</span>
+              </div>
+              {goal.description && <p className="text-xs text-muted mt-1 line-clamp-2">{goal.description}</p>}
+              <div className="mt-2 flex items-center gap-2">
+                <div className="h-1 flex-1 max-w-[120px] rounded-full bg-border overflow-hidden"><div className="h-full bg-primary transition-all" style={{ width: `${goal.importance * 100}%` }} /></div>
+                <span className="text-xs text-muted">{Math.round(goal.importance * 100)}% importance</span>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-1 shrink-0">
-            <button type="button" onClick={startEdit} className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-secondary transition-colors" aria-label="Edit goal"><Pencil className="h-3.5 w-3.5" /></button>
-            <button type="button" onClick={remove} disabled={saving} className="p-1.5 rounded-lg text-muted hover:text-destructive hover:bg-destructive/10 transition-colors" aria-label="Remove goal"><Trash2 className="h-3.5 w-3.5" /></button>
+            <div className="flex items-center gap-1 shrink-0">
+              <button type="button" onClick={startEdit} className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-secondary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label="Edit goal"><Pencil className="h-3.5 w-3.5" /></button>
+              <button
+                ref={removeTriggerRef}
+                type="button"
+                onClick={() => { setError(null); setConfirmingRemove(true); }}
+                disabled={saving}
+                className="p-1.5 rounded-lg text-muted hover:text-destructive hover:bg-destructive/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Remove goal"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -194,7 +250,7 @@ export function GoalsSection({ initialGoals }: { initialGoals: Goal[] }) {
                 <input type="range" min={0} max={1} step={0.05} value={newGoal.importance} onChange={(e) => setNewGoal((d) => ({ ...d, importance: parseFloat(e.target.value) }))} className="w-full mt-2 accent-violet-500" />
               </div>
             </div>
-            {error && <p className="text-xs text-destructive">{error}</p>}
+{error && <p role="alert" className="text-xs text-destructive">{error}</p>}
             <div className="flex gap-2 justify-end">
               <Button type="button" variant="ghost" size="sm" onClick={() => { setAdding(false); setShowAddWarning(false); }}><X className="h-3.5 w-3.5 mr-1" />Cancel</Button>
               <Button type="button" size="sm" onClick={saveNew} disabled={saving || !newGoal.title.trim()} className="bg-primary text-primary-foreground hover:bg-primary/90"><Check className="h-3.5 w-3.5 mr-1" />{saving ? "Saving..." : "Add goal"}</Button>

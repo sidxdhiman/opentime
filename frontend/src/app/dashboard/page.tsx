@@ -364,8 +364,8 @@ export default function DashboardPage() {
   if (isLoading || !user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <div role="status" className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent motion-reduce:animate-none" aria-hidden="true" />
           <span className="text-sm font-medium text-muted">Opening your timeline...</span>
         </div>
       </div>
@@ -385,7 +385,7 @@ export default function DashboardPage() {
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-3.5">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-secondary">
-              <Cpu className="h-5 w-5 text-accent-foreground" />
+              <Cpu className="h-5 w-5 text-accent-foreground" aria-hidden="true" />
             </div>
             <div>
               <div className="flex items-center gap-2.5">
@@ -444,6 +444,7 @@ export default function DashboardPage() {
             <button
               key={key}
               onClick={() => setActiveTab(key)}
+              aria-pressed={activeTab === key}
               className={`flex shrink-0 items-center gap-2 rounded-lg px-3.5 py-2 text-xs font-medium transition-all duration-200 ${
                 activeTab === key
                   ? "bg-accent text-accent-foreground"
@@ -480,7 +481,7 @@ export default function DashboardPage() {
                     meaningful, grounded reason to (never forced, never noisy). */}
                 {hasFirstStory && threads.length >= 1 && (
                   <div className="flex items-center gap-3 rounded-xl border border-accent/30 bg-accent/5 px-4 py-3">
-                    <GitBranch className="h-4 w-4 shrink-0 text-accent-foreground" />
+                    <GitBranch className="h-4 w-4 shrink-0 text-accent-foreground" aria-hidden="true" />
                     <p className="text-sm leading-relaxed text-foreground">
                       A new story is beginning — ChronOS will keep it connected to your timeline as it grows.
                     </p>
@@ -505,7 +506,7 @@ export default function DashboardPage() {
                     so it is unmistakable but never dominates. */}
                 {activeThread && (
                   <div className="flex items-center gap-3 rounded-xl border border-accent/30 bg-accent/5 px-4 py-2.5">
-                    <GitBranch className="h-4 w-4 shrink-0 text-accent-foreground" />
+                    <GitBranch className="h-4 w-4 shrink-0 text-accent-foreground" aria-hidden="true" />
                     <div className="min-w-0 flex-1">
                       <p className="text-[10px] font-medium uppercase tracking-wider text-accent-foreground">
                         Continuing a story

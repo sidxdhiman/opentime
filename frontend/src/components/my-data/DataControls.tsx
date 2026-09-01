@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { CheckCircle2, Download, Loader2, ShieldAlert, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { chronosApi } from "@/lib/chronosApi";
@@ -10,6 +10,20 @@ export function DataControls() {
   const [deleting, setDeleting] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const deleteTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const confirmDeleteRef = useRef<HTMLButtonElement | null>(null);
+  const wasConfirmingRef = useRef(false);
+
+  useEffect(() => {
+    if (confirmingDelete === wasConfirmingRef.current) return;
+    wasConfirmingRef.current = confirmingDelete;
+    if (confirmingDelete) {
+      confirmDeleteRef.current?.focus();
+    } else {
+      deleteTriggerRef.current?.focus();
+    }
+  }, [confirmingDelete]);
 
   async function handleExport() {
     setExporting(true);
@@ -74,6 +88,7 @@ export function DataControls() {
       <div className="px-6 py-5 space-y-4">
         {message && (
           <div
+            role={message.type === "error" ? "alert" : "status"}
             className={`flex items-start gap-2 rounded-lg border px-3 py-2.5 text-sm ${
               message.type === "success"
                 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
@@ -91,12 +106,13 @@ export function DataControls() {
 
         <div className="flex flex-col sm:flex-row gap-3">
           <Button variant="outline" onClick={handleExport} disabled={exporting || deleting} className="flex-1">
-            {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {exporting ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : <Download className="h-4 w-4" />}
             Export all my data
           </Button>
 
           {!confirmingDelete ? (
             <Button
+              ref={deleteTriggerRef}
               variant="destructive"
               onClick={() => setConfirmingDelete(true)}
               disabled={exporting || deleting}
@@ -112,8 +128,14 @@ export function DataControls() {
                 This cannot be undone.
               </div>
               <div className="flex gap-2">
-                <Button variant="destructive" onClick={handleDelete} disabled={deleting} className="flex-1">
-                  {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                <Button
+                  ref={confirmDeleteRef}
+                  variant="destructive"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="flex-1"
+                >
+                  {deleting ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" /> : <Trash2 className="h-4 w-4" />}
                   Yes, delete everything
                 </Button>
                 <Button variant="ghost" onClick={() => setConfirmingDelete(false)} disabled={deleting} className="flex-1">

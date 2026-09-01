@@ -111,12 +111,13 @@ function JourneyThreadCard({
   return (
     <button
       onClick={onSelect}
+      aria-label={`Open story: ${thread.subject}`}
       className="w-full rounded-xl border border-border/60 bg-secondary/10 p-5 text-left transition-all duration-200 hover:bg-secondary/30 hover:border-border group"
     >
       {/* Top row: subject */}
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="min-w-0 flex-1">
-          <h4 className="text-sm font-medium text-foreground leading-snug">{thread.subject}</h4>
+          <span className="text-sm font-medium text-foreground leading-snug">{thread.subject}</span>
         </div>
         <ChevronRight className="h-4 w-4 shrink-0 mt-0.5 text-muted/40 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-muted" />
       </div>

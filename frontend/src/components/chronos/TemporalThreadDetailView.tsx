@@ -30,6 +30,7 @@ export function TemporalThreadDetailView({
   const [thread, setThread] = useState<TemporalThread>(initialThread);
   const [loading, setLoading] = useState(!initialThread.events || initialThread.events.length === 0);
   const [acting, setActing] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!initialThread.events || initialThread.events.length === 0) {
@@ -50,6 +51,7 @@ export function TemporalThreadDetailView({
 
   const handleArchiveToggle = async () => {
     setActing(true);
+    setActionError(null);
     try {
       const updated = isArchived
         ? await chronosApi.restoreStory(thread.id)
@@ -58,7 +60,7 @@ export function TemporalThreadDetailView({
       onUpdateThread?.(updated);
       if (!isArchived) onArchived?.(updated);
     } catch {
-      // leave state unchanged; the action simply did not apply
+      setActionError("Couldn't update this story. Please try again.");
     } finally {
       setActing(false);
     }
@@ -72,6 +74,7 @@ export function TemporalThreadDetailView({
           variant="ghost"
           size="sm"
           onClick={onBack}
+          aria-label="Back to stories"
           className="h-8 w-8 p-0 text-muted hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -114,10 +117,16 @@ export function TemporalThreadDetailView({
           )}
         </div>
       </div>
+      {actionError && (
+        <div role="alert" className="mx-6 -mb-4 mt-0 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          {actionError}
+        </div>
+      )}
       <CardContent className="p-6">
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <div role="status" className="flex items-center justify-center py-12">
+            <span className="sr-only">Loading story moments...</span>
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent motion-reduce:animate-none" aria-hidden="true" />
           </div>
         ) : events.length === 0 ? (
           <div className="py-12 text-center">

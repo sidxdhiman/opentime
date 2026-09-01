@@ -57,6 +57,7 @@ export function StepAnalysisPrefs({ selected, onChange }: Props) {
               key={opt.value}
               type="button"
               onClick={() => toggle(opt.value)}
+              aria-pressed={isSelected}
               className={`flex items-center gap-2 rounded-xl border px-4 py-3 text-sm text-left transition-all ${
                 isSelected
                   ? "border-violet-500/60 bg-violet-500/10 text-violet-300"
@@ -78,7 +79,7 @@ export function StepAnalysisPrefs({ selected, onChange }: Props) {
           {customSelected.map((s) => (
             <span key={s} className="flex items-center gap-1 rounded-full border border-indigo-500/40 bg-indigo-500/10 px-3 py-1 text-xs text-indigo-300">
               {s}
-              <button type="button" onClick={() => removeCustom(s)} className="ml-1 hover:text-destructive">×</button>
+              <button type="button" onClick={() => removeCustom(s)} className="ml-1 hover:text-destructive" aria-label={`Remove ${s}`}>×</button>
             </span>
           ))}
         </div>
@@ -87,12 +88,13 @@ export function StepAnalysisPrefs({ selected, onChange }: Props) {
       {/* Add custom */}
       <div className="flex gap-2">
         <Input
+          aria-label="A custom area to track"
           placeholder="Something else you want Chronos to track..."
           value={customText}
           onChange={(e) => setCustomText(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustom(); } }}
         />
-        <Button type="button" variant="outline" onClick={addCustom} className="shrink-0 border-violet-500/40 text-violet-400 hover:bg-violet-500/10">
+        <Button type="button" variant="outline" onClick={addCustom} aria-label="Add custom area to track" className="shrink-0 border-violet-500/40 text-violet-400 hover:bg-violet-500/10">
           <Plus className="h-4 w-4" />
         </Button>
       </div>

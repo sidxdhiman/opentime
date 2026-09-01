@@ -15,7 +15,7 @@ function RainDrops() {
     [],
   );
   return (
-    <div className="pointer-events-none fixed inset-0 z-20 overflow-hidden" aria-hidden>
+    <div className="pointer-events-none fixed inset-0 z-20 overflow-hidden op-ambient" aria-hidden>
       {drops.map((d, i) => (
         <span
           key={i}
@@ -44,7 +44,7 @@ function Clouds() {
     [],
   );
   return (
-    <div className="pointer-events-none fixed inset-0 z-20 overflow-hidden blur-2xl" aria-hidden>
+    <div className="pointer-events-none fixed inset-0 z-20 overflow-hidden blur-2xl op-ambient" aria-hidden>
       {clouds.map((c, i) => (
         <span
           key={i}
@@ -76,7 +76,7 @@ function Stars() {
     [],
   );
   return (
-    <div className="pointer-events-none fixed inset-0 z-20 overflow-hidden" aria-hidden>
+    <div className="pointer-events-none fixed inset-0 z-20 overflow-hidden op-ambient" aria-hidden>
       {stars.map((s, i) => (
         <span
           key={i}
@@ -96,7 +96,7 @@ function Stars() {
 
 function Glow({ kind }: { kind: "sun" | "warm" }) {
   return (
-    <div className="pointer-events-none fixed inset-0 z-20 overflow-hidden" aria-hidden>
+    <div className="pointer-events-none fixed inset-0 z-20 overflow-hidden op-ambient" aria-hidden>
       <div
         className="absolute left-1/2 top-[-20%] h-[50vh] w-[90vw] -translate-x-1/2 rounded-full"
         style={{

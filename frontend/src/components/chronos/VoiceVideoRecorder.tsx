@@ -75,6 +75,23 @@ export function VoiceVideoRecorder({
   // Unmount guard: prevent setState calls after component unmounts
   const isMountedRef = useRef(true);
 
+  // Object URL lifecycle: revoke whichever URL each effect currently captures.
+  // Re-running whenever the URL changes revokes the previous preview, and the
+  // final cleanup revokes the last one on unmount — so media never lingers.
+  useEffect(() => {
+    const url = audioUrl;
+    return () => {
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [audioUrl]);
+
+  useEffect(() => {
+    const url = videoUrl;
+    return () => {
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [videoUrl]);
+
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
@@ -82,9 +99,6 @@ export function VoiceVideoRecorder({
       if (audioTimerRef.current) clearInterval(audioTimerRef.current);
       if (videoTimerRef.current) clearInterval(videoTimerRef.current);
       stopVideoCamera();
-      // Revoke any lingering Object URLs
-      if (audioUrl) URL.revokeObjectURL(audioUrl);
-      if (videoUrl) URL.revokeObjectURL(videoUrl);
     };
   }, []);
 
@@ -204,6 +218,7 @@ export function VoiceVideoRecorder({
   };
 
   const handleSubmit = async () => {
+    if (isProcessing) return;
     setIsProcessing(true);
     setError(null);
     onThinkingStart?.();
@@ -314,6 +329,7 @@ export function VoiceVideoRecorder({
             <button
               key={key}
               onClick={() => setActiveTab(key)}
+              aria-pressed={activeTab === key}
               className={`flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-medium transition-all duration-200 ${
                 activeTab === key
                   ? "bg-card text-foreground shadow-sm"
@@ -342,16 +358,17 @@ export function VoiceVideoRecorder({
             {isRecordingAudio && (
               <div className="flex flex-col items-center gap-5">
                 <div className="relative flex h-24 w-24 items-center justify-center">
-                  <span className="absolute h-full w-full animate-ping rounded-full bg-rose-500/20" />
+                  <span className="absolute h-full w-full animate-ping rounded-full bg-rose-500/20 motion-reduce:animate-none" />
                   <button
                     onClick={stopAudioRecording}
                     className="relative z-10 flex h-16 w-16 items-center justify-center rounded-full bg-rose-600 text-white transition-transform hover:scale-105 active:scale-95"
+                    aria-label="Stop recording"
                   >
                     <Square className="h-6 w-6 fill-current" />
                   </button>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-rose-400/90">Recording</p>
+                  <p role="status" className="text-sm font-medium text-rose-400/90">Recording</p>
                   <p className="mt-1 text-2xl font-semibold tabular-nums">{formatTime(audioDuration)}</p>
                 </div>
               </div>
@@ -374,7 +391,7 @@ export function VoiceVideoRecorder({
                     <X className="h-4 w-4" />
                   </button>
                 </div>
-                <p className="flex items-center gap-1.5 text-xs text-emerald-400/90">
+                <p role="status" className="flex items-center gap-1.5 text-xs text-emerald-400/90">
                   <CheckCircle2 className="h-3.5 w-3.5" /> Recorded {formatTime(audioDuration)}
                 </p>
               </div>
@@ -415,7 +432,7 @@ export function VoiceVideoRecorder({
                   <video src={videoUrl} controls className="h-full w-full object-cover" />
                 </div>
                 <div className="flex items-center gap-3">
-                  <p className="flex items-center gap-1.5 text-xs text-emerald-400/90">
+                  <p role="status" className="flex items-center gap-1.5 text-xs text-emerald-400/90">
                     <CheckCircle2 className="h-3.5 w-3.5" /> Captured {formatTime(videoDuration)}
                   </p>
                   <Button
@@ -442,6 +459,7 @@ export function VoiceVideoRecorder({
               value={textContent}
               onChange={(e) => setTextContent(e.target.value)}
               placeholder="What's on your mind?"
+              aria-label="What's on your mind?"
               className="h-32 w-full resize-none rounded-xl border border-border bg-secondary/30 p-4 text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>
@@ -460,7 +478,7 @@ export function VoiceVideoRecorder({
               className="mt-4 cursor-pointer text-xs text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-primary-foreground"
             />
             {uploadedFile && (
-              <p className="mt-3 flex items-center gap-1.5 text-xs text-emerald-400/90">
+              <p role="status" className="mt-3 flex items-center gap-1.5 text-xs text-emerald-400/90">
                 <CheckCircle2 className="h-3.5 w-3.5" /> Selected {uploadedFile.name} ({(uploadedFile.size / 1024).toFixed(1)} KB)
               </p>
             )}
@@ -474,13 +492,14 @@ export function VoiceVideoRecorder({
               value={textContent}
               onChange={(e) => setTextContent(e.target.value)}
               placeholder="Optional note to go with this memory..."
+              aria-label="Optional note to go with this memory"
               className="w-full rounded-lg border border-border bg-secondary/30 px-3 py-2 text-xs text-foreground placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>
         )}
 
         {error && (
-          <div className="mt-4 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+          <div role="alert" className="mt-4 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
             <span>{error}</span>
           </div>
@@ -494,7 +513,7 @@ export function VoiceVideoRecorder({
           >
             {isProcessing ? (
               <>
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent motion-reduce:animate-none" />
                 Sending...
               </>
             ) : (

@@ -64,7 +64,7 @@ export function ChronosRecoveryBanner({ hasActiveSession, onRetry }: Props) {
           </div>
 
           {errorMsg && (
-            <p className="text-xs text-destructive rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2">
+            <p role="alert" className="text-xs text-destructive rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2">
               {errorMsg}
             </p>
           )}
@@ -89,7 +89,7 @@ export function ChronosRecoveryBanner({ hasActiveSession, onRetry }: Props) {
                 className="gap-2 border-amber-500/30 text-amber-400 hover:text-amber-300"
               >
                 {state === "loading" ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />
                 ) : (
                   <ArrowRight className="h-4 w-4" />
                 )}

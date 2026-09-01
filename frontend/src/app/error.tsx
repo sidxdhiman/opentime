@@ -16,7 +16,7 @@ export default function Error({
 
   return (
     <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 px-6 text-center">
-      <div className="text-5xl">⚠️</div>
+      <div className="text-5xl" aria-hidden="true">⚠️</div>
       <h1 className="text-xl font-semibold text-foreground">Something went wrong</h1>
       <p className="max-w-md text-sm text-muted">
         An unexpected error occurred while rendering this page. You can try again, or return to your dashboard.
