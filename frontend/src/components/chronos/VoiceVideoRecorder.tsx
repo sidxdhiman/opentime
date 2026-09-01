@@ -8,7 +8,7 @@ import {
   Upload,
   Square,
   Send,
-  Cpu,
+  MessageSquare,
   CheckCircle2,
   AlertCircle,
   X,
@@ -135,7 +135,7 @@ export function VoiceVideoRecorder({
         setAudioDuration((d) => d + 1);
       }, 1000);
     } catch (err: any) {
-      setError("Microphone access denied or unavailable: " + (err.message || err));
+      setError("ChronOS couldn't reach your microphone. Please check your browser's permission settings and try again.");
     }
   };
 
@@ -184,7 +184,7 @@ export function VoiceVideoRecorder({
         setVideoDuration((d) => d + 1);
       }, 1000);
     } catch (err: any) {
-      setError("Camera/Microphone access denied or unavailable: " + (err.message || err));
+      setError("ChronOS couldn't reach your camera or microphone. Please check your browser's permission settings and try again.");
     }
   };
 
@@ -266,7 +266,15 @@ export function VoiceVideoRecorder({
       setUploadedFile(null);
     } catch (err: any) {
       if (!isMountedRef.current) return;
-      setError(err.message || "Failed to process input through ChronOS Engine");
+      // Guard against leaking raw provider/network details to the user.
+      const message =
+        err?.message === "Please write something first." ||
+        err?.message === "Please record a voice note first." ||
+        err?.message === "Please record a video note first." ||
+        err?.message === "Please choose a file to upload."
+          ? err.message
+          : "Something went wrong while processing that. Please try again.";
+      setError(message);
       onThinkingEnd?.();
     } finally {
       if (isMountedRef.current) setIsProcessing(false);
@@ -290,15 +298,13 @@ export function VoiceVideoRecorder({
     <Card className="overflow-hidden">
       <CardContent className="p-6 sm:p-7">
         {/* Header */}
-        <div className="mb-6 flex flex-col gap-4 border-b border-border/60 pb-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent text-accent-foreground">
-              <Cpu className="h-5 w-5" />
-            </div>
-            <div>
-              <h3 className="text-[15px] font-semibold">Share a moment</h3>
-              <p className="text-xs text-muted">Voice, video, text, or a file — ChronOS listens</p>
-            </div>
+        <div className="mb-6 flex items-center gap-3 border-b border-border/60 pb-5">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent text-accent-foreground">
+            <MessageSquare className="h-5 w-5" />
+          </div>
+          <div>
+            <h3 className="text-[15px] font-semibold">Talk to ChronOS</h3>
+            <p className="text-xs text-muted">A voice note, a video, or a few words — how you&apos;re feeling right now</p>
           </div>
         </div>
 
@@ -355,7 +361,7 @@ export function VoiceVideoRecorder({
               <div className="flex w-full max-w-md flex-col items-center gap-3">
                 <div className="flex w-full items-center gap-3 rounded-xl border border-border bg-secondary/30 p-3">
                   <Mic className="h-5 w-5 shrink-0 text-accent-foreground" />
-                  <audio src={audioUrl} controls className="h-8 w-full" />
+                  <audio src={audioUrl} controls className="h-8 w-full min-w-0" />
                   <button
                     onClick={() => {
                       if (audioUrl) URL.revokeObjectURL(audioUrl);
@@ -435,7 +441,7 @@ export function VoiceVideoRecorder({
             <textarea
               value={textContent}
               onChange={(e) => setTextContent(e.target.value)}
-              placeholder="A thought, a turning point, or a question for later you..."
+              placeholder="What's on your mind?"
               className="h-32 w-full resize-none rounded-xl border border-border bg-secondary/30 p-4 text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-ring"
             />
           </div>
@@ -489,11 +495,11 @@ export function VoiceVideoRecorder({
             {isProcessing ? (
               <>
                 <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                Processing...
+                Sending...
               </>
             ) : (
               <>
-                <Send className="h-3.5 w-3.5" /> Remember this
+                <Send className="h-3.5 w-3.5" /> Send
               </>
             )}
           </Button>

@@ -9,6 +9,7 @@ import {
   FileText,
   Mic,
   Video,
+  MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,7 +27,10 @@ export function ChronosEngineFeed({ interactions, latestResponse, isThinking }: 
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    // Keep the newest content in view. block:"end" anchors the feed bottom to
+    // the viewport bottom so the latest message stays visible instead of
+    // being scrolled past to the top.
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [interactions.length, latestResponse, isThinking]);
 
   const hasHistory = interactions.length > 0;
@@ -34,19 +38,27 @@ export function ChronosEngineFeed({ interactions, latestResponse, isThinking }: 
 
   // Deduplicate: exclude any persisted interaction whose id matches the
   // in-memory latestResponse to avoid rendering the same message twice.
-  const filteredInteractions = hasLatest
+  // The API returns newest-first; render history oldest→newest so the latest
+  // message always sits naturally at the bottom of the conversation.
+  const filteredInteractions = (hasLatest
     ? interactions.filter((r) => r.id !== latestResponse!.id)
-    : interactions;
+    : interactions
+  )
+    .slice()
+    .sort(
+      (a, b) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+    );
 
   if (!hasHistory && !hasLatest) {
     return (
       <Card>
         <CardContent className="flex min-h-[220px] flex-col items-center justify-center p-8 text-center">
-          <Brain className="mb-4 h-9 w-9 text-muted" />
-          <h4 className="text-[15px] font-semibold">The engine is listening</h4>
+          <MessageSquare className="mb-4 h-9 w-9 text-muted" />
+          <h4 className="text-[15px] font-semibold">Say something</h4>
           <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted">
-            Write a thought or record a voice note above. ChronOS will quietly process it and show
-            you the result here.
+            Finish the sentence above or start fresh. ChronOS will meet you here and remember what
+            you share — building on it the next time you return.
           </p>
         </CardContent>
       </Card>

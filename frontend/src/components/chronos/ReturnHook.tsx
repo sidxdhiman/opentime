@@ -7,7 +7,6 @@ import { ReturnContext } from "@/lib/chronosApi";
 
 interface ReturnHookProps {
   context: ReturnContext;
-  firstName?: string;
   onContinueStory?: (threadId: string) => void;
 }
 
@@ -20,7 +19,7 @@ interface ReturnHookProps {
  * renders nothing (the hero greeting already handles "Welcome back"), so the
  * user is never pressured or guilted. No red dots, no streaks, no urgency.
  */
-export function ReturnHook({ context, firstName, onContinueStory }: ReturnHookProps) {
+export function ReturnHook({ context, onContinueStory }: ReturnHookProps) {
   // The hero greeting already welcomes the user back. Only surface a
   // meaningful change or a grounded suggestion here.
   if (!context.has_return_context) return null;
@@ -34,7 +33,7 @@ export function ReturnHook({ context, firstName, onContinueStory }: ReturnHookPr
           <Sparkles className="h-3.5 w-3.5 text-accent-foreground" />
         </div>
         <span className="text-[11px] font-medium uppercase tracking-widest text-muted">
-          Welcome back{firstName ? `, ${firstName}` : ""}
+          While you were away
         </span>
       </div>
 

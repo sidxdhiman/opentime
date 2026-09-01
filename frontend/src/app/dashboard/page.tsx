@@ -297,8 +297,12 @@ export default function DashboardPage() {
 
 
   // ── Message submission: targeted state update instead of full reload ────
-  const handleResponseReceived = async (response: EngineResponse) => {
+  const handleResponseReceived = (response: EngineResponse) => {
     setLatestResponse(response);
+
+    // Thinking ends the moment the response is visible — the conversation
+    // never waits on secondary refreshes to settle.
+    setIsThinking(false);
 
     // Phase 5C — First-story acknowledgement: only when the engine actually
     // created a new thread (real lifecycle data, not assumed).
@@ -306,14 +310,14 @@ export default function DashboardPage() {
       setHasFirstStory(true);
     }
 
-    // Update stats: conversations always increments
     // Stories: conditionally refresh if temporal lifecycle indicates activity
     const hasTemporalActivity =
       response.chronos_state?.temporal_lifecycle &&
       (response.chronos_state.temporal_lifecycle.created ||
         response.chronos_state.temporal_lifecycle.updated);
 
-    // Targeted refresh: only what may have changed
+    // Targeted refresh: only what may have changed — run in the background so
+    // the delivered response is never blocked by secondary data.
     const refreshes: Promise<void>[] = [];
 
     // Identity always changes (evolves every message)
@@ -331,12 +335,7 @@ export default function DashboardPage() {
 
     // Do NOT refresh: memories, timeline, reflections, patterns
     // These are either deferred to their tab or not per-message mutations.
-
-    // Run targeted refreshes in parallel; conversation is already visible
-    await Promise.allSettled(refreshes);
-
-    // Always clear thinking state — even if refreshes threw internally
-    setIsThinking(false);
+    void Promise.allSettled(refreshes);
   };
 
   const handleContinueStory = (thread: TemporalThread) => {
@@ -379,19 +378,6 @@ export default function DashboardPage() {
 
   const handlePickPrompt = (prompt: string) => setInjectedPrompt(prompt);
 
-  // Count conversations: interactions + latestResponse if it hasn't been
-  // persisted into the interactions list yet (avoids double-counting).
-  const latestIsPersisted = latestResponse
-    ? interactions.some((i) => i.id === latestResponse.id)
-    : false;
-  const conversationCount = interactions.length + (latestResponse && !latestIsPersisted ? 1 : 0);
-
-  const engineStats = [
-    { value: threads.length, label: "Stories" },
-    { value: conversationCount, label: "Conversations" },
-    { value: memories.length, label: "Memories" },
-  ];
-
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col selection:bg-accent selection:text-accent-foreground">
       {/* Sticky Header */}
@@ -412,13 +398,14 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex items-center gap-1.5">
-            <Link href="/me">
-              <button className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-muted transition-colors hover:text-foreground hover:bg-secondary/60">
-                <div className="h-7 w-7 rounded-full bg-accent flex items-center justify-center text-xs font-medium text-accent-foreground">
-                  {firstName[0]?.toUpperCase() || "U"}
-                </div>
-                <span className="text-xs font-medium hidden sm:inline">{firstName}</span>
-              </button>
+            <Link
+              href="/me"
+              className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-muted transition-colors hover:text-foreground hover:bg-secondary/60"
+            >
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent text-xs font-medium text-accent-foreground">
+                {firstName[0]?.toUpperCase() || "U"}
+              </span>
+              <span className="hidden text-xs font-medium sm:inline">{firstName}</span>
             </Link>
           </div>
         </div>
@@ -433,47 +420,23 @@ export default function DashboardPage() {
           />
         )}
 
-        {/* Hero Section */}
-        <section className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="mb-2 text-xs font-medium uppercase tracking-widest text-accent-foreground">
+        {/* Compact hero — the greeting stays light so the conversation is the
+            visual center. Counts live with their collections in each tab, not
+            in a stats panel above the conversation. */}
+        {!isFirstUse && (
+          <section className="mx-auto w-full max-w-2xl">
+            <p className="mb-1.5 text-xs font-medium uppercase tracking-widest text-accent-foreground">
               Your timeline
             </p>
-            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-              {isFirstUse ? (
-                <>Welcome, <span className="text-accent-foreground">{firstName}</span></>
-              ) : (
-                <>Welcome back, <span className="text-accent-foreground">{firstName}</span></>
-              )}
+            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+              Welcome back, <span className="text-accent-foreground">{firstName}</span>
             </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">
-              {isFirstUse ? (
-                <>You&apos;ve made a start. Share your first thought below — ChronOS meets you where
-                you are and builds from there, one conversation at a time.</>
-              ) : (
-                <>A quiet space for everything you have shared. Record a thought, glance at how you
-                have changed, or revisit an old memory.</>
-              )}
+            <p className="mt-2 text-sm leading-relaxed text-muted">
+              A quiet space for everything you have shared. Talk below and ChronOS will build from
+              there — one conversation at a time.
             </p>
-          </div>
-
-          {!isFirstUse && (
-            <div className="flex items-center gap-6 rounded-2xl border border-border bg-card px-5 py-4 shadow-card">
-              <GitBranch className="h-5 w-5 text-accent-foreground" />
-              {engineStats.map((s, i) => (
-                <React.Fragment key={s.label}>
-                  {i > 0 && <span className="h-8 w-px bg-border" aria-hidden />}
-                  <div>
-                    <div className="text-xl font-semibold tabular-nums">{s.value}</div>
-                    <div className="text-[10px] font-medium uppercase tracking-wider text-muted">
-                      {s.label}
-                    </div>
-                  </div>
-                </React.Fragment>
-              ))}
-            </div>
-          )}
-        </section>
+          </section>
+        )}
 
         {/* Tab Navigation */}
         <nav className="flex items-center gap-1 overflow-x-auto border-b border-border/60 pb-3">
@@ -493,7 +456,7 @@ export default function DashboardPage() {
           ))}
         </nav>
 
-        {/* TAB: HOME (Overview + Conversation) */}
+        {/* TAB: HOME (Conversation) — the conversation is the center. */}
         {activeTab === "overview" && (
           <motion.div
             key="overview"
@@ -504,88 +467,82 @@ export default function DashboardPage() {
             {isInitialLoad ? (
               <OverviewSkeleton />
             ) : (
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            <div className="lg:col-span-7 space-y-6">
-              {isFirstUse && (
-                <FirstUseWelcome
-                  firstName={firstName}
-                  starterPrompts={starterPrompts}
-                  onPickPrompt={handlePickPrompt}
-                />
-              )}
-              {activeThread && (
-                <div className="flex items-center gap-3 rounded-xl border border-accent/30 bg-accent/5 px-4 py-3">
-                  <GitBranch className="h-4 w-4 shrink-0 text-accent-foreground" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[10px] font-medium uppercase tracking-wider text-muted">Continuing story</p>
-                    <p className="text-sm font-medium text-foreground truncate">{activeThread.subject}</p>
+              <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
+                {isFirstUse && (
+                  <FirstUseWelcome
+                    firstName={firstName}
+                    starterPrompts={starterPrompts}
+                    onPickPrompt={handlePickPrompt}
+                  />
+                )}
+
+                {/* Return context — leads the conversation when ChronOS has a
+                    meaningful, grounded reason to (never forced, never noisy). */}
+                {hasFirstStory && threads.length >= 1 && (
+                  <div className="flex items-center gap-3 rounded-xl border border-accent/30 bg-accent/5 px-4 py-3">
+                    <GitBranch className="h-4 w-4 shrink-0 text-accent-foreground" />
+                    <p className="text-sm leading-relaxed text-foreground">
+                      A new story is beginning — ChronOS will keep it connected to your timeline as it grows.
+                    </p>
+                    <button
+                      onClick={() => setHasFirstStory(false)}
+                      className="ml-auto shrink-0 rounded-full p-1 text-muted transition-colors hover:text-foreground"
+                      aria-label="Dismiss"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
                   </div>
-                  <button
-                    onClick={() => setActiveThread(null)}
-                    className="shrink-0 rounded-full p-1 text-muted transition-colors hover:text-foreground"
-                    aria-label="Clear active story"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              )}
-              {hasFirstStory && threads.length >= 1 && (
-                <div className="flex items-center gap-3 rounded-xl border border-accent/30 bg-accent/5 px-4 py-3">
-                  <GitBranch className="h-4 w-4 shrink-0 text-accent-foreground" />
-                  <p className="text-sm leading-relaxed text-foreground">
-                    A new story is beginning — ChronOS will keep it connected to your timeline as it grows.
-                  </p>
-                  <button
-                    onClick={() => setHasFirstStory(false)}
-                    className="ml-auto shrink-0 rounded-full p-1 text-muted transition-colors hover:text-foreground"
-                    aria-label="Dismiss"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              )}
-              {!isFirstUse && returnContext && (
-                <ReturnHook
-                  context={returnContext}
-                  firstName={firstName}
-                  onContinueStory={handleReturnHookContinue}
-                />
-              )}
-              <VoiceVideoRecorder
-                onResponseReceived={handleResponseReceived}
-                onThinkingStart={() => setIsThinking(true)}
-                onThinkingEnd={() => setIsThinking(false)}
-                userId={userId}
-                activeThread={activeThread}
-                defaultTab={isFirstUse ? "text" : "audio"}
-                injectedPrompt={injectedPrompt}
-                onInjectedPromptConsumed={() => setInjectedPrompt(null)}
-              />
-              <ChronosEngineFeed interactions={interactions} latestResponse={latestResponse} isThinking={isThinking} />
-            </div>
-            <div className="lg:col-span-5 space-y-6">
-              {isFirstUse ? (
-                <div className="rounded-2xl border border-border bg-card p-5">
-                  <div className="mb-3 flex items-center gap-2.5">
-                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent/10 text-accent-foreground">
-                      <Sparkles className="h-4 w-4" />
+                )}
+
+                {!isFirstUse && returnContext && (
+                  <ReturnHook
+                    context={returnContext}
+                    onContinueStory={handleReturnHookContinue}
+                  />
+                )}
+
+                {/* Active story context — attached to the conversation input,
+                    so it is unmistakable but never dominates. */}
+                {activeThread && (
+                  <div className="flex items-center gap-3 rounded-xl border border-accent/30 bg-accent/5 px-4 py-2.5">
+                    <GitBranch className="h-4 w-4 shrink-0 text-accent-foreground" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-medium uppercase tracking-wider text-accent-foreground">
+                        Continuing a story
+                      </p>
+                      <p className="truncate text-sm font-medium text-foreground">{activeThread.subject}</p>
                     </div>
-                    <div>
-                      <h3 className="text-sm font-semibold">Your identity, taking shape</h3>
-                      <p className="text-xs text-muted">Built from what you share</p>
-                    </div>
+                    <button
+                      onClick={() => setActiveThread(null)}
+                      className="shrink-0 rounded-full p-1.5 text-muted transition-colors hover:text-foreground"
+                      aria-label="Clear active story"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
                   </div>
-                  <p className="text-sm leading-relaxed text-muted">
-                    ChronOS doesn&apos;t assume who you are or what you value. As you talk, it learns
-                    what matters to you and how you change over time — a picture that&apos;s genuinely
-                    yours rather than guessed up front.
-                  </p>
-                </div>
-              ) : (
-                <IdentityModelCard identity={identity} onRefresh={refreshIdentity} />
-              )}
-              <ReflectionEngineView reflections={reflections.slice(0, 2)} />
-            </div>
+                )}
+
+                {/* Conversation */}
+                <VoiceVideoRecorder
+                  onResponseReceived={handleResponseReceived}
+                  onThinkingStart={() => setIsThinking(true)}
+                  onThinkingEnd={() => setIsThinking(false)}
+                  userId={userId}
+                  activeThread={activeThread}
+                  defaultTab={isFirstUse ? "text" : "audio"}
+                  injectedPrompt={injectedPrompt}
+                  onInjectedPromptConsumed={() => setInjectedPrompt(null)}
+                />
+                <ChronosEngineFeed interactions={interactions} latestResponse={latestResponse} isThinking={isThinking} />
+
+                {/* Secondary context — below the conversation so it does not
+                    compete with it. Deliberately lighter visual weight. */}
+                {!isFirstUse && (
+                  <div className="mt-4 space-y-6 border-t border-border/40 pt-6">
+                    <IdentityModelCard identity={identity} onRefresh={refreshIdentity} />
+                    <ReflectionEngineView reflections={reflections.slice(0, 2)} />
+                  </div>
+                )}
               </div>
             )}
           </motion.div>
