@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from chronos_engine.core.models import EngineResponse, InteractionRecord
@@ -20,6 +21,7 @@ from chronos_engine.temporal.return_context import ReturnContextEngine
 from opentime.api.dependencies import get_current_user
 from opentime.application.auth.dto import UserResponse
 from opentime.infrastructure.config import get_settings
+from opentime.infrastructure.mongodb.client import get_mongo_db
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +112,39 @@ async def _persist_media(user_id: str, file_name: str, media_bytes: bytes) -> Op
 
     target.write_bytes(media_bytes)
     return f"/uploads/{user_id}/{safe_name}"
+
+
+async def serve_user_media(
+    user_id: str,
+    file_name: str,
+    current_user: UserResponse = Depends(get_current_user),
+) -> FileResponse:
+    """Serve an uploaded media file only to its owner.
+
+    The authenticated user must match the ``user_id`` path parameter.
+    Directory traversal is blocked by rejecting ``..`` and ``/`` in the
+    file name.
+    """
+    auth_user_id = str(current_user.id)
+    if auth_user_id != user_id:
+        raise HTTPException(status_code=404, detail="Media not found")
+
+    if ".." in file_name or "/" in file_name:
+        raise HTTPException(status_code=404, detail="Media not found")
+
+    media_path = _upload_dir() / user_id / file_name
+    if not media_path.is_file():
+        raise HTTPException(status_code=404, detail="Media not found")
+
+    return FileResponse(path=str(media_path))
+
+
+router.add_api_route(
+    "/media/{user_id}/{file_name}",
+    serve_user_media,
+    methods=["GET"],
+    tags=["ChronOS Engine"],
+)
 
 
 async def _persist_interaction(
@@ -280,8 +315,14 @@ async def process_input(
         return response.model_dump()
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"ChronOS Engine Error: {str(e)}")
+    except Exception:
+        logger.exception(
+            "ChronOS engine processing failed for user=%s", user_id
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An internal error occurred while processing your input.",
+        )
 
 
 @router.post("/process-json", status_code=status.HTTP_200_OK)
@@ -313,8 +354,14 @@ async def process_input_json(
         return response.model_dump()
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"ChronOS Engine Error: {str(e)}")
+    except Exception:
+        logger.exception(
+            "ChronOS engine processing failed for user=%s", user_id
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="An internal error occurred while processing your input.",
+        )
 
 
 @router.get("/memories")
@@ -586,7 +633,17 @@ async def set_return_context_preference(
 
 
 @router.post("/seed")
-async def seed_state(current_user: UserResponse = Depends(get_current_user)) -> Dict[str, str]:
+async def seed_state(
+    current_user: UserResponse = Depends(get_current_user),
+) -> Dict[str, str]:
+    """Restricted developer/tooling seeding endpoint.
+
+    Only enabled when ``debug=True`` (local/test environments). In production
+    this endpoint is unavailable so arbitrary, unmarked data cannot be
+    injected into a user's engine.
+    """
+    if not get_settings().debug:
+        raise HTTPException(status_code=404, detail="Not found")
     user_id = str(current_user.id)
     await engine_instance.seed_initial_state(user_id)
     return {"status": "success", "message": f"Initial state seeded for user '{user_id}'"}
@@ -652,10 +709,46 @@ async def delete_user_data(
 ) -> None:
     """Permanently delete the authenticated user's ChronOS engine data.
 
-    Removes memories, timeline, identity, reflections, patterns, interactions
-    and temporal threads/events (with no orphaned events). Other users' data
-    is never touched.
+    Removes everything user-scoped across every store:
+      - engine runtime stores (memories, timeline, identity, reflections,
+        patterns, interactions)
+      - temporal domain stores (threads, events, snapshots, return ledgers)
+      - application-layer Chronos domain (memories, identity states, goals,
+        timeline events, patterns, analysis preferences, chronos states)
+      - onboarding sessions and responses
+      - uploaded media files on disk
+
+    Other users' data is never touched.
     """
     user_id = str(current_user.id)
     await engine_instance.storage.delete_all_for_user(user_id)
     await engine_instance.temporal_store.delete_all_for_user(user_id)
+
+    # Application-layer Chronos domain repos + onboarding (MongoDB).
+    try:
+        db = await get_mongo_db()
+        for collection in (
+            "memories",
+            "identity_states",
+            "goals",
+            "timeline_events",
+            "patterns",
+            "analysis_preferences",
+            "chronos_states",
+            "onboarding_sessions",
+            "onboarding_responses",
+        ):
+            await db[collection].delete_many({"user_id": user_id})
+    except Exception:
+        logger.exception("Failed to delete application-layer data for user=%s", user_id)
+
+    # Uploaded media on disk.
+    media_dir = _upload_dir() / user_id
+    if media_dir.exists():
+        try:
+            for f in media_dir.iterdir():
+                if f.is_file():
+                    f.unlink()
+            media_dir.rmdir()
+        except Exception:
+            logger.exception("Failed to delete media files for user=%s", user_id)

@@ -13,6 +13,47 @@ interface MemoryGraphViewProps {
   onDelete?: (memoryId: string) => void;
 }
 
+function MediaElement({ memory }: { memory: MemoryItem }) {
+  const type = memory.metadata?.input_type;
+  const relative = memory.metadata?.media_url as string | null | undefined;
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!relative) return;
+    chronosApi.fetchMediaObjectUrl(relative).then((u) => {
+      if (!cancelled) setUrl(u);
+    });
+    return () => {
+      cancelled = true;
+      if (url) URL.revokeObjectURL(url);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [relative]);
+
+  if (!url) return null;
+
+  if (type === "video") {
+    return (
+      <video
+        src={url}
+        controls
+        preload="metadata"
+        className="mt-3 w-full rounded-lg border border-border bg-black object-cover"
+      />
+    );
+  }
+  if (type === "audio") {
+    return (
+      <div className="mt-3 flex items-center gap-2 rounded-lg border border-border bg-secondary/40 px-3 py-2">
+        <Music2 className="h-4 w-4 text-muted" />
+        <audio src={url} controls preload="metadata" className="h-8 flex-1" />
+      </div>
+    );
+  }
+  return null;
+}
+
 export function MemoryGraphView({ memories, onDelete }: MemoryGraphViewProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
@@ -38,31 +79,6 @@ export function MemoryGraphView({ memories, onDelete }: MemoryGraphViewProps) {
     m.content.toLowerCase().includes(searchQuery.toLowerCase()) ||
     m.tags?.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
   );
-
-  const renderMedia = (mem: MemoryItem) => {
-    const type = mem.metadata?.input_type;
-    const url = chronosApi.mediaUrl(mem.metadata?.media_url);
-    if (!url) return null;
-    if (type === "video") {
-      return (
-        <video
-          src={url}
-          controls
-          preload="metadata"
-          className="mt-3 w-full rounded-lg border border-border bg-black object-cover"
-        />
-      );
-    }
-    if (type === "audio") {
-      return (
-        <div className="mt-3 flex items-center gap-2 rounded-lg border border-border bg-secondary/40 px-3 py-2">
-          <Music2 className="h-4 w-4 text-muted" />
-          <audio src={url} controls preload="metadata" className="h-8 flex-1" />
-        </div>
-      );
-    }
-    return null;
-  };
 
   const handleConfirm = async (mem: MemoryItem) => {
     setDeletingId(mem.id);
@@ -183,7 +199,7 @@ export function MemoryGraphView({ memories, onDelete }: MemoryGraphViewProps) {
 
                       <p className="text-sm leading-relaxed text-foreground">{mem.content}</p>
 
-                      {renderMedia(mem)}
+                      {<MediaElement memory={mem} />}
 
                       {mem.tags && mem.tags.length > 0 && (
                         <div className="mt-3 flex flex-wrap gap-1.5">

@@ -298,11 +298,28 @@ export interface EngineResponse {
 }
 
 export const chronosApi = {
-  /** Resolve a relative media path (e.g. /uploads/...) against the backend origin. */
-  mediaUrl(relativePath?: string | null): string | undefined {
+  /** Resolve a relative media path (e.g. /uploads/...) to an authenticated URL. */
+  mediaUrl(relativePath?: string | null, token?: string | null): string | undefined {
     if (!relativePath) return undefined;
     if (/^https?:\/\//.test(relativePath)) return relativePath;
+    // Convert /uploads/{user_id}/{file} → /api/v1/chronos/engine/media/{user_id}/{file}
+    const match = relativePath.match(/^\/uploads\/([^/]+)\/(.+)$/);
+    if (match) {
+      return `${ENGINE_BASE}/media/${match[1]}/${match[2]}`;
+    }
     return `${BACKEND_ORIGIN}${relativePath.startsWith("/") ? "" : "/"}${relativePath}`;
+  },
+
+  /** Fetch a media file with the auth header and return an object URL. */
+  async fetchMediaObjectUrl(relativePath?: string | null): Promise<string | null> {
+    const url = this.mediaUrl(relativePath);
+    if (!url) return null;
+    const token = getToken();
+    if (!token) return null;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
   },
 
   async processInput(formData: FormData): Promise<EngineResponse> {

@@ -4,6 +4,12 @@ pytest fixtures for onboarding and Chronos tests.
 Uses mongomock-motor to provide an in-memory MongoDB that works with
 the Motor async driver — no real MongoDB required.
 """
+import os
+
+# Ensure the Settings validator allows the default JWT secret during testing.
+# Must be set before any opentime module is imported.
+os.environ.setdefault("DEBUG", "true")
+
 from datetime import datetime, timezone
 from uuid import UUID
 

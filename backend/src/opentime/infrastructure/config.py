@@ -1,7 +1,16 @@
 from functools import lru_cache
 
-from pydantic import Field, RedisDsn
+from pydantic import Field, RedisDsn, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_INSECURE_JWT_SECRETS = frozenset({
+    "",
+    "change-me-in-production-use-a-long-random-string",
+    "change-me-in-production",
+    "dev-secret-change-in-production",
+    "secret",
+    "changeme",
+})
 
 
 class Settings(BaseSettings):
@@ -34,7 +43,8 @@ class Settings(BaseSettings):
     # Redis
     redis_url: RedisDsn = Field(default="redis://localhost:6379/0")
 
-    # JWT
+    # JWT — production MUST set a real secret; dev/test may use the
+    # placeholder but only when debug=True.
     jwt_secret_key: str = Field(default="change-me-in-production-use-a-long-random-string")
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 15
@@ -57,6 +67,15 @@ class Settings(BaseSettings):
     openai_api_key: str | None = Field(default=None)
     llm_model: str = "gpt-4o-mini"
     embedding_model: str = "text-embedding-3-small"
+
+    @model_validator(mode="after")
+    def _validate_jwt_secret(self) -> "Settings":
+        if not self.debug and self.jwt_secret_key in _INSECURE_JWT_SECRETS:
+            raise ValueError(
+                "JWT_SECRET_KEY must be set to a strong, unique value in production. "
+                "Set debug=True only for local development."
+            )
+        return self
 
 
 @lru_cache
