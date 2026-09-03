@@ -53,6 +53,13 @@ class InMemoryStorageAdapter(BaseStorageAdapter):
             effective_limit = max(1, limit)
             return sorted_memories[:effective_limit]
 
+    async def get_memory(self, user_id: str, memory_id: str) -> MemoryItem | None:
+        async with self._lock:
+            for m in self._memories.get(user_id, []):
+                if m.id == memory_id:
+                    return m
+            return None
+
     async def delete_memory(self, user_id: str, memory_id: str) -> bool:
         async with self._lock:
             user_list = self._memories.get(user_id, [])

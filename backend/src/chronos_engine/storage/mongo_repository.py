@@ -66,6 +66,13 @@ class MongoStorageAdapter(BaseStorageAdapter):
         )
         return [MemoryItem(**d) async for d in cursor]
 
+    async def get_memory(self, user_id: str, memory_id: str) -> MemoryItem | None:
+        db = await self._db()
+        doc = await db["engine_memories"].find_one(
+            {"id": memory_id, "user_id": user_id}
+        )
+        return MemoryItem(**doc) if doc else None
+
     async def delete_memory(self, user_id: str, memory_id: str) -> bool:
         db = await self._db()
         # Only ever delete a memory owned by this user.

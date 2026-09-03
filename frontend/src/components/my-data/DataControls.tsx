@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { CheckCircle2, Download, Loader2, ShieldAlert, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { chronosApi } from "@/lib/chronosApi";
+import { chronosApi, notifyChronosDataCleared } from "@/lib/chronosApi";
 import { errorMessage } from "@/lib/http";
 
 export function DataControls() {
@@ -62,6 +62,7 @@ export function DataControls() {
     setMessage(null);
     try {
       await chronosApi.deleteAllData();
+      notifyChronosDataCleared();
       setMessage({
         type: "success",
         text: "All ChronOS data associated with your account has been permanently deleted.",

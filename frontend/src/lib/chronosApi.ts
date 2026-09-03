@@ -5,6 +5,26 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1
 const ENGINE_BASE = `${API_URL}/chronos/engine`;
 const BACKEND_ORIGIN = API_URL.replace(/\/api\/v1\/?$/, "");
 
+/** Window event broadcast after the user's ChronOS data is wiped. */
+export const CHRONOS_DATA_CLEARED_EVENT = "opentime:chronos-data-cleared";
+
+/**
+ * Broadcast that the authenticated user's ChronOS data has been wiped (e.g.
+ * after "Delete all my ChronOS data"). Consuming pages listen so they never
+ * keep showing stale/phantom data that no longer exists server-side.
+ */
+export function notifyChronosDataCleared(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(CHRONOS_DATA_CLEARED_EVENT));
+}
+
+/** Subscribe to the data-cleared event. Returns a cleanup function. */
+export function onChronosDataCleared(listener: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener(CHRONOS_DATA_CLEARED_EVENT, listener);
+  return () => window.removeEventListener(CHRONOS_DATA_CLEARED_EVENT, listener);
+}
+
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
   try {

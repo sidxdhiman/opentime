@@ -6,6 +6,7 @@ import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { myDataApi, type Goal, type AnalysisPref, type GenesisMemory, type IdentityState, type Pattern } from "@/lib/myDataApi";
+import { onChronosDataCleared } from "@/lib/chronosApi";
 import { errorMessage } from "@/lib/http";
 import { GoalsSection } from "./GoalsSection";
 import { PreferencesSection } from "./PreferencesSection";
@@ -78,6 +79,14 @@ export function MyDataExplorer() {
     if (authLoading) return;
     loadAll();
   }, [authLoading, loadAll]);
+
+  // After a bulk "Delete all my ChronOS data", refetch every collection so the
+  // explorer never keeps showing data that no longer exists server-side.
+  useEffect(() => {
+    return onChronosDataCleared(() => {
+      if (mountedRef.current) loadAll();
+    });
+  }, [loadAll]);
 
   const activeGoals = goals.filter((g) => g.status === "active");
   const firstName = user?.full_name?.split(" ")[0] ?? user?.email ?? "you";

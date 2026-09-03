@@ -25,6 +25,7 @@ import {
   ReturnContext,
   TimelineEvent,
   TemporalThread,
+  onChronosDataCleared,
 } from "@/lib/chronosApi";
 import { onboardingApi, type OnboardingStatusResponse } from "@/lib/onboardingApi";
 import { myDataApi, type Goal } from "@/lib/myDataApi";
@@ -318,6 +319,21 @@ export default function DashboardPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isInitialLoad, isFirstUse, returnContextLoaded, activeTab]);
+
+  // ── Data cleared (e.g. "Delete all my ChronOS data"): drop every stale
+  // ── local collection and refetch from the server so no phantom data is
+  // ── shown. `loadedTabs` is reset so tab-deferred data (timeline/insights)
+  // ── is re-fetched fresh the next time it is opened.
+  useEffect(() => {
+    return onChronosDataCleared(() => {
+      if (!canCommit(userId)) return;
+      setLoadedTabs(new Set(["overview"]));
+      loadAllData();
+      refreshTimeline();
+      refreshPatterns();
+      refreshReflections();
+    });
+  }, [canCommit, userId, loadAllData, refreshTimeline, refreshPatterns, refreshReflections]);
 
   const handleReturnHookContinue = (threadId: string) => {
     const thread = threads.find((t) => t.id === threadId);

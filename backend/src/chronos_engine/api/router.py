@@ -513,6 +513,33 @@ async def get_thread(
     return _thread_response(thread, events)
 
 
+def _memory_media_path(user_id: str, memory: Any) -> Path | None:
+    """Resolve the on-disk path of a memory's own media, if it is user-owned.
+
+    The memory's ``metadata["media_url"]`` is a server-authoritative
+    ``/uploads/{user_id}/{file_name}`` reference. We only ever delete media
+    that (a) is owned by this user and (b) lives directly under this user's
+    upload directory. Anything else (missing, malformed, foreign, or pointing
+    outside the user's own dir) is treated as not deletable here and returns
+    ``None`` so unrelated media is never touched.
+    """
+    media_url = (memory.metadata or {}).get("media_url")
+    if not media_url:
+        return None
+    prefix = f"/uploads/{user_id}/"
+    if not isinstance(media_url, str) or not media_url.startswith(prefix):
+        return None
+    file_name = media_url[len(prefix):]
+    if (
+        not file_name
+        or ".." in file_name
+        or "/" in file_name
+        or "\\" in file_name
+    ):
+        return None
+    return _upload_dir() / user_id / file_name
+
+
 @router.delete(
     "/memories/{memory_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -521,12 +548,17 @@ async def delete_memory(
     memory_id: str,
     current_user: UserResponse = Depends(get_current_user),
 ) -> None:
-    """Permanently delete one memory owned by the authenticated user.
+    """Permanently delete one memory and its associated media, owned by the user.
 
-    The store purges every reference to the deleted memory (other memories'
-    links, timeline, reflections, patterns, and temporal threads/events/
-    snapshots) so nothing is left orphaned. Historical temporal evidence text
-    is preserved; only dangling memory pointers are removed.
+    The memory record is removed and the store purges every reference to it
+    (other memories' links, timeline, reflections, patterns, and temporal
+    threads/events/snapshots). Any media the memory itself owns (per its
+    ``metadata["media_url"]``) is purged on disk too, so deleting a memory does
+    not leave its private media behind.
+
+    The user's own media file is unlinked BEFORE the record is removed: a
+    failed media purge therefore surfaces as an HTTP error (no false 204) and
+    the memory record remains intact so a retry is safe and idempotent.
 
     - 401 when unauthenticated
     - 404 when the memory does not exist for this user
@@ -534,6 +566,24 @@ async def delete_memory(
       ``user_id`` is never read or trusted.
     """
     user_id = str(current_user.id)
+    memory = await engine_instance.get_memory(user_id, memory_id)
+    if memory is None:
+        raise HTTPException(status_code=404, detail="Memory not found")
+
+    media_path = _memory_media_path(user_id, memory)
+    if media_path is not None:
+        try:
+            if media_path.is_file():
+                media_path.unlink()
+        except Exception:
+            logger.exception(
+                "Failed to delete media for memory=%s user=%s", memory_id, user_id
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="Memory deletion could not fully complete.",
+            )
+
     deleted = await engine_instance.delete_memory(user_id, memory_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Memory not found")

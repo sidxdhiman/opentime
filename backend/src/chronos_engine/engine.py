@@ -946,6 +946,9 @@ class ChronosEngine:
     async def get_memories(self, user_id: str, limit: int = 100) -> List[MemoryItem]:
         return await self.storage.get_memories_by_user(user_id, limit=limit)
 
+    async def get_memory(self, user_id: str, memory_id: str) -> MemoryItem | None:
+        return await self.storage.get_memory(user_id, memory_id)
+
     async def delete_memory(self, user_id: str, memory_id: str) -> bool:
         """Permanently delete one memory and purge its references.
 

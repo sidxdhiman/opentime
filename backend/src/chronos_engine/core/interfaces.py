@@ -411,6 +411,15 @@ class BaseStorageAdapter(ABC):
         pass
 
     @abstractmethod
+    async def get_memory(self, user_id: str, memory_id: str) -> MemoryItem | None:
+        """Return a single memory owned by the user, or ``None``.
+
+        Enables callers to resolve a memory's metadata (e.g. its media
+        reference) before deleting it, without scanning the full store.
+        """
+        pass
+
+    @abstractmethod
     async def delete_memory(self, user_id: str, memory_id: str) -> bool:
         """Permanently delete one memory owned by the user.
 
