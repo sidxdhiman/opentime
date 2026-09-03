@@ -725,6 +725,8 @@ async def delete_user_data(
     await engine_instance.temporal_store.delete_all_for_user(user_id)
 
     # Application-layer Chronos domain repos + onboarding (MongoDB).
+    # A failure here must surface as an HTTP error (no false 204): the client
+    # must know the permanent deletion did not fully complete.
     try:
         db = await get_mongo_db()
         for collection in (
@@ -741,8 +743,12 @@ async def delete_user_data(
             await db[collection].delete_many({"user_id": user_id})
     except Exception:
         logger.exception("Failed to delete application-layer data for user=%s", user_id)
+        raise HTTPException(
+            status_code=500,
+            detail="Permanent deletion did not fully complete. No data was falsely reported as removed.",
+        )
 
-    # Uploaded media on disk.
+    # Uploaded media on disk. Failures surface as an HTTP error (no false 204).
     media_dir = _upload_dir() / user_id
     if media_dir.exists():
         try:
@@ -752,3 +758,7 @@ async def delete_user_data(
             media_dir.rmdir()
         except Exception:
             logger.exception("Failed to delete media files for user=%s", user_id)
+            raise HTTPException(
+                status_code=500,
+                detail="Permanent deletion did not fully complete. No data was falsely reported as removed.",
+            )

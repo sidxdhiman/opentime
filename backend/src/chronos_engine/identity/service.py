@@ -11,20 +11,11 @@ class IdentityModel(BaseIdentityModel):
     async def get_or_create_profile(self, user_id: str) -> IdentityProfile:
         profile = await self.storage.get_identity(user_id)
         if not profile:
-            profile = IdentityProfile(
-                user_id=user_id,
-                interests=["AI Systems Architecture", "Personal Intelligence Layer", "ChronOS"],
-                goals=["Build OpenTime into a world-class platform", "Master model-agnostic orchestration"],
-                values=["Autonomy", "Deep Technical Craftsmanship", "Self-Reflection"],
-                emotional_tendencies={"optimism": 0.85, "focus": 0.90, "resilience": 0.88, "curiosity": 0.95},
-                skills=["Python Architecture", "Next.js", "AI System Design", "Clean Architecture"],
-                relationships={"OpenTime Team": "Founder / Architect"},
-                preferences={"communication": "Concise, highly technical, action-oriented", "theme": "Dark Mode"},
-                decision_patterns=["Prioritizes core architecture & data models before logic"],
-                communication_style="Direct, insightful, clear",
-                version=1,
-            )
-            await self.storage.save_identity(profile)
+            # No fabricated biography. A user with no persisted identity has no
+            # assumed interests, goals, relationships, or scores; the profile is
+            # built only from what they actually share (via evolve_profile).
+            # Nothing is persisted on a mere read.
+            profile = IdentityProfile(user_id=user_id)
         return profile
 
     async def evolve_profile(

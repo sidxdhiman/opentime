@@ -176,6 +176,14 @@ async def test_user_evolution_goal_change():
 @pytest.mark.asyncio
 async def test_full_engine_integration():
     engine = ChronosEngine()
+    # First establish a real stored goal from shared data, so the subsequent
+    # contradiction is grounded in what the user actually said (never an
+    # assumed/fabricated founder goal).
+    await engine.process_user_input(
+        user_id="user_1e_engine",
+        content="I want to keep building OpenTime as my top priority.",
+        provider_key="chronos",
+    )
     response = await engine.process_user_input(
         user_id="user_1e_engine",
         content="I'm abandoning the OpenTime platform for good.",

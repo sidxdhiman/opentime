@@ -9,6 +9,7 @@ Verifies the now-authenticated ChronOS engine endpoints:
 """
 
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from unittest.mock import patch
 
 from httpx import ASGITransport, AsyncClient
@@ -38,6 +39,29 @@ BASE = datetime(2026, 1, 1, tzinfo=UTC)
 def _patch_engine(storage: InMemoryStorageAdapter, store: InMemoryTemporalStore):
     engine = ChronosEngine(storage=storage, temporal_store=store)
     return patch("chronos_engine.api.router.engine_instance", engine)
+
+
+class _FakeDb:
+    """Minimal async fake DB that records delete_many calls per collection."""
+
+    def __init__(self) -> None:
+        self.deleted: dict[str, list] = {}
+
+    def __getitem__(self, name: str) -> "_FakeCollection":
+        return _FakeCollection(self.deleted, name)
+
+
+class _FakeCollection:
+    def __init__(self, store: dict, name: str) -> None:
+        self._store = store
+        self._name = name
+
+    async def delete_many(self, query: dict) -> None:
+        self._store.setdefault(self._name, []).append(query)
+
+
+def _noop_upload_dir():
+    return Path("/tmp/opencode-nonexistent-upload")
 
 
 async def _make_thread(store, user_id, subject="Thread"):
@@ -191,7 +215,11 @@ class TestDelete:
         other_thread = await _make_thread(store, OTHER_AUTH_USER_ID)
         await _make_event(store, other_thread.id, OTHER_AUTH_USER_ID)
 
-        with _patch_engine(storage, store):
+        with _patch_engine(storage, store), patch(
+            "chronos_engine.api.router.get_mongo_db", return_value=_FakeDb()
+        ), patch(
+            "chronos_engine.api.router._upload_dir", return_value=_noop_upload_dir()
+        ):
             transport = ASGITransport(app=app)
             async with AsyncClient(transport=transport, base_url="http://test") as client:
                 resp = await client.delete(PREFIX)

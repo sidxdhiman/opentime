@@ -13,41 +13,9 @@ class PatternDetector(BasePatternDetector):
         existing_patterns = await self.storage.get_patterns_by_user(user_id)
 
         if not memories and not existing_patterns:
-            default_patterns = [
-                PatternItem(
-                    id=f"pat_{uuid.uuid4().hex[:12]}",
-                    user_id=user_id,
-                    category=PatternCategory.REPEATED_SUCCESS,
-                    title="Clean Architecture First",
-                    description=" Consistently defines interfaces, models, and module boundaries before writing business logic.",
-                    frequency="Daily pattern",
-                    confidence_score=0.95,
-                    supporting_memory_ids=[],
-                ),
-                PatternItem(
-                    id=f"pat_{uuid.uuid4().hex[:12]}",
-                    user_id=user_id,
-                    category=PatternCategory.PRODUCTIVITY_TREND,
-                    title="High-Output Deep Work Blocks",
-                    description="Demonstrates concentrated, rapid execution cycles during system architecture design.",
-                    frequency="Peak active cycles",
-                    confidence_score=0.90,
-                    supporting_memory_ids=[],
-                ),
-                PatternItem(
-                    id=f"pat_{uuid.uuid4().hex[:12]}",
-                    user_id=user_id,
-                    category=PatternCategory.DECISION_CHANGE,
-                    title="Model-Agnostic Infrastructure Preference",
-                    description="Prefers modular layer separation over direct vendor LLM coupling.",
-                    frequency="Architectural rule",
-                    confidence_score=0.93,
-                    supporting_memory_ids=[],
-                ),
-            ]
-            for p in default_patterns:
-                await self.storage.save_pattern(p)
-            return default_patterns
+            # No fabricated patterns. With no shared memories there is nothing to
+            # detect, so nothing is invented or persisted.
+            return []
 
         # Analyze existing memories to generate new pattern detections
         all_text = " ".join([m.content for m in memories]).lower()

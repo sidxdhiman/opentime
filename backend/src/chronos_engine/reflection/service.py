@@ -15,43 +15,10 @@ class ReflectionEngine(BaseReflectionEngine):
         existing_reflections = await self.storage.get_reflections_by_user(user_id)
 
         if len(memories) < 2 and not existing_reflections:
-            # Generate default base insights if few memories exist
-            default_insights = [
-                ReflectionInsight(
-                    id=f"ref_{uuid.uuid4().hex[:12]}",
-                    user_id=user_id,
-                    insight_type=ReflectionInsightType.EMOTIONAL_SHIFT,
-                    summary="You have become significantly more optimistic and focused on execution.",
-                    past_state_summary="Initial state focused on setting up basic configurations.",
-                    current_state_summary="High-clarity phase actively designing the ChronOS Engine architecture.",
-                    confidence_score=0.92,
-                    supporting_memory_ids=[m.id for m in memories[:3]],
-                    reasoning_trace=[
-                        "Analyzed sentiment scores across recent 30-day window",
-                        "Detected 35% increase in positive sentiment indicators ('confident', 'architect', 'building')",
-                        "Compared keyword frequency between early interactions and current interaction stream",
-                    ],
-                    affected_time_range="Past 30 days",
-                ),
-                ReflectionInsight(
-                    id=f"ref_{uuid.uuid4().hex[:12]}",
-                    user_id=user_id,
-                    insight_type=ReflectionInsightType.FOCUS_SHIFT,
-                    summary="Your focus has shifted from learning to building production-grade systems.",
-                    past_state_summary="Early memory nodes dominated by research & exploration.",
-                    current_state_summary="Current interaction nodes focused on model-agnostic engine orchestrators & voice/video input processing.",
-                    confidence_score=0.88,
-                    supporting_memory_ids=[m.id for m in memories[:2]],
-                    reasoning_trace=[
-                        "Clustered semantic memory embeddings by topic category",
-                        "Observed shift from 'learning/studying' cluster to 'building/implementing' cluster",
-                    ],
-                    affected_time_range="Past 14 days",
-                ),
-            ]
-            for r in default_insights:
-                await self.storage.save_reflection(r)
-            return default_insights
+            # No fabricated insights. Reflections are derived only from what the
+            # user actually shared; with too little real data there is nothing to
+            # compare, so nothing is invented or persisted.
+            return []
 
         # Dynamically evaluate recent vs older memories
         half = len(memories) // 2
