@@ -88,8 +88,14 @@ export function IdentitySection({ initialIdentity }: { initialIdentity: Identity
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const getTraits = (id: IdentityState | null): string[] => {
+    if (!id) return [];
+    if (Array.isArray(id.skills)) return id.skills;
+    return (id.traits ?? []).map((t) => t.trait);
+  };
+
   const startEdit = () => {
-    setDraftTraits(identity?.traits.map((t) => t.trait) ?? []);
+    setDraftTraits(getTraits(identity));
     setEditing(true); setError(null);
   };
   const cancel = () => { setEditing(false); setNewTrait(""); };
@@ -114,13 +120,17 @@ export function IdentitySection({ initialIdentity }: { initialIdentity: Identity
     } finally { setSaving(false); }
   };
 
-  const interests = identity?.interests?.map((c) => c.value).filter(Boolean) ?? [];
-  const values = identity?.values?.map((c) => c.value).filter(Boolean) ?? [];
+  const interests: string[] = (identity?.interests ?? []).map((c: any) =>
+    typeof c === "string" ? c : c?.value
+  ).filter(Boolean);
+  const values: string[] = (identity?.values ?? []).map((c: any) =>
+    typeof c === "string" ? c : c?.value
+  ).filter(Boolean);
 
   return (
     <SectionCard
       title="Identity Snapshot"
-      description={`Version ${identity?.version ?? 1} — how Chronos currently understands you. Editing creates a new version; history is preserved.`}
+      description={`Version ${identity?.version ?? 1} — how Chronos currently understands you. Editing your traits updates your evolving profile.`}
       action={!editing && identity ? (
         <Button type="button" variant="outline" size="sm" onClick={startEdit} className="gap-1.5 border-accent/60 text-accent-foreground hover:bg-accent text-xs">
           <Pencil className="h-3.5 w-3.5" />Edit traits
@@ -128,10 +138,10 @@ export function IdentitySection({ initialIdentity }: { initialIdentity: Identity
       ) : undefined}
     >
       {!identity ? (
-        <p className="text-sm text-muted">No identity data yet.</p>
+        <p className="text-sm text-muted">No identity data yet. Start a conversation to build your profile.</p>
       ) : (
         <div className="space-y-5">
-          {/* Traits */}
+          {/* Traits (skills in engine schema) */}
           <div>
             <p className="text-xs font-semibold text-muted uppercase tracking-wider mb-2">Traits</p>
             {editing ? (
@@ -158,12 +168,9 @@ export function IdentitySection({ initialIdentity }: { initialIdentity: Identity
               </div>
             ) : (
               <div className="flex flex-wrap gap-2">
-                {identity.traits.length === 0 && <p className="text-xs text-muted">None detected yet.</p>}
-                {identity.traits.map((t) => (
-                  <span key={t.trait} className="rounded-full border border-border bg-secondary/30 px-3 py-1 text-xs text-foreground/80">
-                    {t.trait}
-                    <span className="ml-1.5 text-muted text-[10px]">{Math.round(t.confidence * 100)}%</span>
-                  </span>
+                {getTraits(identity).length === 0 && <p className="text-xs text-muted">None detected yet.</p>}
+                {getTraits(identity).map((t) => (
+                  <span key={t} className="rounded-full border border-border bg-secondary/30 px-3 py-1 text-xs text-foreground/80">{t}</span>
                 ))}
               </div>
             )}

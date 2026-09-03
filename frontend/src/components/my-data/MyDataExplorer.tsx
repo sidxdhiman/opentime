@@ -148,14 +148,14 @@ export function MyDataExplorer() {
 
               {/* Identity summary */}
               {identity && (
-                <SectionCard title="Identity snapshot" description={`Version ${identity.version}, updated ${new Date(identity.created_at).toLocaleDateString()}`}>
+                <SectionCard title="Identity snapshot" description={`Version ${identity.version}`}>
                   <div className="flex flex-wrap gap-2">
-                    {identity.traits.slice(0, 8).map((t) => (
-                      <span key={t.trait} className="rounded-full border border-border bg-secondary/30 px-3 py-1 text-xs text-foreground/80">
-                        {t.trait}
+                    {(identity.skills?.length ? identity.skills : (identity.traits ?? []).map((t) => t.trait)).slice(0, 8).map((t) => (
+                      <span key={t} className="rounded-full border border-border bg-secondary/30 px-3 py-1 text-xs text-foreground/80">
+                        {t}
                       </span>
                     ))}
-                    {identity.traits.length === 0 && <p className="text-sm text-muted">No traits detected yet.</p>}
+                    {!identity.skills?.length && !identity.traits?.length && <p className="text-sm text-muted">No traits detected yet.</p>}
                   </div>
                 </SectionCard>
               )}

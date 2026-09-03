@@ -75,7 +75,7 @@ class MemoryItem(BaseModel):
     id: str
     user_id: str
     content: str
-    memory_type: MemoryType = MemoryType.LONG_TERM
+    memory_type: MemoryType = MemoryType.EPISODIC
     embedding: List[float] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -83,6 +83,7 @@ class MemoryItem(BaseModel):
     linked_memory_ids: List[str] = Field(default_factory=list)
     tags: List[str] = Field(default_factory=list)
     metadata: Dict[str, Any] = Field(default_factory=dict)
+    is_genesis: bool = False
 
 
 class TimelineEvent(BaseModel):

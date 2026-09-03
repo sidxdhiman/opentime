@@ -79,15 +79,19 @@ export interface IdentityTrait {
 }
 
 export interface IdentityState {
-  id: string;
+  id?: string;
   user_id: string;
   version: number;
-  traits: IdentityTrait[];
-  interests: TypedClaim[];
-  values: TypedClaim[];
-  self_perception: TypedClaim[];
-  current_phase: TypedClaim | null;
-  created_at: string;
+  traits?: IdentityTrait[];
+  skills?: string[];
+  interests: TypedClaim[] | string[];
+  values: TypedClaim[] | string[];
+  self_perception?: TypedClaim[];
+  current_phase?: TypedClaim | null;
+  created_at?: string;
+  emotional_tendencies?: Record<string, number>;
+  communication_style?: string;
+  decision_patterns?: string[];
 }
 
 export interface Pattern {

@@ -23,10 +23,10 @@ All mutations are scoped by user_id from the JWT.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query
+from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel, Field
 
 from opentime.api.dependencies import get_current_user
@@ -38,22 +38,14 @@ from opentime.application.auth.dto import UserResponse
 from opentime.application.onboarding.context_builder import ChronosContextBuilder
 from opentime.domain.chronos.entities import (
     AnalysisPreferenceRecord,
-    ClaimType,
     Goal,
     GoalStatus,
-    IdentityState,
-    IdentityTrait,
 )
 from opentime.infrastructure.mongodb.chronos_repos import (
     MongoAnalysisPreferenceRepository,
     MongoChronosStateRepository,
     MongoGoalRepository,
-    MongoIdentityStateRepository,
-    MongoMemoryRepository,
-    MongoPatternRepository,
-    MongoTimelineRepository,
 )
-from motor.motor_asyncio import AsyncIOMotorDatabase
 
 router = APIRouter(prefix="/chronos", tags=["Chronos State"])
 
@@ -111,11 +103,15 @@ async def get_identity(
     current_user: UserResponse = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_db),
 ) -> dict[str, Any]:
+    """Read identity from the engine store (authoritative source).
+
+    The engine IdentityProfile evolves with every interaction and is the
+    single source of truth displayed on both Dashboard and My Data.
+    """
     user_id = str(current_user.id)
-    state = await MongoIdentityStateRepository(db).get_latest(user_id)
-    if not state:
-        raise HTTPException(status_code=404, detail="Identity not yet established.")
-    return state.model_dump(mode="json")
+    from chronos_engine.api.router import engine_instance
+    identity = await engine_instance.get_identity(user_id)
+    return identity.model_dump(mode="json")
 
 
 @router.get("/memories", summary="Get user memories (paginated)")
@@ -125,14 +121,22 @@ async def get_memories(
     limit: int = Query(default=20, ge=1, le=100),
     skip: int = Query(default=0, ge=0),
 ) -> list[dict[str, Any]]:
+    """Read memories from the engine store (the authoritative source).
+
+    There is deliberately no fallback to the application-layer store. The
+    engine store is created during onboarding and is the single source of
+    truth. A memory deleted from the engine store must never be resurrected
+    from any application-layer copy.
+    """
     user_id = str(current_user.id)
-    memories = await MongoMemoryRepository(db).get_for_user(user_id, limit=limit, skip=skip)
+    from chronos_engine.api.router import engine_instance
+    engine_memories = await engine_instance.get_memories(user_id, limit=limit + 10)
     result = []
-    for m in memories:
+    for m in engine_memories:
         d = m.model_dump(mode="json")
         d.pop("embedding", None)
         result.append(d)
-    return result
+    return result[skip:skip + limit]
 
 
 @router.get("/timeline", summary="Get timeline events (paginated)")
@@ -142,9 +146,12 @@ async def get_timeline(
     limit: int = Query(default=50, ge=1, le=200),
     skip: int = Query(default=0, ge=0),
 ) -> list[dict[str, Any]]:
+    """Read timeline from the engine store (authoritative source)."""
     user_id = str(current_user.id)
-    events = await MongoTimelineRepository(db).get_for_user(user_id, limit=limit, skip=skip)
-    return [e.model_dump(mode="json") for e in events]
+    from chronos_engine.api.router import engine_instance
+    events = await engine_instance.get_timeline(user_id)
+    result = [e.model_dump(mode="json") for e in events]
+    return result[skip:skip + limit]
 
 
 @router.get("/goals", summary="Get goals")
@@ -168,9 +175,11 @@ async def get_patterns(
     current_user: UserResponse = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_db),
 ) -> list[dict[str, Any]]:
+    """Read patterns from the engine store (authoritative source)."""
     user_id = str(current_user.id)
-    patterns = await MongoPatternRepository(db).get_for_user(user_id)
-    return [p.model_dump(mode="json") for p in patterns]
+    from chronos_engine.api.router import engine_instance
+    patterns = await engine_instance.get_patterns(user_id)
+    return [p.model_dump() for p in patterns]
 
 
 @router.get("/preferences", summary="Get analysis preferences")
@@ -287,22 +296,28 @@ async def edit_genesis(
     current_user: UserResponse = Depends(get_current_user),
     db: AsyncIOMotorDatabase = Depends(get_db),
 ) -> dict[str, Any]:
+    """Edit the engine genesis memory (authoritative source).
+
+    The engine genesis is the single source of truth for normal editing. Only
+    an existing engine genesis may be updated here. If the engine genesis is
+    absent (e.g. it was deleted), it is NOT recreated from any application-layer
+    copy; a 404 is returned instead. Onboarding remains the only path that
+    creates a genesis memory. A deleted genesis therefore stays deleted.
+    """
     user_id = str(current_user.id)
-    repo = MongoMemoryRepository(db)
-    genesis = await repo.get_genesis(user_id)
-    if not genesis:
+    from chronos_engine.api.router import engine_instance
+
+    memories = await engine_instance.get_memories(user_id, limit=100)
+    genesis = next((m for m in memories if m.is_genesis), None)
+    if genesis is None:
         raise HTTPException(status_code=404, detail="Genesis memory not found.")
 
     genesis.content = body.content
-    # Clear stale derived fields — they'll be re-extracted on next Chronos cycle
-    genesis.summary = None
-    genesis.topics = []
-    genesis.entities = []
-    genesis.embedding = []   # stale — re-embed on next pipeline run
+    # Clear the stale embedding — re-derived against the new content on the
+    # next engine cycle so retrieval never matches on outdated vectors.
+    genesis.embedding = []
+    updated = await engine_instance.storage.save_memory(genesis)
 
-    updated = await repo.update(genesis)
-    if not updated:
-        raise HTTPException(status_code=500, detail="Update failed.")
     d = updated.model_dump(mode="json")
     d.pop("embedding", None)
     return d
@@ -315,34 +330,18 @@ async def update_traits(
     db: AsyncIOMotorDatabase = Depends(get_db),
 ) -> dict[str, Any]:
     user_id = str(current_user.id)
-    repo = MongoIdentityStateRepository(db)
-    current = await repo.get_latest(user_id)
-    if not current:
-        raise HTTPException(status_code=404, detail="Identity not yet established.")
+    from datetime import UTC
+    from datetime import datetime as _dt
 
+    from chronos_engine.api.router import engine_instance
+    identity = await engine_instance.get_identity(user_id)
     new_traits = [
-        IdentityTrait(
-            trait=t.strip(),
-            claim_type=ClaimType.USER_STATEMENT,  # user explicitly set these
-            confidence=1.0,
-        )
+        t.strip()
         for t in body.traits
         if t.strip()
     ]
-
-    # Create a new version — never overwrite history
-    new_state = IdentityState(
-        user_id=user_id,
-        version=current.version + 1,
-        traits=new_traits,
-        interests=current.interests,
-        values=current.values,
-        self_perception=current.self_perception,
-        current_phase=current.current_phase,
-        valid_from=datetime.now(timezone.utc),
-        valid_until=None,
-    )
-    # Close out the old version
-    current.valid_until = datetime.now(timezone.utc)
-    await repo.create(new_state)   # inserts new version
-    return new_state.model_dump(mode="json")
+    identity.skills = new_traits
+    identity.version += 1
+    identity.last_updated = _dt.now(UTC)
+    await engine_instance.storage.save_identity(identity)
+    return identity.model_dump(mode="json")

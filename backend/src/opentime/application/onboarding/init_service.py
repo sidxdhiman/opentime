@@ -24,8 +24,18 @@ Idempotency:
 
 from __future__ import annotations
 
-import structlog
 from datetime import datetime, timezone
+
+import structlog
+
+from chronos_engine.core.models import (
+    IdentityProfile as EngineIdentityProfile,
+    MemoryItem as EngineMemoryItem,
+    MemoryType as EngineMemoryType,
+    PatternCategory as EnginePatternCategory,
+    PatternItem as EnginePatternItem,
+    TimelineEvent as EngineTimelineEvent,
+)
 
 from opentime.domain.chronos.entities import (
     AnalysisPreferenceRecord,
@@ -190,6 +200,21 @@ class ChronosInitializationService:
         await self._timeline.create(genesis_event)
         timeline_events.append(genesis_event)
 
+        try:
+            from chronos_engine.api.router import engine_instance
+            engine_genesis_event = EngineTimelineEvent(
+                id=genesis_event.id,
+                user_id=user_id,
+                title="Joined OpenTime",
+                description="User completed onboarding and established their Chronos baseline.",
+                timestamp=genesis_event.event_time,
+                life_phase="Milestone",
+                memory_ids=[genesis_memory.id] if genesis_memory else [],
+            )
+            await engine_instance.storage.save_timeline_event(engine_genesis_event)
+        except Exception:
+            pass
+
         # ---- 6. Analysis preferences (Step 7) ----
         pref_records: list[AnalysisPreferenceRecord] = []
         if OnboardingStep.ANALYSIS_PREFS in resp_by_step:
@@ -318,7 +343,25 @@ class ChronosInitializationService:
             is_genesis=True,
             media_url=response.media_url,
         )
-        return await self._memories.create(memory)
+        saved = await self._memories.create(memory)
+
+        try:
+            from chronos_engine.api.router import engine_instance
+            engine_mem = EngineMemoryItem(
+                id=saved.id,
+                user_id=user_id,
+                content=text,
+                memory_type=EngineMemoryType.EPISODIC,
+                importance_score=1.0,
+                is_genesis=True,
+                created_at=saved.created_at,
+                timestamp=saved.event_time,
+            )
+            await engine_instance.storage.save_memory(engine_mem)
+        except Exception:
+            logger.warning("Failed to create engine genesis memory for user=%s", user_id)
+
+        return saved
 
     async def _extract_identity(
         self,
@@ -386,7 +429,22 @@ class ChronosInitializationService:
             self_perception=to_claims(extracted.get("self_perception", []), source_mem_id),
             current_phase=phase_claim,
         )
-        return await self._identity.create(state)
+        saved = await self._identity.create(state)
+
+        try:
+            from chronos_engine.api.router import engine_instance
+            engine_identity = EngineIdentityProfile(
+                user_id=user_id,
+                interests=[t.value for t in saved.interests if t.value],
+                values=[t.value for t in saved.values if t.value],
+                skills=[t.trait for t in saved.traits if t.trait],
+                version=1,
+            )
+            await engine_instance.storage.save_identity(engine_identity)
+        except Exception:
+            logger.warning("Failed to create engine identity for user=%s", user_id)
+
+        return saved
 
     async def _extract_goals(
         self,
@@ -458,6 +516,11 @@ class ChronosInitializationService:
 
         events: list[TimelineEvent] = []
         now = datetime.now(timezone.utc)
+        try:
+            from chronos_engine.api.router import engine_instance
+            has_engine = True
+        except Exception:
+            has_engine = False
         for ev in events_raw:
             if not isinstance(ev, dict):
                 continue
@@ -466,7 +529,7 @@ class ChronosInitializationService:
                 continue
             event = TimelineEvent(
                 user_id=user_id,
-                event_time=now,  # approximate; LLM parsing could refine
+                event_time=now,
                 title=title,
                 description=ev.get("description", ""),
                 category=ev.get("category", "other"),
@@ -475,6 +538,20 @@ class ChronosInitializationService:
             )
             event = await self._timeline.create(event)
             events.append(event)
+            if has_engine:
+                try:
+                    engine_event = EngineTimelineEvent(
+                        id=event.id,
+                        user_id=user_id,
+                        title=title,
+                        description=ev.get("description", ""),
+                        timestamp=now,
+                        life_phase=ev.get("category", "General"),
+                        memory_ids=[memory.id] if memory else [],
+                    )
+                    await engine_instance.storage.save_timeline_event(engine_event)
+                except Exception:
+                    pass
 
         return events
 
@@ -515,11 +592,28 @@ class ChronosInitializationService:
             user_id=user_id,
             type=PatternType.BASELINE,
             pattern=pattern_text,
-            confidence=0.35,  # low initial confidence – single evidence point
+            confidence=0.35,
             evidence_count=1,
             source_memory_ids=[memory.id] if memory else [],
         )
-        return await self._patterns.create(p)
+        saved = await self._patterns.create(p)
+
+        try:
+            from chronos_engine.api.router import engine_instance
+            engine_pattern = EnginePatternItem(
+                id=saved.id,
+                user_id=user_id,
+                category=EnginePatternCategory.HABIT,
+                title="Onboarding baseline",
+                description=pattern_text,
+                confidence_score=0.35,
+                supporting_memory_ids=[memory.id] if memory else [],
+            )
+            await engine_instance.storage.save_pattern(engine_pattern)
+        except Exception:
+            logger.warning("Failed to create engine pattern for user=%s", user_id)
+
+        return saved
 
     async def _extract_current_life_state(
         self,

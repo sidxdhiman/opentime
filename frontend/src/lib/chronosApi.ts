@@ -59,6 +59,7 @@ export interface MemoryItem {
   linked_memory_ids: string[];
   tags: string[];
   metadata: Record<string, any>;
+  is_genesis?: boolean;
 }
 
 export interface TimelineEvent {
