@@ -109,10 +109,34 @@ export default function DashboardPage() {
   // Track which tabs have been loaded for lazy loading
   const [loadedTabs, setLoadedTabs] = useState<Set<Tab>>(new Set(["overview"]));
 
+  const userId = user?.id || "user_default";
+
   // Abort controller for cancelling stale requests on unmount
   const abortRef = useRef<AbortController | null>(null);
+  // Mounted + current-user guards: late responses from a previous user or
+  // after unmount must never write into the current view (cross-user safety).
+  const mountedRef = useRef(true);
+  const activeUserIdRef = useRef(userId);
 
-  const userId = user?.id || "user_default";
+  // Keep the current-user ref in sync and mark mounted/unmounted so late or
+  // cross-user responses are never committed to state.
+  useEffect(() => {
+    mountedRef.current = true;
+    activeUserIdRef.current = userId;
+    const controller = new AbortController();
+    abortRef.current = controller;
+    return () => {
+      mountedRef.current = false;
+      controller.abort();
+    };
+  }, [userId]);
+
+  // Return true only if we may still commit state for `uid`. Prevents stale
+  // (late/unmounted/old-user) responses from overwriting newer state.
+  const canCommit = useCallback(
+    (uid: string) => mountedRef.current && activeUserIdRef.current === uid,
+    [],
+  );
 
   // ── Initial load: only data needed for the Home tab ────────────────────
   // Timeline, patterns are deferred to their respective tabs.
@@ -129,7 +153,8 @@ export default function DashboardPage() {
       ]);
 
       // Guard: don't update state if request was aborted (component unmounted)
-      if (signal?.aborted) return;
+      // or if the active user has changed (cross-user safety).
+      if (signal?.aborted || !canCommit(userId)) return;
 
       setIdentity(id);
       setInteractions(ints);
@@ -140,9 +165,9 @@ export default function DashboardPage() {
       if (e.name === "AbortError") return;
       console.error("Error loading ChronOS Engine data:", e);
     } finally {
-      if (!signal?.aborted) setIsInitialLoad(false);
+      if (!signal?.aborted && canCommit(userId)) setIsInitialLoad(false);
     }
-  }, [userId]);
+  }, [userId, canCommit]);
 
   // ── Targeted refresh functions (post-message, per-collection) ──────────
   // These silently ignore AbortError to prevent stale state updates after
@@ -150,61 +175,65 @@ export default function DashboardPage() {
   const refreshInteractions = useCallback(async () => {
     try {
       const ints = await chronosApi.getInteractions(20);
-      setInteractions(ints);
+      if (canCommit(userId)) setInteractions(ints);
     } catch (e: any) {
       if (e.name !== "AbortError") console.error("Error refreshing interactions:", e);
     }
-  }, [userId]);
+  }, [userId, canCommit]);
 
   const refreshThreads = useCallback(async () => {
     try {
       const thrs = await chronosApi.getThreads();
-      setThreads(thrs);
+      if (canCommit(userId)) setThreads(thrs);
     } catch (e: any) {
       if (e.name !== "AbortError") console.error("Error refreshing threads:", e);
     }
-  }, [userId]);
+  }, [userId, canCommit]);
 
   const refreshIdentity = useCallback(async () => {
     try {
       const id = await chronosApi.getIdentity();
-      setIdentity(id);
+      if (canCommit(userId)) setIdentity(id);
     } catch (e: any) {
       if (e.name !== "AbortError") console.error("Error refreshing identity:", e);
     }
-  }, [userId]);
+  }, [userId, canCommit]);
 
   const refreshMemories = useCallback(async () => {
     try {
-      setMemories(await chronosApi.getMemories());
+      const mems = await chronosApi.getMemories();
+      if (canCommit(userId)) setMemories(mems);
     } catch (e: any) {
       if (e.name !== "AbortError") console.error("Error refreshing memories:", e);
     }
-  }, [userId]);
+  }, [userId, canCommit]);
 
   const refreshTimeline = useCallback(async () => {
     try {
-      setTimeline(await chronosApi.getTimeline());
+      const evts = await chronosApi.getTimeline();
+      if (canCommit(userId)) setTimeline(evts);
     } catch (e: any) {
       if (e.name !== "AbortError") console.error("Error refreshing timeline:", e);
     }
-  }, [userId]);
+  }, [userId, canCommit]);
 
   const refreshReflections = useCallback(async () => {
     try {
-      setReflections(await chronosApi.getReflections());
+      const refs = await chronosApi.getReflections();
+      if (canCommit(userId)) setReflections(refs);
     } catch (e: any) {
       if (e.name !== "AbortError") console.error("Error refreshing reflections:", e);
     }
-  }, [userId]);
+  }, [userId, canCommit]);
 
   const refreshPatterns = useCallback(async () => {
     try {
-      setPatterns(await chronosApi.getPatterns());
+      const pats = await chronosApi.getPatterns();
+      if (canCommit(userId)) setPatterns(pats);
     } catch (e: any) {
       if (e.name !== "AbortError") console.error("Error refreshing patterns:", e);
     }
-  }, [userId]);
+  }, [userId, canCommit]);
 
   const checkOnboarding = useCallback(async () => {
     try {
@@ -298,6 +327,10 @@ export default function DashboardPage() {
 
   // ── Message submission: targeted state update instead of full reload ────
   const handleResponseReceived = (response: EngineResponse) => {
+    // Cross-user guard: a response meant for a different/old user must never
+    // land in the current view.
+    if (!canCommit(userId)) return;
+
     setLatestResponse(response);
 
     // Thinking ends the moment the response is visible — the conversation

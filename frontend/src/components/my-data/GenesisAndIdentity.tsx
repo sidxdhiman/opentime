@@ -7,10 +7,17 @@ import { Input } from "@/components/ui/input";
 import { ImpactWarningBanner } from "./ImpactWarningBanner";
 import { SectionCard } from "./SectionCard";
 import { type GenesisMemory, type IdentityState, myDataApi } from "@/lib/myDataApi";
+import { HttpError, errorMessage } from "@/lib/http";
 
 // ── Genesis Memory ───────────────────────────────────────────────────────────
 
-export function GenesisSection({ initialMemory }: { initialMemory: GenesisMemory | null }) {
+export function GenesisSection({
+  initialMemory,
+  onChange,
+}: {
+  initialMemory: GenesisMemory | null;
+  onChange?: (memory: GenesisMemory | null) => void;
+}) {
   const [memory, setMemory] = useState(initialMemory);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(initialMemory?.content ?? "");
@@ -25,10 +32,21 @@ export function GenesisSection({ initialMemory }: { initialMemory: GenesisMemory
     setSaving(true); setError(null);
     try {
       const updated = await myDataApi.updateGenesis(draft.trim());
+      // Engine-authoritative: the PATCH is the source of truth. A 404 means
+      // genesis no longer exists — never resurrect it locally.
       setMemory(updated as unknown as GenesisMemory);
+      onChange?.(updated as unknown as GenesisMemory);
       setEditing(false);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Save failed.");
+      if (e instanceof HttpError && e.status === 404) {
+        // Genesis is gone on the backend; reflect that, don't fabricate one.
+        setMemory(null);
+        onChange?.(null);
+        setEditing(false);
+        setError("That genesis memory could not be found. It may have been removed.");
+        return;
+      }
+      setError(errorMessage(e));
     } finally { setSaving(false); }
   };
 
@@ -80,7 +98,13 @@ export function GenesisSection({ initialMemory }: { initialMemory: GenesisMemory
 
 // ── Identity Traits ──────────────────────────────────────────────────────────
 
-export function IdentitySection({ initialIdentity }: { initialIdentity: IdentityState | null }) {
+export function IdentitySection({
+  initialIdentity,
+  onChange,
+}: {
+  initialIdentity: IdentityState | null;
+  onChange?: (identity: IdentityState | null) => void;
+}) {
   const [identity, setIdentity] = useState(initialIdentity);
   const [editing, setEditing] = useState(false);
   const [draftTraits, setDraftTraits] = useState<string[]>([]);
@@ -114,9 +138,10 @@ export function IdentitySection({ initialIdentity }: { initialIdentity: Identity
     try {
       const updated = await myDataApi.updateTraits(draftTraits);
       setIdentity(updated);
+      onChange?.(updated);
       setEditing(false);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Save failed.");
+      setError(errorMessage(e));
     } finally { setSaving(false); }
   };
 

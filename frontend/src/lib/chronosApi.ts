@@ -1,3 +1,5 @@
+import { http, type HttpOptions } from "@/lib/http";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 const ENGINE_BASE = `${API_URL}/chronos/engine`;
@@ -16,20 +18,14 @@ function authHeaders(): Record<string, string> {
   return {};
 }
 
-async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${ENGINE_BASE}${path}`, {
+async function req<T>(path: string, options: HttpOptions = {}): Promise<T> {
+  return http<T>(`${ENGINE_BASE}${path}`, {
     ...options,
     headers: { ...authHeaders(), ...(options.headers as Record<string, string>) },
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "Request failed" }));
-    throw new Error(err.detail || "ChronOS request failed");
-  }
-  if (res.status === 204) return undefined as T;
-  return res.json();
 }
 
-async function reqNoThrow<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function reqNoThrow<T>(path: string, options: HttpOptions = {}): Promise<T> {
   try {
     return await req<T>(path, options);
   } catch {
@@ -311,29 +307,33 @@ export const chronosApi = {
     return `${BACKEND_ORIGIN}${relativePath.startsWith("/") ? "" : "/"}${relativePath}`;
   },
 
-  /** Fetch a media file with the auth header and return an object URL. */
-  async fetchMediaObjectUrl(relativePath?: string | null): Promise<string | null> {
+  /** Fetch a media file with the auth header and return an object URL.
+   *  Honours an optional AbortSignal so callers can revoke in-flight work. */
+  async fetchMediaObjectUrl(
+    relativePath?: string | null,
+    signal?: AbortSignal,
+  ): Promise<string | null> {
     const url = this.mediaUrl(relativePath);
     if (!url) return null;
     const token = getToken();
     if (!token) return null;
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal,
+    });
     if (!res.ok) return null;
     const blob = await res.blob();
+    if (signal?.aborted) return null;
     return URL.createObjectURL(blob);
   },
 
-  async processInput(formData: FormData): Promise<EngineResponse> {
-    const res = await fetch(`${ENGINE_BASE}/process`, {
+  async processInput(formData: FormData, signal?: AbortSignal): Promise<EngineResponse> {
+    return http<EngineResponse>(`${ENGINE_BASE}/process`, {
       method: "POST",
       headers: authHeaders(),
       body: formData,
+      signal,
     });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ detail: "Engine execution failed" }));
-      throw new Error(err.detail || "ChronOS Engine execution failed");
-    }
-    return res.json();
   },
 
   async getMemories(signal?: AbortSignal): Promise<MemoryItem[]> {

@@ -3,6 +3,8 @@
  * All calls require a valid access token stored in localStorage.
  */
 
+import { http, type HttpOptions } from "@/lib/http";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 function getToken(): string | null {
@@ -12,22 +14,14 @@ function getToken(): string | null {
   } catch { return null; }
 }
 
-async function req<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function req<T>(path: string, options: HttpOptions = {}): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
   };
   if (token) headers.Authorization = `Bearer ${token}`;
-
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "Request failed" }));
-    const msg = typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail);
-    throw new Error(msg);
-  }
-  if (res.status === 204) return undefined as T;
-  return res.json();
+  return http<T>(`${API_URL}${path}`, { ...options, headers });
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────

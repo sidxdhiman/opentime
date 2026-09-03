@@ -17,16 +17,35 @@ function MediaElement({ memory }: { memory: MemoryItem }) {
   const type = memory.metadata?.input_type;
   const relative = memory.metadata?.media_url as string | null | undefined;
   const [url, setUrl] = useState<string | null>(null);
+  const currentUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
+    // Any URL created by a previous fetch is immediately revoked so it can
+    // never leak when this element re-fetches or unmounts.
+    if (currentUrlRef.current) {
+      URL.revokeObjectURL(currentUrlRef.current);
+      currentUrlRef.current = null;
+    }
     if (!relative) return;
-    chronosApi.fetchMediaObjectUrl(relative).then((u) => {
-      if (!cancelled) setUrl(u);
+
+    chronosApi.fetchMediaObjectUrl(relative, controller.signal).then((u) => {
+      if (cancelled || !u) {
+        if (u) URL.revokeObjectURL(u);
+        return;
+      }
+      currentUrlRef.current = u;
+      setUrl(u);
     });
+
     return () => {
       cancelled = true;
-      if (url) URL.revokeObjectURL(url);
+      controller.abort();
+      if (currentUrlRef.current) {
+        URL.revokeObjectURL(currentUrlRef.current);
+        currentUrlRef.current = null;
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [relative]);
@@ -63,6 +82,14 @@ export function MemoryGraphView({ memories, onDelete }: MemoryGraphViewProps) {
   const confirmingIdRef = useRef<string | null>(null);
   const keepButtonRef = useRef<HTMLButtonElement | null>(null);
   const deleteButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (confirmingId !== null) {
@@ -85,13 +112,16 @@ export function MemoryGraphView({ memories, onDelete }: MemoryGraphViewProps) {
     setErrorId(null);
     try {
       await chronosApi.deleteMemory(mem.id);
+      if (!mountedRef.current) return;
       // Update local state via the parent's targeted callback — no reload.
       onDelete?.(mem.id);
     } catch {
-      setErrorId(mem.id);
+      if (mountedRef.current) setErrorId(mem.id);
     } finally {
-      setDeletingId(null);
-      setConfirmingId(null);
+      if (mountedRef.current) {
+        setDeletingId(null);
+        setConfirmingId(null);
+      }
     }
   };
 

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { AlertTriangle, ArrowRight, Database, Loader2, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { onboardingApi } from "@/lib/onboardingApi";
+import { errorMessage } from "@/lib/http";
 
 type RecoveryState = "idle" | "loading" | "error";
 
@@ -30,7 +31,7 @@ export function ChronosRecoveryBanner({ hasActiveSession, onRetry }: Props) {
       router.push("/onboarding");
     } catch (e: unknown) {
       setState("error");
-      setErrorMsg(e instanceof Error ? e.message : "Something went wrong.");
+      setErrorMsg(errorMessage(e));
     }
   };
 

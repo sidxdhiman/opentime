@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { ImpactWarningBanner } from "./ImpactWarningBanner";
 import { SectionCard } from "./SectionCard";
 import { type Goal, myDataApi } from "@/lib/myDataApi";
+import { errorMessage } from "@/lib/http";
 
 const CATEGORIES = [
   "career","education","health","relationships",
@@ -73,7 +74,7 @@ function GoalRow({ goal, onUpdated, onDeleted }: {
       onUpdated(updated);
       setEditing(false); setShowWarning(false);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Save failed.");
+      setError(errorMessage(e));
     } finally { setSaving(false); }
   };
 
@@ -83,7 +84,7 @@ function GoalRow({ goal, onUpdated, onDeleted }: {
       await myDataApi.deleteGoal(goal.id);
       onDeleted(goal.id);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Delete failed.");
+      setError(errorMessage(e));
       setSaving(false);
       setConfirmingRemove(false);
     }
@@ -188,7 +189,7 @@ function GoalRow({ goal, onUpdated, onDeleted }: {
   );
 }
 
-export function GoalsSection({ initialGoals }: { initialGoals: Goal[] }) {
+export function GoalsSection({ initialGoals, onChange }: { initialGoals: Goal[]; onChange?: (goals: Goal[]) => void }) {
   const [goals, setGoals] = useState(initialGoals);
   const [adding, setAdding] = useState(false);
   const [showAddWarning, setShowAddWarning] = useState(false);
@@ -201,11 +202,15 @@ export function GoalsSection({ initialGoals }: { initialGoals: Goal[] }) {
     setSaving(true); setError(null);
     try {
       const created = await myDataApi.createGoal({ ...newGoal, description: newGoal.description || null });
-      setGoals((g) => [...g, created]);
+      setGoals((g) => {
+        const next = [...g, created];
+        onChange?.(next);
+        return next;
+      });
       setAdding(false); setShowAddWarning(false);
       setNewGoal({ title: "", description: "", category: "other", importance: 0.75 });
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to create goal.");
+      setError(errorMessage(e));
     } finally { setSaving(false); }
   };
 
@@ -228,8 +233,16 @@ export function GoalsSection({ initialGoals }: { initialGoals: Goal[] }) {
 
         {goals.map((g) => (
           <GoalRow key={g.id} goal={g}
-            onUpdated={(updated) => setGoals((gs) => gs.map((x) => x.id === updated.id ? updated : x))}
-            onDeleted={(id) => setGoals((gs) => gs.map((x) => x.id === id ? { ...x, status: "abandoned" as const } : x))}
+            onUpdated={(updated) => setGoals((gs) => {
+              const next = gs.map((x) => x.id === updated.id ? updated : x);
+              onChange?.(next);
+              return next;
+            })}
+            onDeleted={(id) => setGoals((gs) => {
+              const next = gs.map((x) => x.id === id ? { ...x, status: "abandoned" as const } : x);
+              onChange?.(next);
+              return next;
+            })}
           />
         ))}
 

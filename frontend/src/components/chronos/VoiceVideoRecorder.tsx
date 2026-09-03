@@ -17,6 +17,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { chronosApi, EngineResponse, TemporalThread } from "@/lib/chronosApi";
 
+/** Upper bound on a single engine request. If no response arrives in time,
+ *  thinking ends and control returns to the user (they can retry). */
+const SUBMIT_TIMEOUT_MS = 60_000;
+
 interface VoiceVideoRecorderProps {
   onResponseReceived: (response: EngineResponse) => void;
   onThinkingStart?: () => void;
@@ -74,6 +78,16 @@ export function VoiceVideoRecorder({
 
   // Unmount guard: prevent setState calls after component unmounts
   const isMountedRef = useRef(true);
+  // Abort the in-flight engine request on unmount / retry so thinking never
+  // gets stuck and no stale response is applied.
+  const submitAbortRef = useRef<AbortController | null>(null);
+  // Keep the latest callbacks so cleanup always ends thinking on unmount even
+  // if the component is torn down mid-request (avoids a stuck "thinking" feed
+  // when the user leaves the conversation while ChronOS is still responding).
+  const onThinkingEndRef = useRef(onThinkingEnd);
+  useEffect(() => {
+    onThinkingEndRef.current = onThinkingEnd;
+  }, [onThinkingEnd]);
 
   // Object URL lifecycle: revoke whichever URL each effect currently captures.
   // Re-running whenever the URL changes revokes the previous preview, and the
@@ -96,6 +110,10 @@ export function VoiceVideoRecorder({
     isMountedRef.current = true;
     return () => {
       isMountedRef.current = false;
+      submitAbortRef.current?.abort();
+      // If a request was in flight when we tore down, make sure the parent's
+      // "thinking" state is cleared so it can never get stuck.
+      onThinkingEndRef.current?.();
       if (audioTimerRef.current) clearInterval(audioTimerRef.current);
       if (videoTimerRef.current) clearInterval(videoTimerRef.current);
       stopVideoCamera();
@@ -223,6 +241,15 @@ export function VoiceVideoRecorder({
     setError(null);
     onThinkingStart?.();
 
+    // Abort any previous in-flight request so a stale response can never
+    // overwrite the latest one (request sequencing), then start fresh.
+    const controller = new AbortController();
+    submitAbortRef.current?.abort();
+    submitAbortRef.current = controller;
+
+    // Timeout so a hung request always returns control and ends "thinking".
+    const timer = setTimeout(() => controller.abort(), SUBMIT_TIMEOUT_MS);
+
     try {
       const formData = new FormData();
       formData.append("user_id", userId);
@@ -265,7 +292,7 @@ export function VoiceVideoRecorder({
         formData.append("content", textContent || `Uploaded media: ${uploadedFile.name}`);
       }
 
-      const response = await chronosApi.processInput(formData);
+      const response = await chronosApi.processInput(formData, controller.signal);
       if (!isMountedRef.current) return;
       onResponseReceived(response);
 
@@ -279,19 +306,25 @@ export function VoiceVideoRecorder({
       setVideoUrl(null);
       setVideoDuration(0);
       setUploadedFile(null);
+      onThinkingEnd?.();
     } catch (err: any) {
       if (!isMountedRef.current) return;
       // Guard against leaking raw provider/network details to the user.
-      const message =
+      const isUserValidation =
         err?.message === "Please write something first." ||
         err?.message === "Please record a voice note first." ||
         err?.message === "Please record a video note first." ||
-        err?.message === "Please choose a file to upload."
-          ? err.message
+        err?.message === "Please choose a file to upload.";
+      const message = isUserValidation
+        ? err.message
+        : controller.signal.aborted
+          ? "That took too long. Please try again."
           : "Something went wrong while processing that. Please try again.";
       setError(message);
       onThinkingEnd?.();
     } finally {
+      clearTimeout(timer);
+      if (submitAbortRef.current === controller) submitAbortRef.current = null;
       if (isMountedRef.current) setIsProcessing(false);
     }
   };

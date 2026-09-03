@@ -3,6 +3,8 @@
  * Mirrors the backend onboarding routes.
  */
 
+import { http, type HttpOptions } from "@/lib/http";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
 function getToken(): string | null {
@@ -18,7 +20,7 @@ function getToken(): string | null {
 
 async function authRequest<T>(
   path: string,
-  options: RequestInit = {}
+  options: HttpOptions = {}
 ): Promise<T> {
   const token = getToken();
   const headers: Record<string, string> = {
@@ -26,18 +28,7 @@ async function authRequest<T>(
     ...(options.headers as Record<string, string>),
   };
   if (token) headers.Authorization = `Bearer ${token}`;
-
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: "Request failed" }));
-    const detail =
-      typeof err.detail === "string"
-        ? err.detail
-        : err.detail?.message ?? "Request failed";
-    throw new Error(detail);
-  }
-  if (res.status === 204) return undefined as T;
-  return res.json();
+  return http<T>(`${API_URL}${path}`, { ...options, headers });
 }
 
 // ---- Types ----

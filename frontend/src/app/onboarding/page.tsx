@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, ArrowRight, CheckCircle2, Cpu, Loader2, SkipForward } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
+import { errorMessage } from "@/lib/http";
 import {
   onboardingApi,
   type OnboardingSession,
@@ -189,14 +190,14 @@ export default function OnboardingPage() {
         onboardingApi.start().then((sess) => {
           setSession(sess);
           setIsBooting(false);
-        }).catch((e) => { setError(e.message); setIsBooting(false); });
+        }).catch((e) => { setError(errorMessage(e)); setIsBooting(false); });
       }
     }).catch(() => {
       // No session yet — create one
       onboardingApi.start().then((sess) => {
         setSession(sess);
         setIsBooting(false);
-      }).catch((e) => { setError(e.message); setIsBooting(false); });
+      }).catch((e) => { setError(errorMessage(e)); setIsBooting(false); });
     });
   }, [user, authLoading, router]);
 
@@ -246,7 +247,7 @@ export default function OnboardingPage() {
         await handleComplete();
       }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to save. Please try again.");
+      setError(errorMessage(e));
     } finally {
       setIsSaving(false);
     }
@@ -271,7 +272,7 @@ export default function OnboardingPage() {
       setDone(true);
       setTimeout(() => router.push("/dashboard"), 2500);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Something went wrong. Please try again.");
+      setError(errorMessage(e));
       setIsCompleting(false);
     }
   };

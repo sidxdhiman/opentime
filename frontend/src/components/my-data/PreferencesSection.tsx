@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { ImpactWarningBanner } from "./ImpactWarningBanner";
 import { SectionCard } from "./SectionCard";
 import { type AnalysisPref, myDataApi } from "@/lib/myDataApi";
+import { errorMessage } from "@/lib/http";
 
 const PRESET_OPTIONS = [
   { value: "how_i_changed", label: "How I've changed" },
@@ -23,7 +24,7 @@ function prefLabel(value: string) {
   return PRESET_OPTIONS.find((o) => o.value === value)?.label ?? value;
 }
 
-export function PreferencesSection({ initialPrefs }: { initialPrefs: AnalysisPref[] }) {
+export function PreferencesSection({ initialPrefs, onChange }: { initialPrefs: AnalysisPref[]; onChange?: (prefs: AnalysisPref[]) => void }) {
   const [prefs, setPrefs] = useState(initialPrefs.map((p) => p.preference));
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<string[]>([]);
@@ -53,11 +54,12 @@ export function PreferencesSection({ initialPrefs }: { initialPrefs: AnalysisPre
   const save = async () => {
     setSaving(true); setError(null);
     try {
-      await myDataApi.updatePreferences(draft);
+      const updated = await myDataApi.updatePreferences(draft);
       setPrefs(draft);
+      onChange?.(updated);
       setEditing(false);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Save failed.");
+      setError(errorMessage(e));
     } finally { setSaving(false); }
   };
 

@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import { RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/lib/auth";
 import { myDataApi, type Goal, type AnalysisPref, type GenesisMemory, type IdentityState, type Pattern } from "@/lib/myDataApi";
+import { errorMessage } from "@/lib/http";
 import { GoalsSection } from "./GoalsSection";
 import { PreferencesSection } from "./PreferencesSection";
 import { GenesisSection, IdentitySection } from "./GenesisAndIdentity";
@@ -35,7 +36,19 @@ export function MyDataExplorer() {
   const [identity, setIdentity] = useState<IdentityState | null>(null);
   const [patterns, setPatterns] = useState<Pattern[]>([]);
 
+  const mountedRef = useRef(true);
+  const loadSeqRef = useRef(0);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      loadSeqRef.current += 1;
+    };
+  }, []);
+
   const loadAll = useCallback(async () => {
+    const seq = ++loadSeqRef.current;
     setLoading(true);
     setError(null);
     try {
@@ -46,6 +59,7 @@ export function MyDataExplorer() {
         myDataApi.patterns().catch(() => []),
         myDataApi.memories(20, 0),
       ]);
+      if (!mountedRef.current || seq !== loadSeqRef.current) return;
       setGoals(g);
       setPrefs(p);
       setIdentity(id);
@@ -53,9 +67,10 @@ export function MyDataExplorer() {
       const gen = mems.find((m) => m.is_genesis) ?? null;
       setGenesis(gen);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to load your data.");
+      if (!mountedRef.current || seq !== loadSeqRef.current) return;
+      setError(errorMessage(e));
     } finally {
-      setLoading(false);
+      if (mountedRef.current && seq === loadSeqRef.current) setLoading(false);
     }
   }, []);
 
@@ -201,10 +216,10 @@ export function MyDataExplorer() {
             </div>
           )}
 
-          {tab === "goals" && <GoalsSection initialGoals={goals} />}
-          {tab === "preferences" && <PreferencesSection initialPrefs={prefs} />}
-          {tab === "genesis" && <GenesisSection initialMemory={genesis} />}
-          {tab === "identity" && <IdentitySection initialIdentity={identity} />}
+          {tab === "goals" && <GoalsSection initialGoals={goals} onChange={setGoals} />}
+          {tab === "preferences" && <PreferencesSection initialPrefs={prefs} onChange={setPrefs} />}
+          {tab === "genesis" && <GenesisSection initialMemory={genesis} onChange={setGenesis} />}
+          {tab === "identity" && <IdentitySection initialIdentity={identity} onChange={setIdentity} />}
 
           {!loading && (
             <p className="pt-2 text-xs text-muted/70">

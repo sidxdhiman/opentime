@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { CheckCircle2, Download, Loader2, ShieldAlert, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { chronosApi } from "@/lib/chronosApi";
+import { errorMessage } from "@/lib/http";
 
 export function DataControls() {
   const [exporting, setExporting] = useState(false);
@@ -40,7 +41,8 @@ export function DataControls() {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      // Defer revocation so the browser can finish initiating the download.
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
       setMessage({
         type: "success",
         text: "Your ChronOS data has been exported as a JSON file.",
@@ -48,7 +50,7 @@ export function DataControls() {
     } catch (e: unknown) {
       setMessage({
         type: "error",
-        text: e instanceof Error ? e.message : "Export failed. Please try again.",
+        text: errorMessage(e),
       });
     } finally {
       setExporting(false);
@@ -68,7 +70,7 @@ export function DataControls() {
     } catch (e: unknown) {
       setMessage({
         type: "error",
-        text: e instanceof Error ? e.message : "Deletion failed. Please try again.",
+        text: errorMessage(e),
       });
     } finally {
       setDeleting(false);

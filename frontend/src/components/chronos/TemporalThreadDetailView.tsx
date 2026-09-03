@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { ArrowLeft, Calendar, MessageSquare, Archive, RotateCcw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,14 +31,32 @@ export function TemporalThreadDetailView({
   const [loading, setLoading] = useState(!initialThread.events || initialThread.events.length === 0);
   const [acting, setActing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!initialThread.events || initialThread.events.length === 0) {
+      let cancelled = false;
       chronosApi
         .getThread(initialThread.id)
-        .then(setThread)
-        .catch(() => setThread(initialThread))
-        .finally(() => setLoading(false));
+        .then((t) => {
+          if (!cancelled) setThread(t);
+        })
+        .catch(() => {
+          if (!cancelled) setThread(initialThread);
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+      return () => {
+        cancelled = true;
+      };
     }
   }, [initialThread]);
 
@@ -56,13 +74,14 @@ export function TemporalThreadDetailView({
       const updated = isArchived
         ? await chronosApi.restoreStory(thread.id)
         : await chronosApi.archiveStory(thread.id);
+      if (!mountedRef.current) return;
       setThread(updated);
       onUpdateThread?.(updated);
       if (!isArchived) onArchived?.(updated);
     } catch {
-      setActionError("Couldn't update this story. Please try again.");
+      if (mountedRef.current) setActionError("Couldn't update this story. Please try again.");
     } finally {
-      setActing(false);
+      if (mountedRef.current) setActing(false);
     }
   };
 

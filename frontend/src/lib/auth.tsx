@@ -10,6 +10,7 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import { api, type User } from "./api";
+import { onUnauthorized } from "@/lib/http";
 
 interface AuthContextValue {
   user: User | null;
@@ -33,12 +34,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
+    let active = true;
     api
       .me()
       .then(setUser)
       .catch(() => api.clearTokens())
-      .finally(() => setIsLoading(false));
+      .finally(() => {
+        if (active) setIsLoading(false);
+      });
+    return () => {
+      active = false;
+    };
   }, []);
+
+  // Global 401 (session-expired) handling: any authenticated request that
+  // comes back 401 clears the session once, so expired sessions and stale
+  // cross-user requests can never keep the user half-logged-in.
+  useEffect(() => {
+    return onUnauthorized(() => {
+      api.clearTokens();
+      setUser(null);
+      router.push("/login");
+    });
+  }, [router]);
 
   const login = useCallback(
     async (email: string, password: string) => {
