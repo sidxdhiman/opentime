@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from chronos_engine.telemetry import record_event as record_product_event
 from opentime.api.dependencies import get_current_user
 from opentime.api.onboarding_deps import (
     get_chronos_init_service,
@@ -218,6 +219,14 @@ async def complete_onboarding(
         log.error("chronos_init_failed", user_id=user_id, error=str(exc))
 
     await svc.mark_complete(session_id, user_id)
+    try:
+        await record_product_event(
+            user_id,
+            "onboarding_completed",
+            {"chronos_initialised": bool(chronos_ok)},
+        )
+    except Exception:  # telemetry must never break the onboarding flow
+        pass
 
     return CompleteOnboardingResponse(
         session_id=session_id,

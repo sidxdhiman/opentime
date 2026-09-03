@@ -109,4 +109,9 @@ async def ensure_indexes() -> None:
     # Return-hook resurfacing ledger (Phase 5D) — one document per user
     await db["engine_return_ledgers"].create_index("user_id", unique=True)
 
+    # Phase 6 metadata-only product telemetry. Scoped to user + event type for
+    # analytics and for downstream per-user purge on account data deletion.
+    await db["product_events"].create_index([("user_id", 1), ("event_type", 1)])
+    await db["product_events"].create_index([("event_type", 1), ("occurred_at", -1)])
+
     log.info("mongodb_indexes_ensured")

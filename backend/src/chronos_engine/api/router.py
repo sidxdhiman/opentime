@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from chronos_engine.core.models import EngineResponse, InteractionRecord
 from chronos_engine.engine import ChronosEngine
 from chronos_engine.storage.mongo_repository import MongoStorageAdapter, MongoTemporalStore
+from chronos_engine.telemetry import record_event as record_product_event
 from chronos_engine.temporal.models import (
     ActiveTemporalContext,
     ActiveTemporalEvent,
@@ -84,6 +85,65 @@ engine_instance = ChronosEngine(
 # (with an in-memory store) work unchanged.
 def _return_context_engine() -> ReturnContextEngine:
     return ReturnContextEngine(temporal_store=engine_instance.temporal_store)
+
+
+def _conversation_metadata(response: Any) -> dict[str, Any]:
+    """Coarse, metadata-only fields for the ``conversation_processed`` event.
+
+    Maps the engine's deterministic temporal lifecycle results onto small
+    booleans/counts. NO user content, prompts, responses, confidence scores,
+    or internal memory/thread/event IDs are ever included.
+    """
+    m: dict[str, Any] = {
+        "input_type": (
+            response.original_input.input_type.value
+            if getattr(response.original_input, "input_type", None) is not None
+            else "text"
+        ),
+        "processing_time_ms": round(float(response.processing_time_ms or 0.0), 1),
+    }
+    exec_result = getattr(response, "ai_execution", None)
+    m["ai_used"] = bool(getattr(exec_result, "used", False))
+
+    state = getattr(response, "chronos_state", None)
+    if state is None:
+        return m
+
+    detection = getattr(state, "temporal_event_detection", None)
+    m["temporal_detected"] = bool(getattr(detection, "detected", False))
+
+    match = getattr(state, "temporal_thread_match", None)
+    m["thread_match_attempted"] = bool(getattr(match, "attempted", False))
+    m["thread_matched"] = bool(getattr(match, "matched", False))
+
+    lifecycle = getattr(state, "temporal_lifecycle", None)
+    m["thread_created"] = bool(getattr(lifecycle, "created", False))
+    m["thread_updated"] = bool(getattr(lifecycle, "updated", False))
+    m["thread_transitioned"] = bool(getattr(lifecycle, "transitioned", False))
+
+    comparison = getattr(state, "temporal_comparison", None)
+    relation = getattr(comparison, "relation", None)
+    m["comparison_relation"] = (
+        getattr(relation, "value", relation) if relation is not None else None
+    )
+    m["comparison_attempted"] = bool(getattr(comparison, "attempted", False))
+
+    relevance = getattr(state, "temporal_relevance", None)
+    decision = getattr(relevance, "decision", None)
+    m["relevance_decision"] = (
+        getattr(decision, "value", decision) if decision is not None else None
+    )
+
+    question = getattr(state, "past_self_question", None)
+    m["past_self_question"] = bool(getattr(question, "should_ask", False))
+
+    reflection = getattr(state, "temporal_reflection", None)
+    m["reflection_used"] = bool(getattr(reflection, "used", False))
+
+    active = getattr(state, "active_temporal_context", None)
+    m["active_story_context"] = active is not None
+
+    return m
 
 _SAFE_NAME = re.compile(r"[^a-zA-Z0-9._-]")
 
@@ -312,6 +372,14 @@ async def process_input(
             active_temporal_context=active_context,
         )
         await _persist_interaction(response)
+        try:
+            await record_product_event(
+                user_id,
+                "conversation_processed",
+                _conversation_metadata(response),
+            )
+        except Exception:  # telemetry must never break the product flow
+            logger.exception("telemetry: conversation_processed failed")
         return response.model_dump()
     except HTTPException:
         raise
@@ -319,6 +387,10 @@ async def process_input(
         logger.exception(
             "ChronOS engine processing failed for user=%s", user_id
         )
+        try:
+            await record_product_event(user_id, "conversation_failed")
+        except Exception:
+            pass
         raise HTTPException(
             status_code=500,
             detail="An internal error occurred while processing your input.",
@@ -351,6 +423,14 @@ async def process_input_json(
             active_temporal_context=active_context,
         )
         await _persist_interaction(response)
+        try:
+            await record_product_event(
+                user_id,
+                "conversation_processed",
+                _conversation_metadata(response),
+            )
+        except Exception:  # telemetry must never break the product flow
+            logger.exception("telemetry: conversation_processed failed")
         return response.model_dump()
     except HTTPException:
         raise
@@ -358,6 +438,10 @@ async def process_input_json(
         logger.exception(
             "ChronOS engine processing failed for user=%s", user_id
         )
+        try:
+            await record_product_event(user_id, "conversation_failed")
+        except Exception:
+            pass
         raise HTTPException(
             status_code=500,
             detail="An internal error occurred while processing your input.",
@@ -587,6 +671,7 @@ async def delete_memory(
     deleted = await engine_instance.delete_memory(user_id, memory_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Memory not found")
+    await record_product_event(user_id, "memory_deleted")
 
 
 @router.post("/threads/{thread_id}/archive")
@@ -609,6 +694,7 @@ async def archive_thread(
     )
     if thread is None:
         raise HTTPException(status_code=404, detail="Thread not found")
+    await record_product_event(user_id, "story_archived")
     events = await engine_instance.temporal_store.get_events_by_thread(thread_id, user_id)
     return _thread_response(thread, events)
 
@@ -629,6 +715,7 @@ async def restore_thread(
     )
     if thread is None:
         raise HTTPException(status_code=404, detail="Thread not found")
+    await record_product_event(user_id, "story_restored")
     events = await engine_instance.temporal_store.get_events_by_thread(thread_id, user_id)
     return _thread_response(thread, events)
 
@@ -664,7 +751,15 @@ async def get_return_context(
     """
     user_id = str(current_user.id)
     latest_at = await _latest_interaction_at(user_id)
-    return await _return_context_engine().build(user_id, latest_interaction_at=latest_at)
+    result = await _return_context_engine().build(
+        user_id, latest_interaction_at=latest_at
+    )
+    if getattr(result, "has_return_context", False):
+        try:
+            await record_product_event(user_id, "return_context_shown")
+        except Exception:  # telemetry must never break the product flow
+            logger.exception("telemetry: return_context_shown failed")
+    return result
 
 
 @router.patch("/return-context")
@@ -697,6 +792,35 @@ async def seed_state(
     user_id = str(current_user.id)
     await engine_instance.seed_initial_state(user_id)
     return {"status": "success", "message": f"Initial state seeded for user '{user_id}'"}
+
+
+@router.get("/metrics/events")
+async def product_metrics(
+    current_user: UserResponse = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Dev-only product-health observability (Phase 6, §14).
+
+    Enabled only when ``debug=True`` (local/test environments). Returns
+    metadata-only event counts for the *authenticated user's own account*
+    (cross-user isolation is preserved) plus an overall total across all
+    users for the dev operator. No user content is ever exposed.
+    """
+    if not get_settings().debug:
+        raise HTTPException(status_code=404, detail="Not found")
+    user_id = str(current_user.id)
+    db = await get_mongo_db()
+    user_counts: dict[str, int] = {}
+    async for doc in db["product_events"].find(
+        {"user_id": user_id}, {"_id": 0, "event_type": 1}
+    ):
+        et = doc.get("event_type", "unknown")
+        user_counts[et] = user_counts.get(et, 0) + 1
+    total_all_users = await db["product_events"].count_documents({})
+    return {
+        "user_id": user_id,
+        "by_event_type": user_counts,
+        "total_all_users": total_all_users,
+    }
 
 
 @router.get("/export")
@@ -739,7 +863,7 @@ async def export_user_data(
             for e in await engine_instance.temporal_store.get_events_by_thread(t.id, user_id)
         )
 
-    return {
+    payload = {
         "user_id": user_id,
         "exported_at": datetime.now(timezone.utc).isoformat(),
         "memories": memories,
@@ -751,6 +875,11 @@ async def export_user_data(
         "temporal_threads": temporal_threads,
         "temporal_events": temporal_events,
     }
+    try:
+        await record_product_event(user_id, "data_exported")
+    except Exception:  # telemetry must never break the product flow
+        logger.exception("telemetry: data_exported failed")
+    return payload
 
 
 @router.delete("", status_code=status.HTTP_204_NO_CONTENT)
@@ -789,6 +918,10 @@ async def delete_user_data(
             "chronos_states",
             "onboarding_sessions",
             "onboarding_responses",
+            # Phase 6 metadata-only product telemetry. Privacy-first: a user's
+            # telemetry is purged with the rest of their data so no post-delete
+            # residual (including a "data deleted" marker) survives.
+            "product_events",
         ):
             await db[collection].delete_many({"user_id": user_id})
     except Exception:

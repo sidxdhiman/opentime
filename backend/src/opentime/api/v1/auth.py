@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from chronos_engine.telemetry import record_event as record_product_event
 from opentime.api.dependencies import get_current_user, get_user_repository
 from opentime.api.errors import domain_error_to_http
 from opentime.application.auth.dto import (
@@ -29,10 +30,15 @@ async def register(
 ) -> AuthResponse:
     use_case = RegisterUseCase(repo)
     try:
-        return await use_case.execute(request)
+        result = await use_case.execute(request)
     except DomainError as e:
         status_code, detail = domain_error_to_http(e)
         raise HTTPException(status_code=status_code, detail=detail) from e
+    try:
+        await record_product_event(str(result.user.id), "account_created")
+    except Exception:  # telemetry must never break the auth flow
+        pass
+    return result
 
 
 @router.post("/login", response_model=AuthResponse)
