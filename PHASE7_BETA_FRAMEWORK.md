@@ -101,3 +101,114 @@ A user counts as returning ONLY when:
 
 ### Data Control Activity
 - (`memory_deleted` + `story_archived` + `story_restored`) / activated users
+
+---
+
+## Signal Classification Framework
+
+Every quantitative metric is classified into one of three types:
+
+* **DIAGNOSTIC** — A signal that reveals something about the product, but does NOT indicate success/failure on its own.
+* **BETA SUCCESS CRITERION** — A measurable bar that must be met for the beta to be considered useful.
+* **REQUIRES QUALITATIVE VALIDATION** — A dimension that cannot be judged from numbers alone; requires participant interview/observation.
+
+### Activation
+
+| Signal | Type | Definition |
+|--------|------|------------|
+| Registration completes | DIAGNOSTIC | `account_created` event exists |
+| Onboarding completes | DIAGNOSTIC | `onboarding_completed` with `chronos_initialised == true` |
+| First conversation | DIAGNOSTIC | `conversation_processed` exists for the user |
+| **Activation rate ≥ 60%** | BETA SUCCESS CRITERION | Users who registered → activated (≥1 meaningful conversation). There is no prior benchmark — 60% is an exploratory floor, not a growth target. |
+| User understands what ChronOS is | REQUIRES QUALITATIVE VALIDATION | From interview question 1. |
+| User understands what ChronOS remembers | REQUIRES QUALITATIVE VALIDATION | From interview question 2. |
+| Onboarding friction observed | DIAGNOSTIC | Any step causing hesitation/getting stuck; count per-participant. |
+
+### First Value
+
+| Signal | Type | Definition |
+|--------|------|------------|
+| Time to first meaningful response | DIAGNOSTIC | Backend processing time for first `conversation_processed` |
+| First response contains temporal reference | DIAGNOSTIC | `temporal_detected` in first event metadata |
+| **Participant identifies a "useful" moment** | REQUIRES QUALITATIVE VALIDATION | From interview question 3. |
+| Temporal context materially improves response | REQUIRES QUALITATIVE VALIDATION | From interview question 4 + observer. |
+| First value reached within first session | BETA SUCCESS CRITERION | Observational: participant shows recognition of value within the first session. |
+
+### Temporal Value
+
+| Signal | Type | Definition |
+|--------|------|------------|
+| Temporal detection occurs | DIAGNOSTIC | % of conversations with `temporal_detected == true` |
+| Stories form | DIAGNOSTIC | `thread_created` events / activated users |
+| Stories progress | DIAGNOSTIC | `thread_updated` or `thread_transitioned` events |
+| **Temporal detection feels meaningful** | REQUIRES QUALITATIVE VALIDATION | From interview questions 4–7. |
+| **Stories feel like real continuity** | REQUIRES QUALITATIVE VALIDATION | From interview + observer. |
+| Temporal engagement occurs across ≥2 sessions | BETA SUCCESS CRITERION | Temporal detection in at least 2 distinct sessions for the same user. |
+
+### Continuity
+
+| Signal | Type | Definition |
+|--------|------|------------|
+| Active story context used in later conversations | DIAGNOSTIC | `active_story_context` in metadata |
+| **Participant notices connections between conversations** | REQUIRES QUALITATIVE VALIDATION | From interview question 8 + observer. |
+| **Connections are perceived as relevant** | REQUIRES QUALITATIVE VALIDATION | From observer + interview. |
+| Continuity recognized across sessions | BETA SUCCESS CRITERION | Observational: participant references earlier ChronOS output in a later session. |
+
+### Return Value
+
+| Signal | Type | Definition |
+|--------|------|------------|
+| User returns voluntarily | DIAGNOSTIC | `user_returned` event OR interaction on a later day |
+| Return context shown | DIAGNOSTIC | `return_context_shown` event |
+| **Return context feels useful** | REQUIRES QUALITATIVE VALIDATION | From interview question. |
+| **Return context feels intrusive** | REQUIRES QUALITATIVE VALIDATION | From interview + observer. |
+| At least 30% of participants return voluntarily | BETA SUCCESS CRITERION | Exploratory floor for a small beta; not a growth mandate. |
+
+### Trust
+
+| Signal | Type | Definition |
+|--------|------|------------|
+| Memory deleted shortly after creation | DIAGNOSTIC | `memory_deleted` event within 24h of a memory creation |
+| Story archived | DIAGNOSTIC | `story_archived` event |
+| User edited stored data | DIAGNOSTIC | Data editor actions (goals, identity, preferences) |
+| **User believes ChronOS is accurate** | REQUIRES QUALITATIVE VALIDATION | From interview questions 9–11. |
+| **Personalization feels wrong** | REQUIRES QUALITATIVE VALIDATION | From observer + interview. |
+| No fabricated or intrusive claim reported | BETA SUCCESS CRITERION | Zero qualitative reports of fabrication/intrusion by the end of the beta. |
+
+### Voluntary Retention
+
+| Signal | Type | Definition |
+|--------|------|------------|
+| Return without prompting | DIAGNOSTIC | `user_returned` event |
+| Conversations spread across ≥2 days | DIAGNOSTIC | Interaction timestamps |
+| **Would use again without being asked** | REQUIRES QUALITATIVE VALIDATION | From interview question 10. |
+| At least 40% of participants return for a second session | BETA SUCCESS CRITERION | Exploratory floor; not a growth mandate. |
+
+### Reliability
+
+| Signal | Type | Definition |
+|--------|------|------------|
+| Request failure rate | DIAGNOSTIC | `conversation_failed` / total requests |
+| Server errors | DIAGNOSTIC | 5xx in backend logs |
+| **Failure rate ≤ 5%** | BETA SUCCESS CRITERION | Exploratory floor. Pauses beta above ~10%. |
+| No data-loss incidents | BETA SUCCESS CRITERION | Zero complaints of lost content (qualitative or quantitative). |
+
+### Data-Control Usage
+
+| Signal | Type | Definition |
+|--------|------|------------|
+| Export used | DIAGNOSTIC | `data_exported` event |
+| Delete used | DIAGNOSTIC | `memory_deleted` / account delete |
+| Archive used | DIAGNOSTIC | `story_archived` / `story_restored` events |
+| **Data-control was discoverable** | REQUIRES QUALITATIVE VALIDATION | Did participants find/use these features naturally? |
+| Users understand deletion consequences | REQUIRES QUALITATIVE VALIDATION | From interview question 16. |
+
+---
+
+## How Not to Interpret
+
+- These are diagnostic signals, not proof of product-market fit.
+- Do NOT adjust product behavior because a metric is low in the early beta.
+- No metric is a "target" — they are observational. We have no baseline.
+- Any interpretation requires triangulation with qualitative feedback.
+- A "fail" on a BETA SUCCESS CRITERION is a finding, not a bug. It tells us what to investigate — it does not by itself mean the product is broken.
