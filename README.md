@@ -252,6 +252,14 @@ Mock implementations are production-safe — they return structurally valid but 
 - **Storage:** MinIO (S3-compatible)
 - **AI:** Pluggable — OpenAI GPT-4o-mini / text-embedding-3-small (or mock for dev)
 
+## Development Timeline
+
+All historical development phases, reports, and beta documentation have been consolidated into a single file:
+
+[DEVELOPMENT_TIMELINE.md](./DEVELOPMENT_TIMELINE.md) — phases 0–7, acceptance evidence, benchmark results, and the full beta framework.
+
+---
+
 ## Roadmap
 
 - [x] Phase 0: Project foundation
