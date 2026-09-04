@@ -22,6 +22,7 @@ import {
   Explanation,
 } from "@/lib/explainability";
 import { PastSelfMomentCard } from "./PastSelfMomentCard";
+import { InlineFeedbackWidget } from "./InlineFeedbackWidget";
 
 interface ChronosEngineFeedProps {
   interactions: InteractionRecord[];
@@ -290,6 +291,9 @@ function LatestResponseBlock({
               {displayResponse}
             </div>
           </div>
+
+          {/* Inline feedback — optional, non-intrusive */}
+          <InlineFeedbackWidget interactionId={response.id} />
 
           {/* Past-Self Moment */}
           {hasMoment && (

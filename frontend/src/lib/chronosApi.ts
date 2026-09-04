@@ -393,6 +393,18 @@ export const chronosApi = {
     await req<void>(`/memories/${memoryId}`, { method: "DELETE" });
   },
 
+  /** Submit user feedback for an interaction (helpful / not helpful). */
+  async submitFeedback(
+    interactionId: string,
+    rating: "helpful" | "not_helpful",
+  ): Promise<void> {
+    await reqNoThrow<void>(`/feedback`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rating }),
+    });
+  },
+
   /** User-controlled archive of a Story (presentation-level; history kept). */
   async archiveStory(threadId: string): Promise<TemporalThread> {
     return req<TemporalThread>(`/threads/${threadId}/archive`, { method: "POST" });

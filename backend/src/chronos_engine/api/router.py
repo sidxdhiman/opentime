@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from chronos_engine.core.models import EngineResponse, InteractionRecord
 from chronos_engine.engine import ChronosEngine
 from chronos_engine.storage.mongo_repository import MongoStorageAdapter, MongoTemporalStore
+from chronos_engine.telemetry import USER_RETURNED
 from chronos_engine.telemetry import record_event as record_product_event
 from chronos_engine.temporal.models import (
     ActiveTemporalContext,
@@ -32,6 +33,25 @@ _ACTIVE_THREAD_MAX_EVENTS = 10
 
 # Temporal thread/event response models (subset of the full domain models,
 # safe for API exposure — internal IDs like user_id are omitted).
+
+
+class BetaOperatorSummary(BaseModel):
+    """Aggregate beta-health observability for the dev operator.
+
+    Contains ONLY aggregate counts and derived rates.  No user content,
+    messages, memories, prompts, reasoning, IDs, embeddings, or personal
+    attributes are ever exposed.
+    """
+
+    usage: Dict[str, Any] = {}
+    core_loop: Dict[str, Any] = {}
+    reliability: Dict[str, Any] = {}
+    data_quality: Dict[str, Any] = {}
+
+
+class FeedbackRequest(BaseModel):
+    rating: Optional[str] = None
+    comment: Optional[str] = None
 
 
 class TemporalEventResponse(BaseModel):
@@ -759,6 +779,15 @@ async def get_return_context(
             await record_product_event(user_id, "return_context_shown")
         except Exception:  # telemetry must never break the product flow
             logger.exception("telemetry: return_context_shown failed")
+        # Emit a return event if the user has prior interactions from a
+        # different day (i.e. they are genuinely coming back).
+        if latest_at is not None:
+            today = datetime.now(timezone.utc).date()
+            if latest_at.date() < today:
+                try:
+                    await record_product_event(user_id, USER_RETURNED)
+                except Exception:
+                    pass
     return result
 
 
@@ -823,6 +852,190 @@ async def product_metrics(
     }
 
 
+# ---------------------------------------------------------------------------
+# Phase 7: Beta operator summary — debug-only aggregate observability
+# ---------------------------------------------------------------------------
+
+
+async def _aggregate_event_counts(db) -> Dict[str, int]:
+    """Count documents per event_type across all users."""
+    pipeline = [
+        {"$group": {"_id": "$event_type", "count": {"$sum": 1}}},
+    ]
+    counts: Dict[str, int] = {}
+    async for doc in db["product_events"].aggregate(pipeline):
+        counts[doc["_id"]] = doc["count"]
+    return counts
+
+
+async def _count_distinct_users(db, event_type: str) -> int:
+    """Count distinct user_ids that emitted a specific event type."""
+    pipeline = [
+        {"$match": {"event_type": event_type}},
+        {"$group": {"_id": "$user_id"}},
+        {"$count": "total"},
+    ]
+    async for doc in db["product_events"].aggregate(pipeline):
+        return doc.get("total", 0)
+    return 0
+
+
+async def _count_users_with_metadata_flag(
+    db, event_type: str, field: str
+) -> int:
+    """Count distinct users whose conversation_processed has a true metadata flag."""
+    pipeline = [
+        {"$match": {"event_type": event_type, f"data.{field}": True}},
+        {"$group": {"_id": "$user_id"}},
+        {"$count": "total"},
+    ]
+    async for doc in db["product_events"].aggregate(pipeline):
+        return doc.get("total", 0)
+    return 0
+
+
+async def _count_total_metadata_flag(
+    db, event_type: str, field: str
+) -> int:
+    """Count total events where a metadata flag is true."""
+    return await db["product_events"].count_documents(
+        {"event_type": event_type, f"data.{field}": True}
+    )
+
+
+async def _count_users_with_memories(db) -> int:
+    """Count distinct users who have at least one engine memory."""
+    pipeline = [
+        {"$group": {"_id": "$user_id"}},
+        {"$count": "total"},
+    ]
+    async for doc in db["engine_memories"].aggregate(pipeline):
+        return doc.get("total", 0)
+    return 0
+
+
+async def _count_users_with_stories(db) -> int:
+    """Count distinct users who have at least one temporal thread."""
+    pipeline = [
+        {"$group": {"_id": "$user_id"}},
+        {"$count": "total"},
+    ]
+    async for doc in db["engine_temporal_threads"].aggregate(pipeline):
+        return doc.get("total", 0)
+    return 0
+
+
+async def _count_active_stories(db) -> int:
+    """Count threads with a live status (OPEN, ACTIVE, CHANGED)."""
+    return await db["engine_temporal_threads"].count_documents(
+        {"status": {"$in": ["OPEN", "ACTIVE", "CHANGED"]}}
+    )
+
+
+@router.get("/metrics/beta-summary")
+async def beta_operator_summary(
+    current_user: UserResponse = Depends(get_current_user),
+) -> BetaOperatorSummary:
+    """Dev-only aggregate beta-health observability (Phase 7).
+
+    Enabled only when ``debug=True`` (local/test environments). Returns
+    aggregate counts and derived rates. No user content, messages, memories,
+    prompts, reasoning, IDs, embeddings, or personal attributes are exposed.
+    User IDs are never included in the response.
+    """
+    if not get_settings().debug:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    db = await get_mongo_db()
+
+    event_counts = await _aggregate_event_counts(db)
+
+    total_users_created = await _count_distinct_users(db, "account_created")
+    total_users_activated = await _count_distinct_users(db, "conversation_processed")
+    total_users_onboarded = await _count_distinct_users(db, "onboarding_completed")
+    total_users_returned = await _count_distinct_users(db, "user_returned")
+
+    total_conversations = event_counts.get("conversation_processed", 0)
+    total_conversation_failures = event_counts.get("conversation_failed", 0)
+    total_memories_deleted = event_counts.get("memory_deleted", 0)
+    total_stories_archived = event_counts.get("story_archived", 0)
+    total_stories_restored = event_counts.get("story_restored", 0)
+    total_return_shown = event_counts.get("return_context_shown", 0)
+    total_exports = event_counts.get("data_exported", 0)
+
+    temporal_detected_users = await _count_users_with_metadata_flag(
+        db, "conversation_processed", "temporal_detected"
+    )
+    stories_created_users = await _count_users_with_metadata_flag(
+        db, "conversation_processed", "thread_created"
+    )
+    stories_progressed_events = (
+        await _count_total_metadata_flag(db, "conversation_processed", "thread_updated")
+        + await _count_total_metadata_flag(
+            db, "conversation_processed", "thread_transitioned"
+        )
+    )
+
+    users_with_memories = await _count_users_with_memories(db)
+    users_with_stories = await _count_users_with_stories(db)
+    active_stories = await _count_active_stories(db)
+
+    request_failure_rate = 0.0
+    if total_conversations + total_conversation_failures > 0:
+        request_failure_rate = round(
+            total_conversation_failures
+            / (total_conversations + total_conversation_failures),
+            4,
+        )
+
+    activation_rate = 0.0
+    if total_users_created > 0:
+        activation_rate = round(
+            total_users_activated / total_users_created, 4
+        )
+
+    temporal_rate = 0.0
+    if total_conversations > 0:
+        temporal_rate = round(temporal_detected_users / total_conversations, 4)
+
+    return BetaOperatorSummary(
+        usage={
+            "total_users_created": total_users_created,
+            "total_users_onboarded": total_users_onboarded,
+            "total_users_activated": total_users_activated,
+            "total_users_returned": total_users_returned,
+            "total_conversations_processed": total_conversations,
+            "activation_rate": activation_rate,
+        },
+        core_loop={
+            "temporal_detected_users": temporal_detected_users,
+            "stories_created_users": stories_created_users,
+            "stories_progressed_events": stories_progressed_events,
+            "total_stories_created": event_counts.get(
+                "conversation_processed", 0
+            ),
+            "return_context_shown": total_return_shown,
+            "temporal_engagement_rate": temporal_rate,
+        },
+        reliability={
+            "conversation_failures": total_conversation_failures,
+            "request_failure_rate": request_failure_rate,
+            "memories_deleted": total_memories_deleted,
+            "stories_archived": total_stories_archived,
+            "stories_restored": total_stories_restored,
+            "data_exports": total_exports,
+        },
+        data_quality={
+            "users_with_memories": users_with_memories,
+            "users_with_stories": users_with_stories,
+            "active_stories": active_stories,
+            "users_receiving_return_context": await _count_distinct_users(
+                db, "return_context_shown"
+            ),
+        },
+    )
+
+
 @router.get("/export")
 async def export_user_data(
     current_user: UserResponse = Depends(get_current_user),
@@ -880,6 +1093,36 @@ async def export_user_data(
     except Exception:  # telemetry must never break the product flow
         logger.exception("telemetry: data_exported failed")
     return payload
+
+
+# ---------------------------------------------------------------------------
+# Phase 7: Minimal beta feedback mechanism
+# ---------------------------------------------------------------------------
+
+
+@router.post("/feedback")
+async def submit_feedback(
+    payload: FeedbackRequest,
+    current_user: UserResponse = Depends(get_current_user),
+) -> Dict[str, str]:
+    """Lightweight, optional beta feedback.
+
+    Stores a metadata-only feedback event.  Never requires feedback.
+    Never interrupts the core flow.  The comment is stored as-is but
+    must never be surfaced in the product — it is operator-only.
+    """
+    user_id = str(current_user.id)
+    data: Dict[str, Any] = {}
+    if payload.rating:
+        data["rating"] = payload.rating
+    if payload.comment:
+        # Store a truncated comment to bound document size.
+        data["comment_length"] = len(payload.comment)
+    try:
+        await record_product_event(user_id, "feedback_submitted", data)
+    except Exception:  # telemetry must never break the product flow
+        logger.exception("telemetry: feedback_submitted failed")
+    return {"status": "received"}
 
 
 @router.delete("", status_code=status.HTTP_204_NO_CONTENT)

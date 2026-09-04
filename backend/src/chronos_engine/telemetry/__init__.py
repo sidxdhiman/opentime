@@ -38,6 +38,7 @@ MEMORY_DELETED = "memory_deleted"
 STORY_ARCHIVED = "story_archived"
 STORY_RESTORED = "story_restored"
 RETURN_CONTEXT_SHOWN = "return_context_shown"
+USER_RETURNED = "user_returned"
 DATA_EXPORTED = "data_exported"
 
 
