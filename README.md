@@ -258,6 +258,10 @@ All historical development phases, reports, and beta documentation have been con
 
 [DEVELOPMENT_TIMELINE.md](./DEVELOPMENT_TIMELINE.md) — phases 0–7, acceptance evidence, benchmark results, and the full beta framework.
 
+## Deployment
+
+See [DEPLOYMENT.md](./DEPLOYMENT.md) — the single authoritative deployment guide for the ChronOS controlled beta (architecture, options, domains, env vars, security, databases, media, checklists, and runbook).
+
 ---
 
 ## Roadmap
